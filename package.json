@@ -29,7 +29,7 @@
     "ci-cd"
   ],
   "author": "fwdslsh",
-  "license": "MIT",
+  "license": "CC-BY-4.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/fwdslsh/pace.git"
