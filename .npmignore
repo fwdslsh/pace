@@ -1,0 +1,38 @@
+# Test files
+tests/
+*.test.ts
+*.spec.ts
+
+# Build artifacts
+pace
+pace-*
+*.log
+*.tmp
+
+# Development files
+.github/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Examples (these are reference implementations)
+examples/
+
+# Git
+.git/
+.gitignore
+
+# Environment
+.env
+.env.local
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/

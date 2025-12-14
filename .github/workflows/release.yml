@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # First, build all binaries
+  build:
+    name: Build Binaries
+    uses: fwdslsh/toolkit/.github/workflows/bun-build-binaries.yml@main
+    with:
+      upload-artifacts: true
+
+  # Then create the release
+  release:
+    name: Create Release
+    needs: build
+    uses: fwdslsh/toolkit/.github/workflows/create-gh-release.yml@main
+    with:
+      tag: ${{ github.event.inputs.tag || github.ref_name }}
+    secrets: inherit
+
+  # Call NPM publishing workflow  
+  publish-npm:
+    name: Publish NPM Package
+    needs: [build, release]
+    if: ${{ !cancelled() && needs.release.result == 'success' }}
+    uses: fwdslsh/toolkit/.github/workflows/publish-npm.yml@main
+    secrets: inherit

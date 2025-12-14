@@ -1,6 +1,59 @@
 {
+  "name": "@fwdslsh/pace",
+  "version": "0.1.0",
+  "description": "Project Autonomous Coding Environment - Long-running agent orchestrator",
+  "main": "cli.ts",
+  "bin": {
+    "pace": "./cli.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "build": "bun build --compile --minify --sourcemap ./cli.ts --outfile pace",
+    "build:all": "npm run build:linux-x64 && npm run build:linux-arm64 && npm run build:darwin-x64 && npm run build:darwin-arm64 && npm run build:windows-x64",
+    "build:linux-x64": "bun build --compile --minify --target=bun-linux-x64 ./cli.ts --outfile pace-linux-x64",
+    "build:linux-arm64": "bun build --compile --minify --target=bun-linux-arm64 ./cli.ts --outfile pace-linux-arm64",
+    "build:darwin-x64": "bun build --compile --minify --target=bun-darwin-x64 ./cli.ts --outfile pace-darwin-x64",
+    "build:darwin-arm64": "bun build --compile --minify --target=bun-darwin-arm64 ./cli.ts --outfile pace-darwin-arm64",
+    "build:windows-x64": "bun build --compile --minify --target=bun-windows-x64 ./cli.ts --outfile pace-windows-x64.exe"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "orchestrator",
+    "automation",
+    "claude",
+    "opencode",
+    "testing",
+    "ci-cd"
+  ],
+  "author": "fwdslsh",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fwdslsh/pace.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fwdslsh/pace/issues"
+  },
+  "homepage": "https://github.com/fwdslsh/pace#readme",
+  "files": [
+    "cli.ts",
+    "src/**/*.ts",
+    "README.md",
+    "LICENSE",
+    "install.sh"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.69",
     "@opencode-ai/sdk": "^1.0.152"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
   }
 }
