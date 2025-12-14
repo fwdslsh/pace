@@ -3,29 +3,35 @@
  * orchestrator.ts - Continuous execution orchestrator for long-running agent harness
  *
  * Runs the coding agent in a loop, automatically continuing to the next feature
- * after each successful completion. Uses Claude Agent SDK directly for better visibility.
+ * after each successful completion. Supports multiple agent SDKs.
  *
  * Usage:
- *     bun run orchestrator.ts [options]
+ *     bun run cli.ts [options]
  *
  * Options:
- *     --max-sessions N     Maximum sessions to run (default: 10)
- *     --max-failures N     Stop after N consecutive failures (default: 3)
- *     --delay SECONDS      Delay between sessions (default: 5)
- *     --until-complete     Run until all features pass
- *     --dry-run            Show what would be done without executing
+ *     --max-sessions N         Maximum sessions to run (default: 10)
+ *     --max-failures N         Stop after N consecutive failures (default: 3)
+ *     --delay SECONDS          Delay between sessions (default: 5)
+ *     --sdk <claude|opencode>  Select agent SDK (default: claude)
+ *     --until-complete         Run until all features pass
+ *     --dry-run                Show what would be done without executing
  *
  * Examples:
- *     bun run orchestrator.ts --max-sessions 10
- *     bun run orchestrator.ts --until-complete
- *     bun run orchestrator.ts --max-sessions 50 --max-failures 5
+ *     bun run cli.ts --max-sessions 10
+ *     bun run cli.ts --sdk opencode --until-complete
+ *     bun run cli.ts --max-sessions 50 --max-failures 5
  */
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { PermissionMode, SDKMessage, SDKResultMessage, SettingSource } from '@anthropic-ai/claude-agent-sdk';
-import { readFile, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import type { PermissionMode, SDKResultMessage, SettingSource } from '@anthropic-ai/claude-agent-sdk';
+import { createOpencodeClient } from '@opencode-ai/sdk';
+import type { Client as OpencodeClient } from '@opencode-ai/sdk';
+import { readFile } from 'fs/promises';
 import { join } from 'path';
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface Feature {
 	id: string;
@@ -40,12 +46,29 @@ interface FeatureList {
 	metadata?: Record<string, any>;
 }
 
+type SDKChoice = 'claude' | 'opencode';
+
+interface AgentSessionParams {
+	prompt: string;
+	projectDir: string;
+	featureId?: string;
+}
+
+interface AgentRunResult {
+	success: boolean;
+}
+
+interface AgentSessionRunner {
+	runSession(params: AgentSessionParams): Promise<AgentRunResult>;
+}
+
 interface OrchestratorOptions {
 	projectDir: string;
 	maxSessions?: number;
 	maxFailures: number;
 	delay: number;
 	dryRun: boolean;
+	sdk: SDKChoice;
 }
 
 interface SessionSummary {
@@ -57,37 +80,235 @@ interface SessionSummary {
 	isComplete: boolean;
 }
 
+// ============================================================================
+// SDK Implementations
+// ============================================================================
+
+/**
+ * Claude Agent SDK implementation
+ */
+class ClaudeSessionRunner implements AgentSessionRunner {
+	constructor(private defaultOptions: any) {}
+
+	async runSession(params: AgentSessionParams): Promise<AgentRunResult> {
+		console.log('\nStarting Claude Agent SDK session...\n');
+		console.log(`Invoking Claude Agent SDK for feature ${params.featureId}\n`);
+		console.log('-'.repeat(60));
+		console.log(params.prompt);
+		console.log('-'.repeat(60) + '\n');
+
+		try {
+			const agentQuery = query({
+				prompt: params.prompt,
+				options: {
+					...this.defaultOptions,
+					cwd: params.projectDir
+				}
+			});
+
+			console.log('\n🤖 Claude Agent Output:\n');
+
+			let resultMessage: SDKResultMessage | null = null;
+
+			for await (const message of agentQuery) {
+				switch (message.type) {
+					case 'system':
+						if (message.subtype === 'init') {
+							console.log(`\n📋 Session initialized:`);
+							console.log(`  - Model: ${message.model}`);
+							console.log(`  - CWD: ${message.cwd}`);
+							console.log(`  - Tools: ${message.tools.join(', ')}`);
+							console.log(`  - Permission mode: ${message.permissionMode}\n`);
+						} else if (message.subtype === 'compact_boundary') {
+							console.log(
+								`\n🗜️  Context compacted (tokens: ${message.compact_metadata.pre_tokens})\n`
+							);
+						}
+						break;
+
+					case 'assistant':
+						console.log(`\n💬 Assistant (turn):`);
+						for (const block of message.message.content) {
+							if (block.type === 'text') {
+								console.log(block.text);
+							} else if (block.type === 'tool_use') {
+								console.log(`\n🔧 Tool: ${block.name}`);
+								console.log(`   Input: ${JSON.stringify(block.input, null, 2)}`);
+							}
+						}
+						break;
+
+					case 'user':
+						for (const block of message.message.content) {
+							if (block.type === 'tool_result') {
+								const content =
+									typeof block.content === 'string'
+										? block.content
+										: JSON.stringify(block.content);
+								const preview = content.length > 200 ? content.slice(0, 200) + '...' : content;
+								console.log(`\n✅ Tool result (${block.tool_use_id}): ${preview}`);
+							}
+						}
+						break;
+
+					case 'result':
+						resultMessage = message;
+						console.log('\n\n' + '='.repeat(60));
+						console.log('🎯 Session Result');
+						console.log('='.repeat(60));
+						console.log(`Status: ${message.subtype}`);
+						console.log(`Turns: ${message.num_turns}`);
+						console.log(`Duration: ${(message.duration_ms / 1000).toFixed(2)}s`);
+						console.log(`API Time: ${(message.duration_api_ms / 1000).toFixed(2)}s`);
+						console.log(`Cost: $${message.total_cost_usd.toFixed(4)}`);
+						console.log(
+							`Tokens: ${message.usage.input_tokens} in / ${message.usage.output_tokens} out`
+						);
+						if (message.usage.cache_read_input_tokens) {
+							console.log(
+								`Cache: ${message.usage.cache_read_input_tokens} read / ${message.usage.cache_creation_input_tokens || 0} created`
+							);
+						}
+						if (message.subtype === 'success') {
+							console.log(`\nResult: ${message.result}`);
+						}
+						console.log('='.repeat(60));
+						break;
+				}
+			}
+
+			return { success: resultMessage?.subtype === 'success' };
+		} catch (error) {
+			console.error(`\n❌ Error during agent session: ${error}`);
+			return { success: false };
+		}
+	}
+}
+
+/**
+ * OpenCode SDK implementation
+ */
+class OpencodeSessionRunner implements AgentSessionRunner {
+	async runSession(params: AgentSessionParams): Promise<AgentRunResult> {
+		console.log('\nStarting OpenCode SDK session...\n');
+		console.log(`Invoking OpenCode SDK for feature ${params.featureId}\n`);
+		console.log('-'.repeat(60));
+		console.log(params.prompt);
+		console.log('-'.repeat(60) + '\n');
+
+		try {
+			const client = createOpencodeClient({
+				baseUrl: process.env.OPENCODE_SERVER_URL || 'http://localhost:4096'
+			});
+
+			console.log('\n🤖 OpenCode Agent Output:\n');
+
+			// Create session
+			console.log('📋 Creating session...');
+			const sessionResponse = await client.session.create({
+				body: {
+					title: `Feature: ${params.featureId}`,
+					cwd: params.projectDir
+				}
+			});
+
+			if (sessionResponse.error) {
+				throw new Error(`Failed to create session: ${JSON.stringify(sessionResponse.error)}`);
+			}
+
+			const session = sessionResponse.data;
+			console.log(`✅ Session created: ${session.id}\n`);
+
+			// Send prompt
+			console.log('💬 Sending prompt...');
+			const promptResponse = await client.session.prompt({
+				path: { id: session.id },
+				body: {
+					parts: [{ type: 'text', text: params.prompt }]
+				}
+			});
+
+			if (promptResponse.error) {
+				throw new Error(`Failed to send prompt: ${JSON.stringify(promptResponse.error)}`);
+			}
+
+			console.log('✅ Prompt sent, agent is working...\n');
+
+			// Subscribe to events
+			const events = await client.event.subscribe();
+			let completed = false;
+			let success = false;
+
+			console.log('📡 Streaming events:\n');
+
+			for await (const event of events.data.stream) {
+				// Filter events for our session
+				const eventSessionId =
+					event.properties?.sessionID ||
+					event.properties?.part?.sessionID ||
+					event.properties?.info?.sessionID;
+
+				if (eventSessionId !== session.id) continue;
+
+				console.log(`📨 Event: ${event.type}`);
+
+				if (event.type === 'session.idle' || event.type === 'session.completed') {
+					completed = true;
+					success = true;
+					console.log('\n✅ Session completed successfully');
+					break;
+				}
+
+				if (event.type === 'session.error') {
+					completed = true;
+					success = false;
+					console.log('\n❌ Session encountered an error');
+					break;
+				}
+			}
+
+			console.log('\n' + '='.repeat(60));
+			console.log('🎯 Session Result');
+			console.log('='.repeat(60));
+			console.log(`Status: ${success ? 'success' : 'failed'}`);
+			console.log(`Completed: ${completed}`);
+			console.log('='.repeat(60));
+
+			return { success };
+		} catch (error) {
+			console.error(`\n❌ Error during OpenCode session: ${error}`);
+			return { success: false };
+		}
+	}
+}
+
+// ============================================================================
+// Orchestrator
+// ============================================================================
+
 class Orchestrator {
 	private projectDir: string;
 	private maxSessions?: number;
 	private maxFailures: number;
 	private delay: number;
 	private dryRun: boolean;
+	private sdk: SDKChoice;
 
 	private sessionCount = 0;
 	private consecutiveFailures = 0;
 	private featuresCompleted = 0;
 	private startTime = new Date();
+
 	private defaultOptions = {
 		systemPrompt: {
 			type: 'preset',
 			preset: 'claude_code'
 		},
-		// env: {
-		// //  ANTHROPIC_BASE_URL: "http://192.168.1.195:4000/anthropic",
-		//   // ANTHROPIC_API_KEY: "none",
-		//   // OPENAI_API_KEY: "none",
-		//   // ANTHROPIC_AUTH_TOKEN: "none",
-		//   DEBUG: "true",
-		//   VERBOSE: "true"
-		// },
-
-		stderr: (s) => console.error(`[Agent STDERR] ${s}`),
-		model: 'claude-opus-4-5-20251101', // 'gpt-5-mini', // 'qwen3-coder-30b', //'claude-sonnet-4-5-20250929',
-		settingSources: ['user', 'project'] as SettingSource[], // Load CLAUDE.md and project settings
+		stderr: (s: string) => console.error(`[Agent STDERR] ${s}`),
+		model: 'claude-opus-4-5-20251101',
+		settingSources: ['user', 'project'] as SettingSource[],
 		permissionMode: 'bypassPermissions' as PermissionMode,
-		includePartialMessages: false // Don't include partial streaming events for cleaner output
-
+		includePartialMessages: false
 	};
 
 	constructor(options: OrchestratorOptions) {
@@ -96,6 +317,14 @@ class Orchestrator {
 		this.maxFailures = options.maxFailures;
 		this.delay = options.delay;
 		this.dryRun = options.dryRun;
+		this.sdk = options.sdk;
+	}
+
+	private getSessionRunner(): AgentSessionRunner {
+		if (this.sdk === 'opencode') {
+			return new OpencodeSessionRunner();
+		}
+		return new ClaudeSessionRunner(this.defaultOptions);
 	}
 
 	private async loadFeatureStatus(): Promise<FeatureList> {
@@ -163,7 +392,7 @@ class Orchestrator {
 CRITICAL RULES:
 - Work on exactly ONE feature
 - Test end-to-end before marking complete
-- Run the /review and /compound commands from teh practices skill before updating the 'passes' field
+- Run the /review and /compound commands from the practices skill before updating the 'passes' field
 - Only change the 'passes' field in feature_list.json
 - Commit all changes
 - Update progress file
@@ -174,10 +403,11 @@ Begin now by orienting yourself with the project state.`;
 	}
 
 	private async runCodingSession(featureId?: string): Promise<boolean> {
+		const runner = this.getSessionRunner();
 		this.sessionCount++;
 
 		console.log('\n' + '='.repeat(60));
-		console.log(`SESSION ${this.sessionCount}`);
+		console.log(`SESSION ${this.sessionCount} (${this.sdk.toUpperCase()} SDK)`);
 		console.log('='.repeat(60));
 
 		const [passingBefore, total] = await this.getProgress();
@@ -203,122 +433,13 @@ Begin now by orienting yourself with the project state.`;
 		const prompt = this.buildCodingPrompt(featureId || nextFeature.id);
 
 		try {
-			console.log('\nStarting coding agent session...\n');
-			console.log(`Invoking Claude Agent SDK for feature ${featureId || nextFeature.id}\n`);
-			console.log('-'.repeat(60));
-			console.log(prompt);
-			console.log('-'.repeat(60) + '\n');
-			console.log('BASE URL:', process.env.ANTHROPIC_BASE_URL);
-
-
-
-
-			// Use the Agent SDK query function with streaming
-			const agentQuery = query({
+			const sessionResult = await runner.runSession({
 				prompt,
-				options: {
-					...this.defaultOptions,
-					cwd: this.projectDir,
-					// systemPrompt: {
-					// 	type: 'preset',
-					// 	preset: 'claude_code'
-					// },
-					// // env: {
-					// // //  ANTHROPIC_BASE_URL: "http://192.168.1.195:4000/anthropic",
-					// //   // ANTHROPIC_API_KEY: "none",
-					// //   // OPENAI_API_KEY: "none",
-					// //   // ANTHROPIC_AUTH_TOKEN: "none",
-					// //   DEBUG: "true",
-					// //   VERBOSE: "true"
-					// // },
-
-					// stderr: (s) => console.error(`[Agent STDERR] ${s}`),
-					// model: 'claude-opus-4-5-20251101', // 'gpt-5-mini', // 'qwen3-coder-30b', //'claude-sonnet-4-5-20250929',
-					// settingSources: ['user', 'project'], // Load CLAUDE.md and project settings
-					// permissionMode: 'bypassPermissions',
-					// includePartialMessages: false // Don't include partial streaming events for cleaner output
-				}
+				projectDir: this.projectDir,
+				featureId: featureId || nextFeature.id
 			});
 
-			console.log('\n🤖 Claude Agent Output:\n');
-
-			let resultMessage: SDKResultMessage | null = null;
-
-			try {
-				// Stream messages as they arrive for full visibility
-				for await (const message of agentQuery) {
-					switch (message.type) {
-						case 'system':
-							if (message.subtype === 'init') {
-								console.log(`\n📋 Session initialized:`);
-								console.log(`  - Model: ${message.model}`);
-								console.log(`  - CWD: ${message.cwd}`);
-								console.log(`  - Tools: ${message.tools.join(', ')}`);
-								console.log(`  - Permission mode: ${message.permissionMode}\n`);
-							} else if (message.subtype === 'compact_boundary') {
-								console.log(
-									`\n🗜️  Context compacted (tokens: ${message.compact_metadata.pre_tokens})\n`
-								);
-							}
-							break;
-
-						case 'assistant':
-							console.log(`\n💬 Assistant (turn):`);
-							for (const block of message.message.content) {
-								if (block.type === 'text') {
-									console.log(block.text);
-								} else if (block.type === 'tool_use') {
-									console.log(`\n🔧 Tool: ${block.name}`);
-									console.log(`   Input: ${JSON.stringify(block.input, null, 2)}`);
-								}
-							}
-							break;
-
-						case 'user':
-							// Tool results coming back to Claude
-							for (const block of message.message.content) {
-								if (block.type === 'tool_result') {
-									const content =
-										typeof block.content === 'string'
-											? block.content
-											: JSON.stringify(block.content);
-									const preview = content.length > 200 ? content.slice(0, 200) + '...' : content;
-									console.log(`\n✅ Tool result (${block.tool_use_id}): ${preview}`);
-								}
-							}
-							break;
-
-						case 'result':
-							resultMessage = message;
-							console.log('\n\n' + '='.repeat(60));
-							console.log('🎯 Session Result');
-							console.log('='.repeat(60));
-							console.log(`Status: ${message.subtype}`);
-							console.log(`Turns: ${message.num_turns}`);
-							console.log(`Duration: ${(message.duration_ms / 1000).toFixed(2)}s`);
-							console.log(`API Time: ${(message.duration_api_ms / 1000).toFixed(2)}s`);
-							console.log(`Cost: $${message.total_cost_usd.toFixed(4)}`);
-							console.log(
-								`Tokens: ${message.usage.input_tokens} in / ${message.usage.output_tokens} out`
-							);
-							if (message.usage.cache_read_input_tokens) {
-								console.log(
-									`Cache: ${message.usage.cache_read_input_tokens} read / ${message.usage.cache_creation_input_tokens || 0} created`
-								);
-							}
-							if (message.subtype === 'success') {
-								console.log(`\nResult: ${message.result}`);
-							}
-							console.log('='.repeat(60));
-							break;
-					}
-				}
-			} catch (error) {
-				console.error(`\n❌ Error during agent session: ${error}`);
-				return false;
-			}
-
-			const success = resultMessage?.subtype === 'success';
+			const success = sessionResult.success;
 
 			// Check if progress was made
 			const [passingAfter] = await this.getProgress();
@@ -344,86 +465,6 @@ Begin now by orienting yourself with the project state.`;
 			console.error(`\n❌ Error running session: ${error}`);
 			this.consecutiveFailures++;
 			return false;
-		}
-	}
-
-	private async runDocumentationReview(): Promise<void> {
-		console.log('\n' + '='.repeat(60));
-		console.log(`🔍 DOCUMENTATION REVIEW - Every 5th Session`);
-		console.log('='.repeat(60));
-
-		const reviewPrompt = `You are performing a periodic documentation review and cleanup.
-
-Use the practices skill to:
-
-1. Analyze the current .claude/practices documentation
-    - Review the headers and sections
-    - Identify any potential outdated or redundant information
-    - Review these sections in detail
-2. Review the practices index and ensure it's up to date
-3. Clean up any outdated or redundant documentation
-4. Update examples if needed
-5. Ensure best practices are clearly documented
-6. Update the .claude/practices/index.md file with any changes
-7. Commit any improvements with a clear message
-
-Focus on keeping the practices documentation clean, current, concise, and useful for future coding sessions.`;
-
-		try {
-			console.log('\nStarting documentation review session...\n');
-			console.log('-'.repeat(60));
-			console.log(reviewPrompt);
-			console.log('-'.repeat(60) + '\n');
-
-			const agentQuery = query({
-				prompt: reviewPrompt,
-				options: {
-					cwd: this.projectDir,
-					systemPrompt: {
-						type: 'preset',
-						preset: 'claude_code'
-					},
-					stderr: (s) => console.error(`[Agent STDERR] ${s}`),
-					model: 'gpt-5-mini',
-					settingSources: ['user', 'project'],
-					permissionMode: 'bypassPermissions',
-					includePartialMessages: false
-				}
-			});
-
-			console.log('\n📚 Documentation Review Output:\n');
-
-			for await (const message of agentQuery) {
-				switch (message.type) {
-					case 'system':
-						if (message.subtype === 'init') {
-							console.log(`\n📋 Review session initialized\n`);
-						}
-						break;
-
-					case 'assistant':
-						console.log(`\n💬 Assistant:`);
-						for (const block of message.message.content) {
-							if (block.type === 'text') {
-								console.log(block.text);
-							} else if (block.type === 'tool_use') {
-								console.log(`\n🔧 Tool: ${block.name}`);
-							}
-						}
-						break;
-
-					case 'result':
-						console.log('\n\n' + '='.repeat(60));
-						console.log('📚 Documentation Review Complete');
-						console.log('='.repeat(60));
-						console.log(`Duration: ${(message.duration_ms / 1000).toFixed(2)}s`);
-						console.log(`Cost: $${message.total_cost_usd.toFixed(4)}`);
-						console.log('='.repeat(60));
-						break;
-				}
-			}
-		} catch (error) {
-			console.error(`\n❌ Error during documentation review: ${error}`);
 		}
 	}
 
@@ -458,6 +499,7 @@ Focus on keeping the practices documentation clean, current, concise, and useful
 		console.log('\n' + '='.repeat(60));
 		console.log(' ORCHESTRATION SUMMARY');
 		console.log('='.repeat(60));
+		console.log(`SDK Used: ${this.sdk.toUpperCase()}`);
 		console.log(`Sessions run: ${summary.sessionsRun}`);
 		console.log(`Features completed: ${summary.featuresCompleted}`);
 		console.log(
@@ -475,6 +517,7 @@ Focus on keeping the practices documentation clean, current, concise, and useful
 		console.log(' LONG-RUNNING AGENT ORCHESTRATOR');
 		console.log('='.repeat(60));
 		console.log(`\nProject: ${this.projectDir}`);
+		console.log(`SDK: ${this.sdk.toUpperCase()}`);
 		console.log(`Max sessions: ${this.maxSessions || 'unlimited'}`);
 		console.log(`Max consecutive failures: ${this.maxFailures}`);
 		console.log(`Delay between sessions: ${this.delay}s`);
@@ -486,10 +529,7 @@ Focus on keeping the practices documentation clean, current, concise, and useful
 			console.log('\n✅ All features already passing!');
 			return this.summary();
 		}
-		// process.env.ANTHROPIC_BASE_URL = "http://192.168.1.195:4000";
-		// process.env.ANTHROPIC_AUTH_TOKEN = "sk-jIGKgvOKxYrJ0oZapBQZow";
-		// process.env.ANTHROPIC_API_KEY = "sk-jIGKgvOKxYrJ0oZapBQZow";
-		// process.env.OPENAI_API_KEY = "sk-jIGKgvOKxYrJ0oZapBQZow";
+
 		while (true) {
 			// Check stopping conditions
 			if (this.maxSessions && this.sessionCount >= this.maxSessions) {
@@ -507,13 +547,8 @@ Focus on keeping the practices documentation clean, current, concise, and useful
 				break;
 			}
 
-			// // Every 5th session, run documentation review instead of coding session
-			// if (this.sessionCount > 0 && this.sessionCount % 5 === 0) {
-			//   await this.runDocumentationReview();
-			// } else {
 			// Run a coding session
 			await this.runCodingSession();
-			// }
 
 			// Delay between sessions
 			if (!(await this.isComplete()) && this.sessionCount < (this.maxSessions || Infinity)) {
@@ -526,14 +561,18 @@ Focus on keeping the practices documentation clean, current, concise, and useful
 	}
 }
 
-// CLI Argument Parsing
+// ============================================================================
+// CLI
+// ============================================================================
+
 function parseArgs(): OrchestratorOptions & { help?: boolean } {
 	const args = process.argv.slice(2);
 	const options: any = {
 		projectDir: '.',
 		maxFailures: 3,
 		delay: 5,
-		dryRun: false
+		dryRun: false,
+		sdk: 'claude' as SDKChoice
 	};
 
 	for (let i = 0; i < args.length; i++) {
@@ -566,6 +605,14 @@ function parseArgs(): OrchestratorOptions & { help?: boolean } {
 			case '--dry-run':
 				options.dryRun = true;
 				break;
+			case '--sdk':
+				const sdkValue = args[++i];
+				if (sdkValue !== 'claude' && sdkValue !== 'opencode') {
+					console.error(`Invalid SDK: ${sdkValue}. Must be 'claude' or 'opencode'`);
+					process.exit(1);
+				}
+				options.sdk = sdkValue as SDKChoice;
+				break;
 		}
 	}
 
@@ -582,31 +629,34 @@ function printHelp() {
 orchestrator.ts - Orchestrate continuous coding agent sessions
 
 Usage:
-    bun run orchestrator.ts [options]
+    bun run cli.ts [options]
 
 Options:
-    --project-dir, -d DIR    Project directory (default: current directory)
-    --max-sessions, -n N     Maximum number of sessions to run (default: 10)
-    --max-failures, -f N     Stop after N consecutive failures (default: 3)
-    --delay SECONDS          Seconds to wait between sessions (default: 5)
-    --until-complete         Run until all features pass (implies unlimited sessions)
-    --dry-run                Show what would be done without executing
-    --help, -h               Show this help message
+    --project-dir, -d DIR        Project directory (default: current directory)
+    --max-sessions, -n N         Maximum number of sessions to run (default: 10)
+    --max-failures, -f N         Stop after N consecutive failures (default: 3)
+    --delay SECONDS              Seconds to wait between sessions (default: 5)
+    --sdk <claude|opencode>      Select agent SDK (default: claude)
+    --until-complete             Run until all features pass (implies unlimited sessions)
+    --dry-run                    Show what would be done without executing
+    --help, -h                   Show this help message
 
-Note: Requires ANTHROPIC_API_KEY environment variable to be set.
+Environment Variables:
+    ANTHROPIC_API_KEY            Required for Claude SDK
+    OPENCODE_SERVER_URL          OpenCode server URL (default: http://localhost:4096)
 
 Examples:
-    # Run up to 10 sessions
-    bun run orchestrator.ts --max-sessions 10
+    # Run with Claude SDK (default)
+    bun run cli.ts --max-sessions 10
     
-    # Run until all features complete
-    bun run orchestrator.ts --until-complete
+    # Run with OpenCode SDK
+    bun run cli.ts --sdk opencode --until-complete
     
     # Run with custom failure threshold
-    bun run orchestrator.ts --max-sessions 50 --max-failures 5
+    bun run cli.ts --max-sessions 50 --max-failures 5
     
     # Preview without executing
-    bun run orchestrator.ts --dry-run --max-sessions 5
+    bun run cli.ts --dry-run --max-sessions 5
   `);
 }
 

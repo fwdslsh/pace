@@ -1,10 +1,11 @@
 # Orchestrator - Long-Running Agent Harness
 
-A Bun/TypeScript implementation that orchestrates continuous coding agent sessions using the **Claude Agent SDK** for maximum visibility into Claude's execution.
+A Bun/TypeScript implementation that orchestrates continuous coding agent sessions using **multiple agent SDKs** for maximum visibility and flexibility. Supports both the Claude Agent SDK and OpenCode SDK.
 
 ## Features
 
-- **Full Visibility**: Uses the Claude Agent SDK directly to stream all messages, tool uses, and results
+- **Multi-SDK Support**: Choose between Claude Agent SDK or OpenCode SDK at runtime
+- **Full Visibility**: Stream all messages, tool uses, and results from agent sessions
 - **Automatic Feature Progression**: Works through features in priority order
 - **Session Management**: Configurable session limits, failure thresholds, and delays
 - **Progress Tracking**: Monitors feature completion and provides detailed statistics
@@ -18,17 +19,26 @@ First, install dependencies:
 bun install
 ```
 
-Make sure you have the `ANTHROPIC_API_KEY` environment variable set:
+### Environment Variables
+
+**For Claude SDK (default):**
 
 ```bash
 export ANTHROPIC_API_KEY=your-api-key-here
+```
+
+**For OpenCode SDK:**
+
+```bash
+# Optional - defaults to http://localhost:4096
+export OPENCODE_SERVER_URL=http://localhost:4096
 ```
 
 ## Usage
 
 ### Quick Start
 
-Run the orchestrator with default settings (10 sessions max):
+Run the orchestrator with default settings (Claude SDK, 10 sessions max):
 
 ```bash
 bun run cli.ts
@@ -38,6 +48,12 @@ Or use the npm script:
 
 ```bash
 npm run cli
+```
+
+**Using OpenCode SDK:**
+
+```bash
+bun run cli.ts --sdk opencode
 ```
 
 ### Common Options
@@ -71,6 +87,7 @@ bun run cli.ts --dry-run --max-sessions 5
 ### All Options
 
 ```
+--sdk SDK                Agent SDK to use: 'claude' or 'opencode' (default: claude)
 --project-dir, -d DIR    Project directory (default: current directory)
 --max-sessions, -n N     Maximum number of sessions to run (default: 10)
 --max-failures, -f N     Stop after N consecutive failures (default: 3)
@@ -142,9 +159,11 @@ Result: Feature AUTH-001 implemented successfully
 ============================================================
 ```
 
-## Claude Agent SDK Benefits
+## SDK Comparison
 
-By using the Claude Agent SDK instead of just the Anthropic API, we get:
+### Claude Agent SDK
+
+The default SDK provides rich integration with Anthropic's Claude:
 
 1. **Full Tool Visibility**: See every tool call Claude makes with inputs and outputs
 2. **Session Management**: Automatic conversation history and context management
@@ -152,6 +171,51 @@ By using the Claude Agent SDK instead of just the Anthropic API, we get:
 4. **Cost Tracking**: Built-in usage and cost reporting per session
 5. **Project Context**: Automatic loading of `CLAUDE.md` and project settings
 6. **Better Debugging**: Clear visibility into why Claude makes each decision
+
+**Usage:**
+
+```bash
+bun run cli.ts --sdk claude --max-sessions 10
+```
+
+**Requirements:**
+- `ANTHROPIC_API_KEY` environment variable
+- Internet connection to Anthropic API
+
+### OpenCode SDK
+
+Alternative SDK for OpenCode-powered agent sessions:
+
+1. **Local or Remote**: Connect to local or hosted OpenCode servers
+2. **Event Streaming**: Real-time session events and status updates
+3. **Flexible Backend**: Support for multiple AI providers
+4. **Session Management**: Create and monitor sessions programmatically
+
+**Usage:**
+
+```bash
+# Local OpenCode server (default)
+bun run cli.ts --sdk opencode
+
+# Remote OpenCode server
+OPENCODE_SERVER_URL=http://your-server:4096 bun run cli.ts --sdk opencode
+```
+
+**Requirements:**
+- OpenCode server running (default: `http://localhost:4096`)
+- Optional: Custom server URL via `OPENCODE_SERVER_URL`
+
+### Which SDK to Choose?
+
+| Feature              | Claude SDK | OpenCode SDK |
+| -------------------- | ---------- | ------------ |
+| Cost Tracking        | ✅         | ❌           |
+| Tool Call Details    | ✅         | ✅           |
+| Streaming Events     | ✅         | ✅           |
+| Local Execution      | ❌         | ✅           |
+| Multiple Providers   | ❌         | ✅           |
+| Built-in Permissions | ✅         | ❌           |
+| Requires API Key     | ✅         | Varies       |
 
 ## Integration with Feature List
 
@@ -181,6 +245,8 @@ The orchestrator expects a `feature_list.json` file in the project directory wit
 
 ## Troubleshooting
 
+### Claude SDK Issues
+
 **Agent SDK not found:**
 
 ```bash
@@ -196,12 +262,42 @@ export ANTHROPIC_API_KEY=your-api-key-here
 **Permission errors:**
 The orchestrator uses `permissionMode: 'acceptEdits'` to auto-accept file edits. Adjust in the code if you need different behavior.
 
+### OpenCode SDK Issues
+
+**OpenCode SDK not found:**
+
+```bash
+bun install @opencode-ai/sdk
+```
+
+**Cannot connect to OpenCode server:**
+
+1. Make sure OpenCode server is running:
+   ```bash
+   # Check if server is accessible
+   curl http://localhost:4096/health
+   ```
+
+2. Set custom server URL if needed:
+   ```bash
+   export OPENCODE_SERVER_URL=http://your-server:4096
+   ```
+
+**Session events not streaming:**
+
+- OpenCode SDK uses event streaming with session ID filtering
+- Check that the OpenCode server is properly emitting events
+- Verify network connectivity to the server
+
+### General Issues
+
 **No features progressing:**
 Check that:
 
 1. The coding agent prompt is appropriate for your project
 2. Features are clearly defined in `feature_list.json`
 3. The project environment is properly initialized (see `init.sh`)
+4. The selected SDK is properly configured and accessible
 
 ## Comparison to Python Version
 
