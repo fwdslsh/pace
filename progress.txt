@@ -1148,3 +1148,37 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 
 - Recommended next feature: FMT-001 (Apply Prettier formatting to all source files).
 - Continue with formatting or remaining cleanup tasks.
+
+---
+
+### Session 35 - Formatting
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- FMT-001: Apply Prettier formatting to all source files
+
+**Actions Taken:**
+
+- Updated `format` script in `package.json` to include root `.ts` files (`cli.ts`, `pace-plugin.ts`, `debug-events.ts`) in addition to `src/**/*.ts`.
+- Ran `bun run format` to apply Prettier formatting.
+- Verified that subsequent runs produce no changes.
+
+**Test Results:**
+
+- `bun run format` is idempotent.
+- `bun build` succeeds.
+- `bun test` passes (155 tests).
+- `./pace status` functions correctly.
+
+**Current Status:**
+
+- Features passing: 33/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: FMT-002 (Apply Prettier formatting to test files).
+- Continue with formatting or other cleanup tasks.
