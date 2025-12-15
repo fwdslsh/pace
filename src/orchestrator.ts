@@ -177,7 +177,7 @@ Begin now by orienting yourself with the project state.`;
 	/**
 	 * Generate and display final summary
 	 */
-	async summary(): Promise<SessionSummary> {
+	async createSummaryReport(): Promise<SessionSummary> {
 		const [passing, total] = await this.featureManager.getProgress();
 		const elapsed = new Date().getTime() - this.startTime.getTime();
 		const isComplete = await this.featureManager.isComplete();
@@ -235,12 +235,12 @@ Begin now by orienting yourself with the project state.`;
 
 		if (total === 0) {
 			console.log('\n⚠️  No features defined in feature_list.json');
-			return this.summary();
+			return this.createSummaryReport();
 		}
 
 		if (await this.featureManager.isComplete()) {
 			console.log('\n✅ All features already passing!');
-			return this.summary();
+			return this.createSummaryReport();
 		}
 
 		while (true) {
@@ -270,6 +270,6 @@ Begin now by orienting yourself with the project state.`;
 			}
 		}
 
-		return this.summary();
+		return this.createSummaryReport();
 	}
 }

@@ -3,7 +3,8 @@
  */
 
 import { createOpencodeClient } from '@opencode-ai/sdk';
-import type { AgentSessionRunner, AgentSessionParams, AgentRunResult } from '../types';
+import type {  AgentSessionParams, AgentRunResult } from '../types';
+import { AgentSessionRunner } from './base';
 
 export interface OpencodeSDKOptions {
 	baseUrl?: string;
@@ -35,7 +36,8 @@ export class OpencodeSessionRunner implements AgentSessionRunner {
 
 		try {
 			const client = createOpencodeClient({
-				baseUrl: this.options.baseUrl
+				baseUrl: this.options.baseUrl,
+				directory: params.projectDir,
 			});
 
 			console.log('\n🤖 OpenCode Agent Output:\n');
@@ -44,8 +46,7 @@ export class OpencodeSessionRunner implements AgentSessionRunner {
 			console.log('📋 Creating session...');
 			const sessionResponse = await client.session.create({
 				body: {
-					title: `Feature: ${params.featureId}`,
-					cwd: params.projectDir
+					title: `Feature: ${params.featureId}`
 				}
 			});
 
@@ -55,6 +56,7 @@ export class OpencodeSessionRunner implements AgentSessionRunner {
 
 			const session = sessionResponse.data;
 			console.log(`✅ Session created: ${session.id}\n`);
+			console.log(`🚀 Starting session in ${session.directory}\n`);
 
 			// Send prompt
 			console.log('💬 Sending prompt...');
@@ -78,7 +80,7 @@ export class OpencodeSessionRunner implements AgentSessionRunner {
 
 			console.log('📡 Streaming events:\n');
 
-			for await (const event of events.data.stream) {
+			for await (const event of events.stream) {
 				// Filter events for our session
 				const eventSessionId =
 					event.properties?.sessionID ||
@@ -89,7 +91,7 @@ export class OpencodeSessionRunner implements AgentSessionRunner {
 
 				console.log(`📨 Event: ${event.type}`);
 
-				if (event.type === 'session.idle' || event.type === 'session.completed') {
+				if (event.type === 'session.idle') {
 					completed = true;
 					success = true;
 					console.log('\n✅ Session completed successfully');

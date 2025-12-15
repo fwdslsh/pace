@@ -4,7 +4,8 @@
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { PermissionMode, SDKResultMessage, SettingSource } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentSessionRunner, AgentSessionParams, AgentRunResult } from '../types';
+import type {  AgentSessionParams, AgentRunResult } from '../types';
+import { AgentSessionRunner } from './base';
 
 export interface ClaudeSDKOptions {
 	model?: string;

@@ -259,10 +259,10 @@ export class StatusReporter {
 
 		// Quick commands
 		console.log('🚀 Quick Commands:');
-		console.log('   bun run cli.ts                        - Run orchestrator');
-		console.log('   bun run cli.ts status                 - Show this status');
-		console.log('   bun run cli.ts validate               - Validate feature list');
-		console.log('   bun run cli.ts update F001 pass       - Mark feature as passing');
+		console.log('   pace                        - Run orchestrator');
+		console.log('   pace status                 - Show this status');
+		console.log('   pace validate               - Validate feature list');
+		console.log('   pace update F001 pass       - Mark feature as passing');
 		console.log();
 	}
 
