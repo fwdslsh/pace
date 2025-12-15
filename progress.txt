@@ -322,3 +322,38 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 
 - Recommended next feature: INF-005 (Create ignore files) or LINT-001 (Enforce no-unused-vars).
 - Continue with infrastructure setup or start fixing lint errors.
+
+---
+
+### Session 11 - Linting Rule Enforcement
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- LINT-001: Enable and enforce no-unused-vars rule
+
+**Actions Taken:**
+
+- Updated `.eslintrc.json` to set `@typescript-eslint/no-unused-vars` to `error`.
+- Configured exception for variables and arguments starting with `_`.
+- Created a temporary test file to verify the rule triggers errors on unused variables.
+- Verified that prefixing variables with `_` bypasses the error.
+
+**Test Results:**
+
+- `bun run lint` correctly identifies unused variables as errors.
+- `bun test` passes (155 tests).
+
+**Current Status:**
+
+- Features passing: 10/54
+- Known issues: Lint errors still present (LINT-002, LINT-003, etc.).
+
+**Next Steps:**
+
+- Recommended next feature: LINT-002 (Enable and enforce no-explicit-any rule) or INF-005 (Create ignore files).
+- Continue fixing lint configuration or addressing specific lint errors.
+
+---
