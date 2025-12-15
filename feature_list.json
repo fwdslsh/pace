@@ -441,7 +441,7 @@
         "Search codebase for potential API keys or secrets",
         "Move to environment variables if found"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "DEAD-007",
@@ -614,7 +614,7 @@
     "project_name": "pace-cleanup",
     "created_at": "2025-12-15",
     "total_features": 54,
-    "passing": 2,
-    "failing": 52
+    "passing": 3,
+    "failing": 51
   }
 }
