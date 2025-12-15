@@ -1,9 +1,10 @@
+/* eslint-disable no-console */
 /**
  * Tests for StatusReporter
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtemp, rm, writeFile, mkdir } from 'fs/promises';
+import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { StatusReporter } from '../src/status-reporter';
@@ -309,7 +310,7 @@ More details here`;
 			// Capture console.log output
 			const logs: string[] = [];
 			const originalLog = console.log;
-			console.log = (...args: any[]) => {
+			console.log = (...args: unknown[]) => {
 				logs.push(args.join(' '));
 			};
 
@@ -344,7 +345,7 @@ More details here`;
 			// Capture console output
 			const logs: string[] = [];
 			const originalLog = console.log;
-			console.log = (...args: any[]) => {
+			console.log = (...args: unknown[]) => {
 				logs.push(args.join(' '));
 			};
 
@@ -379,7 +380,7 @@ More details here`;
 			// Capture console output
 			const logs: string[] = [];
 			const originalLog = console.log;
-			console.log = (...args: any[]) => {
+			console.log = (...args: unknown[]) => {
 				logs.push(args.join(' '));
 			};
 
@@ -406,7 +407,7 @@ More details here`;
 			// Capture console output
 			const logs: string[] = [];
 			const originalLog = console.log;
-			console.log = (...args: any[]) => {
+			console.log = (...args: unknown[]) => {
 				logs.push(args.join(' '));
 			};
 
