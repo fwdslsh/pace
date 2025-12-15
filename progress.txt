@@ -289,3 +289,36 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Start fixing lint errors (LINT-*).
 
 ---
+
+---
+
+### Session 10 - Infrastructure Setup
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- INF-007: Add format script to package.json
+
+**Actions Taken:**
+
+- Added `"format": "prettier --write 'src/**/*.ts'"` to `package.json`.
+- Executed `bun run format`, which formatted all source files in `src/`.
+- Verified `bun test` still passes.
+
+**Test Results:**
+
+- Format script works as expected.
+- 155 tests passed.
+- Codebase is now consistently formatted (in `src/`).
+
+**Current Status:**
+
+- Features passing: 9/54
+- Known issues: Lint errors still present (LINT-*).
+
+**Next Steps:**
+
+- Recommended next feature: INF-005 (Create ignore files) or LINT-001 (Enforce no-unused-vars).
+- Continue with infrastructure setup or start fixing lint errors.
