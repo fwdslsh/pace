@@ -430,7 +430,8 @@ class Orchestrator {
 		const prompt = buildCodingAgentPrompt(feature, projectContext);
 
 		this.log('\nSending prompt to agent...');
-		const promptResult = await client.session.prompt({
+		// Use promptAsync to enable event streaming
+		const promptResult = await client.session.promptAsync({
 			path: { id: session.id },
 			body: {
 				parts: [{ type: 'text', text: prompt }]
@@ -452,9 +453,9 @@ class Orchestrator {
 
 		try {
 			for await (const event of events.stream) {
-				// Session-level events (idle/error) have session ID in info.id
+				// Session-level events have session ID in properties.sessionID
 				if (event.type === 'session.idle') {
-					const idleSessionId = event.properties?.info?.id;
+					const idleSessionId = event.properties?.sessionID;
 					if (idleSessionId === session.id) {
 						this.log('\nSession completed.');
 						success = true;
@@ -464,7 +465,7 @@ class Orchestrator {
 				}
 
 				if (event.type === 'session.error') {
-					const errorSessionId = event.properties?.info?.id;
+					const errorSessionId = event.properties?.sessionID;
 					if (errorSessionId === session.id) {
 						console.error('\nSession encountered an error');
 						success = false;
@@ -912,8 +913,8 @@ ${projectDescription}
 
 Begin now by analyzing the requirements and creating all necessary files.`;
 
-		// Send the prompt
-		const promptResult = await client.session.prompt({
+		// Send the prompt (use promptAsync for event streaming)
+		const promptResult = await client.session.promptAsync({
 			path: { id: session.id },
 			body: {
 				parts: [{ type: 'text', text: fullPrompt }]
@@ -948,9 +949,9 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 		}
 
 		for await (const event of events.stream) {
-			// Session-level events (idle/error) have session ID in info.id
+			// Session-level events have session ID in properties.sessionID
 			if (event.type === 'session.idle') {
-				const idleSessionId = event.properties?.info?.id;
+				const idleSessionId = event.properties?.sessionID;
 				if (idleSessionId === session.id) {
 					success = true;
 					break;
@@ -959,7 +960,7 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 			}
 
 			if (event.type === 'session.error') {
-				const errorSessionId = event.properties?.info?.id;
+				const errorSessionId = event.properties?.sessionID;
 				if (errorSessionId === session.id) {
 					success = false;
 					break;

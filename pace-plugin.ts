@@ -547,8 +547,8 @@ Follow the coding agent workflow exactly:
 
 Begin now.`;
 
-					// Send the prompt to the child session
-					const promptResult = await client.session.prompt({
+					// Send the prompt to the child session (use promptAsync for event streaming)
+					const promptResult = await client.session.promptAsync({
 						path: { id: session.id },
 						body: {
 							parts: [{ type: 'text', text: prompt }],
@@ -571,9 +571,9 @@ Begin now.`;
 
 					try {
 						for await (const event of events.stream) {
-							// Session-level events (idle/error) have session ID in info.id
+							// Session-level events have session ID in properties.sessionID
 							if (event.type === 'session.idle') {
-								const idleSessionId = event.properties?.info?.id;
+								const idleSessionId = event.properties?.sessionID;
 								if (idleSessionId === session.id) {
 									completed = true;
 									state.status = 'completed';
@@ -584,7 +584,7 @@ Begin now.`;
 							}
 
 							if (event.type === 'session.error') {
-								const errorSessionId = event.properties?.info?.id;
+								const errorSessionId = event.properties?.sessionID;
 								if (errorSessionId === session.id) {
 									completed = true;
 									state.status = 'failed';
@@ -725,7 +725,8 @@ Feature Details:
 
 Follow the coding agent workflow. Begin now.`;
 
-						await client.session.prompt({
+						// Use promptAsync for event streaming
+						await client.session.promptAsync({
 							path: { id: session.id },
 							body: {
 								parts: [{ type: 'text', text: prompt }],
@@ -738,9 +739,9 @@ Follow the coding agent workflow. Begin now.`;
 
 						try {
 							for await (const event of events.stream) {
-								// Session-level events (idle/error) have session ID in info.id
+								// Session-level events have session ID in properties.sessionID
 								if (event.type === 'session.idle') {
-									const idleSessionId = event.properties?.info?.id;
+									const idleSessionId = event.properties?.sessionID;
 									if (idleSessionId === session.id) {
 										completed = true;
 										break;
@@ -749,7 +750,7 @@ Follow the coding agent workflow. Begin now.`;
 								}
 
 								if (event.type === 'session.error') {
-									const errorSessionId = event.properties?.info?.id;
+									const errorSessionId = event.properties?.sessionID;
 									if (errorSessionId === session.id) {
 										completed = true;
 										break;
