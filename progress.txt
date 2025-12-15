@@ -460,3 +460,37 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 
 - Recommended next feature: TEST-002 (Ensure feature-manager.test.ts passes linting).
 - Continue working through TEST-* tasks.
+
+---
+
+### Session 15 - Test Cleanup
+
+**Date:** Mon Dec 15 09:59:06 AM CST 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- TEST-002: Ensure feature-manager.test.ts passes linting and runs successfully
+
+**Actions Taken:**
+
+- Ran lint on `tests/feature-manager.test.ts` and identified an unused `Feature` import error.
+- Removed unused `Feature` import from `tests/feature-manager.test.ts`.
+- Verified `bun run lint tests/feature-manager.test.ts` passes (no errors for that file).
+- Verified `bun test tests/feature-manager.test.ts` passes (21 tests).
+
+**Test Results:**
+
+- `tests/feature-manager.test.ts` is lint-free.
+- 21 tests passed in `tests/feature-manager.test.ts`.
+
+**Current Status:**
+
+- Features passing: 14/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: TEST-003 (Ensure pace-config.test.ts passes linting).
+- Continue working through TEST-* tasks.
+
