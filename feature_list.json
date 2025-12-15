@@ -190,6 +190,18 @@
       "passes": true
     },
     {
+      "id": "DEAD-001",
+      "category": "dead-code",
+      "description": "Identify and remove unused imports in cli.ts",
+      "priority": "medium",
+      "steps": [
+        "Analyze imports",
+        "Remove unused",
+        "Verify build"
+      ],
+      "passes": true
+    },
+    {
       "id": "DEAD-003",
       "category": "dead-code",
       "description": "Identify and remove unused imports in src/status-reporter.ts",
@@ -212,17 +224,7 @@
       ],
       "passes": true
     },
-    {
-      "id": "DEAD-003",
-      "category": "dead-code",
-      "description": "Identify and remove unused imports in src/status-reporter.ts",
-      "priority": "medium",
-      "steps": [
-        "Remove unused imports",
-        "Verify build passes"
-      ],
-      "passes": false
-    },
+
     {
       "id": "DEAD-004",
       "category": "dead-code",
