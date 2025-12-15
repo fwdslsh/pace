@@ -1042,3 +1042,38 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 
 - Recommended next feature: DEAD-005 (Identify and remove unused imports in src/validators.ts).
 - Clean up duplicate DEAD-003 entry in feature_list.json.
+
+---
+
+### Session 32 - Dead Code Removal (Fixes)
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- DEAD-003: Identify and remove unused imports in src/status-reporter.ts
+
+**Actions Taken:**
+
+- Verified `src/status-reporter.ts` is free of unused imports (verified clean).
+- Identified duplicate entry for DEAD-003 in `feature_list.json` (one passing, one failing).
+- Removed the incorrect duplicate entry.
+- Identified that DEAD-001 was missing from `feature_list.json` despite being completed in Session 28.
+- Restored DEAD-001 to `feature_list.json`.
+- Validated total feature counts (30 passing, 25 failing).
+
+**Test Results:**
+
+- `./pace status` correctly reports 30/55 passing.
+- DEAD-003 is marked as passing and no longer appears in "Next Features".
+- Build and tests pass.
+
+**Current Status:**
+
+- Features passing: 30/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: DEAD-005 (Identify and remove unused imports in src/validators.ts).
