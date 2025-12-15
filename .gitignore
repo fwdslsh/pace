@@ -45,5 +45,3 @@ temp/
 *.tmp
 
 # Local development
-feature_list.json
-claude-progress.txt
