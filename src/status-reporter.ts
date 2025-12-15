@@ -41,7 +41,8 @@ export class StatusReporter {
       return stdout.trim();
     } catch {
       return null;
-    }  }
+    }
+  }
 
   /**
    * Load progress file
@@ -52,7 +53,8 @@ export class StatusReporter {
       return content;
     } catch {
       return null;
-    }  }
+    }
+  }
 
   /**
    * Print a progress bar
