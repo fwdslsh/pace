@@ -257,3 +257,35 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Continue with infrastructure setup.
 
 ---
+
+### Session 9 - Infrastructure Setup
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- INF-006: Add lint script to package.json
+
+**Actions Taken:**
+
+- Added `"lint": "ESLINT_USE_FLAT_CONFIG=false eslint 'src/**/*.ts'"` to `package.json`.
+- Verified script execution with `bun run lint`.
+- Note: Script verifies but returns exit code 1 due to existing lint errors (expected).
+
+**Test Results:**
+
+- Lint script works and correctly reports linting issues.
+- `bun test` passed (155 tests).
+
+**Current Status:**
+
+- Features passing: 8/54
+- Known issues: Lint errors present (to be fixed in LINT-* tasks).
+
+**Next Steps:**
+
+- Recommended next feature: INF-007 (Add format script) or INF-005 (Create ignore files).
+- Start fixing lint errors (LINT-*).
+
+---
