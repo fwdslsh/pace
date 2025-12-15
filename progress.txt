@@ -391,3 +391,38 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 
 - Recommended next feature: CLEAN-003 (Fix linting errors in feature-manager.ts).
 - Continue working through CLEAN-* or TEST-* tasks.
+
+---
+
+### Session 13 - Cleanup
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- CLEAN-003: Fix linting errors in src/feature-manager.ts
+
+**Actions Taken:**
+
+- Ran lint on `src/feature-manager.ts` and identified `no-explicit-any` and `no-unused-vars` errors.
+- Fixed `no-explicit-any` by using a safer type check: `(e as { code: string }).code === 'ENOENT'`.
+- Fixed `no-unused-vars` by using `catch` without binding the error variable.
+- Verified `bun run lint src/feature-manager.ts` passes.
+
+**Test Results:**
+
+- `bun run lint src/feature-manager.ts` is clean.
+- `bun test tests/feature-manager.test.ts` passes (21 tests).
+- `bun test` passes (155 tests).
+- `bun run build` succeeds.
+
+**Current Status:**
+
+- Features passing: 12/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: CLEAN-002 (Fix linting errors in src/pace-plugin.ts) or CLEAN-004.
+- Continue working through CLEAN-* tasks.
