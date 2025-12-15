@@ -363,7 +363,7 @@ class Orchestrator {
 
 		// Try to load progress file
 		try {
-			const progressPath = join(this.projectDir, 'claude-progress.txt');
+			const progressPath = join(this.projectDir, 'progress.txt');
 			const progress = await readFile(progressPath, 'utf-8');
 			const lastSession = progress.split('### Session').slice(-1)[0];
 			parts.push(`## Recent Progress\n${lastSession?.slice(0, 1000) || 'No previous sessions'}`);
@@ -794,7 +794,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
 		console.error('The initializer agent will create:');
 		console.error('  - feature_list.json with 50-200+ features');
 		console.error('  - init.sh development environment script');
-		console.error('  - claude-progress.txt progress log');
+		console.error('  - progress.txt progress log');
 		console.error('  - Git repository with initial commit');
 		process.exit(1);
 	}
@@ -836,7 +836,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
 			console.log('\nExpected outputs:');
 			console.log('  - feature_list.json (50-200+ features)');
 			console.log('  - init.sh (development environment script)');
-			console.log('  - claude-progress.txt (progress log)');
+			console.log('  - progress.txt (progress log)');
 			console.log('  - Git repository with initial commit');
 		}
 		process.exit(0);
@@ -970,7 +970,7 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 
 		// Check if other files exist
 		const filesCreated: string[] = [];
-		for (const file of ['feature_list.json', 'init.sh', 'claude-progress.txt']) {
+		for (const file of ['feature_list.json', 'init.sh', 'progress.txt']) {
 			try {
 				await stat(join(projectDir, file));
 				filesCreated.push(file);

@@ -95,7 +95,7 @@ pace init "Build a REST API for inventory management"
 This creates:
 - `feature_list.json` with 50-200+ features
 - `init.sh` development environment script  
-- `claude-progress.txt` progress log
+- `progress.txt` progress log
 - Git repository with initial commit
 
 **Run the orchestrator:**

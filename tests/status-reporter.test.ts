@@ -26,7 +26,7 @@ describe('StatusReporter', () => {
 	};
 
 	const createProgressFile = async (content: string) => {
-		const filePath = join(tempDir, 'claude-progress.txt');
+		const filePath = join(tempDir, 'progress.txt');
 		await writeFile(filePath, content, 'utf-8');
 	};
 

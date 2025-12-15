@@ -78,7 +78,7 @@ An executable bash script that sets up and starts the development environment.
 - Clear output showing server URL
 - Error handling
 
-### 3. claude-progress.txt
+### 3. progress.txt
 
 A progress log documenting what has been done and what comes next.
 
@@ -121,7 +121,7 @@ Before ending your session, verify:
 - [ ] All features have `"passes": false`
 - [ ] init.sh exists and is executable
 - [ ] init.sh successfully starts the dev environment
-- [ ] claude-progress.txt has Session 1 entry
+- [ ] progress.txt has Session 1 entry
 - [ ] Git repository initialized
 - [ ] Initial commit made with descriptive message
 
@@ -129,7 +129,7 @@ Before ending your session, verify:
 
 The next agent (Coding Agent) will:
 
-1. Read claude-progress.txt to understand project state
+1. Read progress.txt to understand project state
 2. Run init.sh to start the environment
 3. Read feature_list.json to select a feature
 4. Work on exactly ONE feature

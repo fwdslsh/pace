@@ -264,7 +264,7 @@ All strategies include failure handling:
 All strategies preserve progress through:
 
 1. **feature_list.json** - Feature status persists
-2. **claude-progress.txt** - Session logs accumulate
+2. **progress.txt** - Session logs accumulate
 3. **Git commits** - Code changes saved
 4. **Metadata updates** - Counts stay accurate
 

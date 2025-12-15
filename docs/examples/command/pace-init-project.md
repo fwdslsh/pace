@@ -18,7 +18,7 @@ Initialize a new long-running agent harness project. This command sets up the co
 1. **Analyzes Requirements** - Parses the project description to understand features needed
 2. **Creates feature_list.json** - Comprehensive feature list with all features marked as failing
 3. **Creates init.sh** - Development environment startup script
-4. **Creates claude-progress.txt** - Progress tracking log
+4. **Creates progress.txt** - Progress tracking log
 5. **Commits changes** - Creates commit with all harness files
 
 ## Example
@@ -47,7 +47,7 @@ When this command is invoked:
 - MUST mark all features as `"passes": false`
 - MUST create init.sh that actually works for the chosen stack
 - MUST initialize git repository
-- MUST update claude-progress.txt with Session 1 entry
+- MUST update progress.txt with Session 1 entry
 
 ## Output
 
@@ -56,7 +56,7 @@ After running this command, the project should have:
 ```
 project-root/
 ├── feature_list.json    # 50-200+ features, all failing
-├── claude-progress.txt  # Session 1 documented
+├── progress.txt  # Session 1 documented
 ├── init.sh              # Executable dev environment script
 └── .git/                # Initialized repository with first commit
 ```

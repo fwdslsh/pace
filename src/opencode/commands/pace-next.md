@@ -15,13 +15,13 @@ Automatically select and implement the highest-priority incomplete feature follo
 
 ## What This Command Does
 
-1. **Reads Progress** - Checks claude-progress.txt and feature_list.json
+1. **Reads Progress** - Checks progress.txt and feature_list.json
 2. **Finds Failing Feature** - Selects highest-priority incomplete feature
 3. **Implements** - Writes complete code for the feature
 4. **Tests End-to-End** - Verifies feature works as intended
 5. **Commits** - Creates git commit with descriptive message
 6. **Updates Status** - Marks feature as passing in feature_list.json
-7. **Logs Progress** - Adds session entry to claude-progress.txt
+7. **Logs Progress** - Adds session entry to progress.txt
 
 ## Workflow
 
@@ -31,7 +31,7 @@ This command follows the pace coding agent workflow:
 
 ```bash
 pwd
-cat claude-progress.txt | tail -50
+cat progress.txt | tail -50
 git log --oneline -10
 ```
 
@@ -83,7 +83,7 @@ Feature F0XX now passing."
 
 ### 9. Update Progress
 
-- Append session entry to claude-progress.txt
+- Append session entry to progress.txt
 
 ## Critical Rules
 

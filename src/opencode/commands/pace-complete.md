@@ -18,7 +18,7 @@ Mark a feature as complete (passing) after successful end-to-end verification.
 2. **Updates Status** - Changes `passes` to `true` in feature_list.json
 3. **Updates Metadata** - Increments passing count, decrements failing
 4. **Creates Backup** - Saves feature_list.json.bak
-5. **Logs Completion** - Adds entry to claude-progress.txt
+5. **Logs Completion** - Adds entry to progress.txt
 
 ## Example
 

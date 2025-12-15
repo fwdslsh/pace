@@ -48,7 +48,7 @@ export class StatusReporter {
 	 */
 	private async loadProgressFile(): Promise<string | null> {
 		try {
-			const content = await readFile(join(this.projectDir, 'claude-progress.txt'), 'utf-8');
+			const content = await readFile(join(this.projectDir, 'progress.txt'), 'utf-8');
 			return content;
 		} catch (e) {
 			return null;
@@ -250,7 +250,7 @@ export class StatusReporter {
 				console.log();
 			}
 		} else {
-			console.log('⚠️  claude-progress.txt not found\n');
+			console.log('⚠️  progress.txt not found\n');
 		}
 
 		// Working directory

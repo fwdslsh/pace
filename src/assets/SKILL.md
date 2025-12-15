@@ -1,6 +1,6 @@
 ---
 name: long-running-agent-harness
-description: Orchestrate long-running software development across multiple context windows using a two-agent architecture (initializer + coding agent). Use when starting new development projects, resuming work on existing projects, or implementing features incrementally. Enables consistent progress through structured artifacts (feature_list.json, claude-progress.txt, init.sh) and strict incremental workflows.
+description: Orchestrate long-running software development across multiple context windows using a two-agent architecture (initializer + coding agent). Use when starting new development projects, resuming work on existing projects, or implementing features incrementally. Enables consistent progress through structured artifacts (feature_list.json, progress.txt, init.sh) and strict incremental workflows.
 ---
 
 # Long-Running Agent Harness
@@ -35,7 +35,7 @@ All projects MUST maintain these files in the project root:
 | File                  | Purpose                            | Format                |
 | --------------------- | ---------------------------------- | --------------------- |
 | `feature_list.json`   | All features with pass/fail status | JSON (see templates/) |
-| `claude-progress.txt` | Session-by-session progress log    | Markdown              |
+| `progress.txt` | Session-by-session progress log    | Markdown              |
 | `init.sh`             | Environment setup and dev server   | Bash script           |
 
 ## Critical Rules
@@ -54,7 +54,7 @@ All projects MUST maintain these files in the project root:
 1. Analyze user requirements
 2. Generate comprehensive `feature_list.json` (all features marked `passes: false`)
 3. Create `init.sh` script
-4. Initialize `claude-progress.txt`
+4. Initialize `progress.txt`
 5. Make initial git commit
 
 See: [references/initializer-agent.md](references/initializer-agent.md)
@@ -70,7 +70,7 @@ See: [references/initializer-agent.md](references/initializer-agent.md)
 7. Test end-to-end (browser automation if applicable)
 8. Update `passes: true` only after verification
 9. Git commit with descriptive message
-10. Update `claude-progress.txt`
+10. Update `progress.txt`
 
 See: [references/coding-agent.md](references/coding-agent.md)
 
@@ -79,7 +79,7 @@ See: [references/coding-agent.md](references/coding-agent.md)
 Copy templates from `templates/` directory:
 
 - `templates/feature_list.json` - Feature list structure
-- `templates/claude-progress.txt` - Progress log format
+- `templates/progress.txt` - Progress log format
 - `templates/init.sh` - Dev environment script template
 
 ## Failure Mode Prevention

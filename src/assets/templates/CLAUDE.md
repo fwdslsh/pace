@@ -37,7 +37,7 @@ For EACH feature, follow these steps exactly:
 
 ```bash
 pwd
-cat claude-progress.txt
+cat progress.txt
 git log --oneline -10
 ```
 
@@ -88,7 +88,7 @@ Feature F00X now passing."
 
 ### 9. Update Progress
 
-- Append session entry to claude-progress.txt
+- Append session entry to progress.txt
 - Commit the progress file
 
 ### 10. Continue
@@ -108,7 +108,7 @@ Feature F00X now passing."
 ## File Locations
 
 - Feature tracking: `feature_list.json`
-- Progress log: `claude-progress.txt`
+- Progress log: `progress.txt`
 - Environment setup: `init.sh`
 - Utility scripts: `scripts/`
 
@@ -124,6 +124,6 @@ Only stop the session when:
 
 When stopping due to a blocker:
 
-- Document the issue clearly in claude-progress.txt
+- Document the issue clearly in progress.txt
 - Explain what's needed to continue
 - Commit all progress so far

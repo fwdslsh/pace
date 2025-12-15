@@ -29,7 +29,7 @@ def load_feature_list(filepath: Path) -> dict | None:
 
 
 def load_progress_file(filepath: Path) -> str | None:
-    """Load claude-progress.txt if it exists."""
+    """Load progress.txt if it exists."""
     try:
         with open(filepath, 'r') as f:
             return f.read()
@@ -159,7 +159,7 @@ def print_status(feature_file: Path, progress_file: Path, verbose: bool = False)
                     print(f"   {line}")
             print()
     else:
-        print("⚠️  claude-progress.txt not found\n")
+        print("⚠️  progress.txt not found\n")
     
     # Working directory
     print(f"📂 Working Directory: {Path.cwd()}")
@@ -176,7 +176,7 @@ def print_status(feature_file: Path, progress_file: Path, verbose: bool = False)
 def main():
     parser = argparse.ArgumentParser(description='Display project status for long-running agent harness')
     parser.add_argument('--file', default='feature_list.json', help='Path to feature_list.json')
-    parser.add_argument('--progress', default='claude-progress.txt', help='Path to progress file')
+    parser.add_argument('--progress', default='progress.txt', help='Path to progress file')
     parser.add_argument('--verbose', '-v', action='store_true', help='Show detailed breakdown')
     
     args = parser.parse_args()

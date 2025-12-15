@@ -22,7 +22,7 @@ Follow these steps EXACTLY in every session:
 pwd
 
 # 2. Read progress file
-cat claude-progress.txt
+cat progress.txt
 
 # 3. Check recent git history
 git log --oneline -20
@@ -162,7 +162,7 @@ Feature F00X now passing."
 
 ### Phase 9: Update Progress File
 
-Append to `claude-progress.txt`:
+Append to `progress.txt`:
 
 ```markdown
 ---
@@ -202,7 +202,7 @@ Append to `claude-progress.txt`:
 ### Phase 10: Final Commit
 
 ```bash
-git add claude-progress.txt
+git add progress.txt
 git commit -m "docs: update progress log for session N"
 ```
 
@@ -244,7 +244,7 @@ Before ending ANY session, verify:
 - [ ] Feature implemented and tested end-to-end
 - [ ] feature_list.json updated (only `passes` field)
 - [ ] Git commits made with descriptive messages
-- [ ] claude-progress.txt updated
+- [ ] progress.txt updated
 - [ ] No uncommitted changes (`git status` clean)
 - [ ] Dev server still starts
 - [ ] Basic functionality still works

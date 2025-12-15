@@ -55,7 +55,7 @@ Current progress: X/Y (Z%)
 
 ### If a feature cannot be completed:
 
-1. Document the issue in claude-progress.txt
+1. Document the issue in progress.txt
 2. Mark any partial progress
 3. Move to the next feature (don't get stuck)
 4. After 3 consecutive failures, pause for review

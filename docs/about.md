@@ -14,7 +14,7 @@ pace solves this through:
 
 1. **Initializer Agent**: Sets up the environment with structured artifacts on first run:
    - `feature_list.json` - Comprehensive feature requirements
-   - `claude-progress.txt` - Session-to-session handoff notes
+   - `progress.txt` - Session-to-session handoff notes
    - `init.sh` - Development server startup script
    - Initial git commit establishing project baseline
 
@@ -57,7 +57,7 @@ pace implements this through:
 ┌─────────────────────────────────────────────────────────┐
 │ 1. Orient                                               │
 │    - Read feature_list.json                            │
-│    - Read claude-progress.txt                          │
+│    - Read progress.txt                          │
 │    - Review git history                                │
 └─────────────────────────────────────────────────────────┘
                          ↓
@@ -85,7 +85,7 @@ pace implements this through:
 │ 5. Clean State                                          │
 │    - Update feature_list.json (mark as passing)        │
 │    - Write git commit with descriptive message          │
-│    - Update claude-progress.txt                         │
+│    - Update progress.txt                         │
 │    - Document learnings for next session                │
 └─────────────────────────────────────────────────────────┘
                          ↓

@@ -47,7 +47,7 @@ else:
 git status --porcelain
 
 # 3. Check for blocking issues in progress file
-grep -i "blocker\|blocked\|stuck\|failed" claude-progress.txt | tail -5
+grep -i "blocker\|blocked\|stuck\|failed" progress.txt | tail -5
 ```
 
 ### Execute Coding Agent Workflow
@@ -104,7 +104,7 @@ Stop the coordination loop when:
 
 ### If a feature cannot be completed:
 
-1. Document the issue in claude-progress.txt
+1. Document the issue in progress.txt
 2. Mark any partial progress
 3. Consider if feature should be broken down
 4. Move to the next feature (don't get stuck)

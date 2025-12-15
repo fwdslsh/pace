@@ -25,7 +25,7 @@ If `feature-id` is provided, work on that specific feature. Otherwise, automatic
 6. **Tests End-to-End** - Verifies feature works as a user would use it
 7. **Updates Status** - Marks feature as passing (only after verification)
 8. **Commits** - Creates descriptive git commit
-9. **Logs Progress** - Updates claude-progress.txt
+9. **Logs Progress** - Updates progress.txt
 
 ## Example
 
@@ -45,7 +45,7 @@ Before ending the session, verify:
 - [ ] End-to-end testing completed
 - [ ] feature_list.json updated (passes field only)
 - [ ] Git commit made with descriptive message
-- [ ] claude-progress.txt updated with session entry
+- [ ] progress.txt updated with session entry
 - [ ] No uncommitted changes
 - [ ] Development server still starts
 - [ ] Basic functionality still works
