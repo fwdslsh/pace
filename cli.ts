@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+/* eslint-disable no-console */
 /**
  * cli.ts - CLI entry point for pace (Pragmatic Agent for Compounding Engineering)
  *
@@ -349,9 +350,9 @@ class Orchestrator {
 	 * Shut down the OpenCode server
 	 */
 	private async shutdown(): Promise<void> {
-		if (this.opencode?.server?.kill) {
+		if (this.opencode?.server?.close) {
 			this.log('Shutting down OpenCode server...');
-			await this.opencode.server.kill();
+			await this.opencode.server.close();
 		}
 	}
 
@@ -475,9 +476,9 @@ class Orchestrator {
 				}
 
 				// Message-level events have session ID in part.sessionID
-				const eventSessionId =
-					event.properties?.sessionID ||
-					event.properties?.part?.sessionID;
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const props = event.properties as any;
+				const eventSessionId = props?.sessionID || props?.part?.sessionID;
 
 				if (eventSessionId !== session.id) continue;
 
@@ -737,10 +738,9 @@ class Orchestrator {
 				}
 			}
 		} finally {
-			const summary = await this.generateSummary();
 			await this.shutdown();
-			return summary;
 		}
+		return await this.generateSummary();
 	}
 }
 
@@ -969,9 +969,9 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 			}
 
 			// Message-level events have session ID in part.sessionID
-			const eventSessionId =
-				event.properties?.sessionID ||
-				event.properties?.part?.sessionID;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const props = event.properties as any;
+			const eventSessionId = props?.sessionID || props?.part?.sessionID;
 
 			if (eventSessionId !== session.id) continue;
 
@@ -1086,8 +1086,8 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 		}
 		process.exit(1);
 	} finally {
-		if (opencode?.server?.kill) {
-			await opencode.server.kill();
+		if (opencode?.server?.close) {
+			await opencode.server.close();
 		}
 	}
 }
