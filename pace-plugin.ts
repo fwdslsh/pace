@@ -21,14 +21,12 @@ import { tool } from '@opencode-ai/plugin';
 
 // Import shared code from src/
 import { FeatureManager } from './src/feature-manager';
-import type { Feature, FeatureList } from './src/types';
 import {
 	loadConfig,
 	getAgentModel,
 	getCommandAgent,
 	isAgentEnabled,
-	isCommandEnabled,
-	type PaceConfig
+	isCommandEnabled
 } from './src/opencode/pace-config';
 
 // Import agent prompts from markdown files
@@ -566,7 +564,6 @@ Begin now.`;
 					}
 
 					// Wait for completion
-					let completed = false;
 					let success = false;
 
 					try {
@@ -575,7 +572,6 @@ Begin now.`;
 							if (event.type === 'session.idle') {
 								const idleSessionId = event.properties?.sessionID;
 								if (idleSessionId === session.id) {
-									completed = true;
 									state.status = 'completed';
 									success = true;
 									break;
@@ -586,7 +582,6 @@ Begin now.`;
 							if (event.type === 'session.error') {
 								const errorSessionId = event.properties?.sessionID;
 								if (errorSessionId === session.id) {
-									completed = true;
 									state.status = 'failed';
 									success = false;
 									break;
@@ -608,7 +603,7 @@ Begin now.`;
 								}
 							}
 						}
-					} catch (error) {
+					} catch {
 						state.status = 'failed';
 					}
 
@@ -735,7 +730,6 @@ Follow the coding agent workflow. Begin now.`;
 						});
 
 						// Wait for completion
-						let completed = false;
 
 						try {
 							for await (const event of events.stream) {
@@ -743,7 +737,6 @@ Follow the coding agent workflow. Begin now.`;
 								if (event.type === 'session.idle') {
 									const idleSessionId = event.properties?.sessionID;
 									if (idleSessionId === session.id) {
-										completed = true;
 										break;
 									}
 									continue;
@@ -752,14 +745,13 @@ Follow the coding agent workflow. Begin now.`;
 								if (event.type === 'session.error') {
 									const errorSessionId = event.properties?.sessionID;
 									if (errorSessionId === session.id) {
-										completed = true;
 										break;
 									}
 									continue;
 								}
 							}
 						} catch {
-							completed = true;
+							// Ignore errors
 						}
 
 						const sessionDuration = ((Date.now() - sessionStart) / 1000).toFixed(1);
@@ -831,6 +823,7 @@ Follow the coding agent workflow. Begin now.`;
 				if (sessionId && childSessions.has(sessionId)) {
 					const state = childSessions.get(sessionId)!;
 					const elapsed = ((Date.now() - state.startTime) / 1000).toFixed(1);
+					// eslint-disable-next-line no-console
 					console.log(
 						`[pace] Child session for ${state.featureId} completed in ${elapsed}s (${state.toolCalls} tool calls)`
 					);
