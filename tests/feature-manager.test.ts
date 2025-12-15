@@ -7,7 +7,7 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { FeatureManager } from '../src/feature-manager';
-import type { FeatureList, Feature } from '../src/types';
+import type { FeatureList } from '../src/types';
 
 describe('FeatureManager', () => {
 	let testDir: string;
