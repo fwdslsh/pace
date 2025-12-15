@@ -18,9 +18,18 @@
 
 import type { Plugin } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
-import { readFile, writeFile, copyFile } from 'fs/promises';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+
+// Import shared code from src/
+import { FeatureManager } from './src/feature-manager';
+import type { Feature, FeatureList } from './src/types';
+import {
+	loadConfig,
+	getAgentModel,
+	getCommandAgent,
+	isAgentEnabled,
+	isCommandEnabled,
+	type PaceConfig
+} from './src/opencode/pace-config';
 
 // Import agent prompts from markdown files
 import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
@@ -39,39 +48,9 @@ import paceCompoundMd from './src/opencode/commands/pace-compound.md' with { typ
 import paceStatusMd from './src/opencode/commands/pace-status.md' with { type: 'text' };
 import paceCompleteMd from './src/opencode/commands/pace-complete.md' with { type: 'text' };
 
-import {
-	loadConfig,
-	getAgentModel,
-	getCommandAgent,
-	isAgentEnabled,
-	isCommandEnabled,
-	type PaceConfig
-} from './src/opencode/pace-config';
-
 // ============================================================================
 // Types
 // ============================================================================
-
-interface Feature {
-	id: string;
-	category: string;
-	description: string;
-	priority: 'critical' | 'high' | 'medium' | 'low';
-	steps: string[];
-	passes: boolean;
-	tags?: string[];
-}
-
-interface FeatureList {
-	features: Feature[];
-	metadata?: {
-		project_name?: string;
-		total_features?: number;
-		passing?: number;
-		failing?: number;
-		last_updated?: string;
-	};
-}
 
 interface AgentFrontmatter {
 	description?: string;
@@ -137,108 +116,12 @@ function parseFrontmatter<T>(markdown: string): { frontmatter: T; content: strin
 }
 
 // ============================================================================
-// Feature Manager
-// ============================================================================
-
-class PluginFeatureManager {
-	constructor(private directory: string) {}
-
-	private getPath(): string {
-		return join(this.directory, 'feature_list.json');
-	}
-
-	async load(): Promise<FeatureList> {
-		try {
-			const content = await readFile(this.getPath(), 'utf-8');
-			return JSON.parse(content);
-		} catch {
-			return { features: [], metadata: {} };
-		}
-	}
-
-	async save(data: FeatureList): Promise<void> {
-		const path = this.getPath();
-
-		// Create backup
-		try {
-			await copyFile(path, path + '.bak');
-		} catch {
-			// Ignore if file doesn't exist
-		}
-
-		// Update metadata
-		const passing = data.features.filter((f) => f.passes).length;
-		const failing = data.features.filter((f) => !f.passes).length;
-
-		data.metadata = {
-			...data.metadata,
-			total_features: data.features.length,
-			passing,
-			failing,
-			last_updated: new Date().toISOString()
-		};
-
-		await writeFile(path, JSON.stringify(data, null, 2) + '\n');
-	}
-
-	async getNextFeature(): Promise<Feature | null> {
-		const data = await this.load();
-		const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-
-		const failing = data.features
-			.filter((f) => !f.passes)
-			.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
-
-		return failing[0] || null;
-	}
-
-	async updateFeature(featureId: string, passes: boolean): Promise<boolean> {
-		const data = await this.load();
-		const feature = data.features.find((f) => f.id === featureId);
-
-		if (!feature) return false;
-
-		feature.passes = passes;
-		await this.save(data);
-		return true;
-	}
-
-	async getProgress(): Promise<{ passing: number; total: number; percentage: number }> {
-		const data = await this.load();
-		const passing = data.features.filter((f) => f.passes).length;
-		const total = data.features.length;
-		return {
-			passing,
-			total,
-			percentage: total > 0 ? (passing / total) * 100 : 0
-		};
-	}
-
-	async getProgressByCategory(): Promise<Record<string, { passing: number; total: number }>> {
-		const data = await this.load();
-		const byCategory: Record<string, { passing: number; total: number }> = {};
-
-		for (const f of data.features) {
-			if (!byCategory[f.category]) {
-				byCategory[f.category] = { passing: 0, total: 0 };
-			}
-			byCategory[f.category].total++;
-			if (f.passes) {
-				byCategory[f.category].passing++;
-			}
-		}
-
-		return byCategory;
-	}
-}
-
-// ============================================================================
 // Plugin Definition
 // ============================================================================
 
 export const PacePlugin: Plugin = async (ctx) => {
 	const { client, directory } = ctx;
-	const featureManager = new PluginFeatureManager(directory);
+	const featureManager = new FeatureManager(directory);
 	const config = await loadConfig(directory);
 
 	// Track child sessions for orchestration
@@ -428,18 +311,29 @@ export const PacePlugin: Plugin = async (ctx) => {
 					'Get the current status of the pace workflow including feature progress, passing/failing counts, and next recommended feature.',
 				args: {},
 				async execute() {
-					const progress = await featureManager.getProgress();
+					const [passing, total] = await featureManager.getProgress();
 					const next = await featureManager.getNextFeature();
-					const byCategory = await featureManager.getProgressByCategory();
+					const stats = await featureManager.getStats();
 					const data = await featureManager.load();
+
+					// Convert byCategory stats to simpler format
+					const byCategory: Record<string, { passing: number; total: number }> = {};
+					for (const [cat, catStats] of Object.entries(stats.byCategory)) {
+						byCategory[cat] = {
+							passing: catStats.passing,
+							total: catStats.passing + catStats.failing
+						};
+					}
+
+					const percentage = total > 0 ? (passing / total) * 100 : 0;
 
 					return JSON.stringify(
 						{
 							progress: {
-								passing: progress.passing,
-								total: progress.total,
-								percentage: progress.percentage.toFixed(1) + '%',
-								remaining: progress.total - progress.passing
+								passing,
+								total,
+								percentage: percentage.toFixed(1) + '%',
+								remaining: total - passing
 							},
 							nextFeature: next
 								? {
@@ -491,10 +385,10 @@ export const PacePlugin: Plugin = async (ctx) => {
 					feature_id: tool.schema.string().describe('The feature ID (e.g., F001)')
 				},
 				async execute(args) {
-					const data = await featureManager.load();
-					const feature = data.features.find((f) => f.id === args.feature_id);
+					const feature = await featureManager.findFeature(args.feature_id);
 
 					if (!feature) {
+						const data = await featureManager.load();
 						return `Feature '${args.feature_id}' not found. Available features: ${data.features.map((f) => f.id).join(', ')}`;
 					}
 
@@ -524,8 +418,7 @@ export const PacePlugin: Plugin = async (ctx) => {
 						.describe('Whether the feature is now passing (true) or failing (false)')
 				},
 				async execute(args) {
-					const data = await featureManager.load();
-					const feature = data.features.find((f) => f.id === args.feature_id);
+					const feature = await featureManager.findFeature(args.feature_id);
 
 					if (!feature) {
 						return `Error: Feature '${args.feature_id}' not found.`;
@@ -538,13 +431,14 @@ export const PacePlugin: Plugin = async (ctx) => {
 						return `Feature '${args.feature_id}' is already ${oldStatus}. No change made.`;
 					}
 
-					const success = await featureManager.updateFeature(args.feature_id, args.passes);
+					const success = await featureManager.updateFeatureStatus(args.feature_id, args.passes);
 
 					if (success) {
-						const progress = await featureManager.getProgress();
+						const [passing, total] = await featureManager.getProgress();
+						const percentage = total > 0 ? (passing / total) * 100 : 0;
 						return `Successfully updated feature '${args.feature_id}' from ${oldStatus} to ${newStatus}.
 
-Current progress: ${progress.passing}/${progress.total} features passing (${progress.percentage.toFixed(1)}%)
+Current progress: ${passing}/${total} features passing (${percentage.toFixed(1)}%)
 Backup saved to feature_list.json.bak`;
 					} else {
 						return `Failed to update feature '${args.feature_id}'.`;
@@ -558,23 +452,18 @@ Backup saved to feature_list.json.bak`;
 					limit: tool.schema.number().optional().describe('Maximum number of features to return (default: 10)')
 				},
 				async execute(args) {
-					const data = await featureManager.load();
-					const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+					const allFailing = await featureManager.getFailingFeatures();
+					const limited = allFailing.slice(0, args.limit || 10);
 
-					const failing = data.features
-						.filter((f) => !f.passes)
-						.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority])
-						.slice(0, args.limit || 10);
-
-					if (failing.length === 0) {
+					if (limited.length === 0) {
 						return 'All features are passing!';
 					}
 
 					return JSON.stringify(
 						{
-							count: failing.length,
-							totalFailing: data.features.filter((f) => !f.passes).length,
-							features: failing.map((f) => ({
+							count: limited.length,
+							totalFailing: allFailing.length,
+							features: limited.map((f) => ({
 								id: f.id,
 								description: f.description.slice(0, 60) + (f.description.length > 60 ? '...' : ''),
 								priority: f.priority,
@@ -598,8 +487,7 @@ Backup saved to feature_list.json.bak`;
 						.describe('Whether to wait for the session to complete (default: true)')
 				},
 				async execute(args, context) {
-					const data = await featureManager.load();
-					const feature = data.features.find((f) => f.id === args.feature_id);
+					const feature = await featureManager.findFeature(args.feature_id);
 
 					if (!feature) {
 						return `Error: Feature '${args.feature_id}' not found.`;
@@ -632,7 +520,7 @@ Backup saved to feature_list.json.bak`;
 					childSessions.set(session.id, state);
 
 					// Build the prompt for the coding agent
-					const progress = await featureManager.getProgress();
+					const [passing, total] = await featureManager.getProgress();
 					const prompt = `Implement feature ${feature.id}: ${feature.description}
 
 Feature Details:
@@ -642,7 +530,7 @@ Feature Details:
 - Steps to verify:
 ${feature.steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n')}
 
-Current Progress: ${progress.passing}/${progress.total} features passing
+Current Progress: ${passing}/${total} features passing
 
 Follow the coding agent workflow exactly:
 1. Orient (pwd, read progress file, git log, feature list)
@@ -762,7 +650,7 @@ Begin now.`;
 					const startTime = Date.now();
 					const results: Array<{ featureId: string; success: boolean; duration: string }> = [];
 
-					const initialProgress = await featureManager.getProgress();
+					const [initialPassing, initialTotal] = await featureManager.getProgress();
 
 					// Main orchestration loop
 					while (true) {
@@ -775,8 +663,8 @@ Begin now.`;
 							break;
 						}
 
-						const progress = await featureManager.getProgress();
-						if (progress.passing === progress.total && progress.total > 0) {
+						const [passing, total] = await featureManager.getProgress();
+						if (passing === total && total > 0) {
 							break;
 						}
 
@@ -876,17 +764,17 @@ Follow the coding agent workflow. Begin now.`;
 					}
 
 					const totalDuration = ((Date.now() - startTime) / 1000).toFixed(1);
-					const finalProgress = await featureManager.getProgress();
+					const [finalPassing, finalTotal] = await featureManager.getProgress();
 
 					return JSON.stringify(
 						{
 							summary: {
 								sessionsRun: sessionCount,
 								featuresCompleted,
-								initialProgress: `${initialProgress.passing}/${initialProgress.total}`,
-								finalProgress: `${finalProgress.passing}/${finalProgress.total}`,
+								initialProgress: `${initialPassing}/${initialTotal}`,
+								finalProgress: `${finalPassing}/${finalTotal}`,
 								duration: `${totalDuration}s`,
-								complete: finalProgress.passing === finalProgress.total
+								complete: finalPassing === finalTotal
 							},
 							sessions: results
 						},
