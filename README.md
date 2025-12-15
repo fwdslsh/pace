@@ -1,6 +1,6 @@
-# pace: Pragmatic Agent for Compounding Engineering
+# pace
 
-## Long-Running Agent Harness & Compound Engineering
+## Pragmatic Agent for Compounding Engineering
 
 A Bun/TypeScript implementation that orchestrates continuous coding agent sessions using **multiple agent SDKs** for maximum visibility and flexibility. Supports both the Claude Agent SDK and OpenCode SDK.
 
