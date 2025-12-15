@@ -24,7 +24,7 @@ export class FeatureManager {
       const content = await readFile(this.getFeatureFilePath(), 'utf-8');
       return JSON.parse(content);
     } catch (e) {
-      if ((e as any).code === 'ENOENT') {
+      if (typeof e === 'object' && e !== null && 'code' in e && (e as { code: string }).code === 'ENOENT') {
         return { features: [], metadata: {} };
       }
       throw new Error(`Failed to load feature list: ${e}`);
@@ -40,7 +40,7 @@ export class FeatureManager {
     if (backup) {
       try {
         await copyFile(filePath, filePath + '.bak');
-      } catch (e) {
+      } catch {
         // Ignore if backup fails (file might not exist yet)
       }
     }
