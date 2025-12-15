@@ -563,13 +563,58 @@
         "Standardize import order"
       ],
       "passes": false
+    },
+    {
+      "id": "CODE-001",
+      "category": "cleanup",
+      "description": "Audit codebase for TODO and FIXME comments",
+      "priority": "low",
+      "steps": [
+        "Search for TODO and FIXME",
+        "Convert actionable ones to issues or features",
+        "Remove obsolete ones"
+      ],
+      "passes": false
+    },
+    {
+      "id": "CODE-002",
+      "category": "cleanup",
+      "description": "Check for magic numbers in validators.ts",
+      "priority": "low",
+      "steps": [
+        "Identify unnamed numeric constants",
+        "Extract them to named constants"
+      ],
+      "passes": false
+    },
+    {
+      "id": "DOC-002",
+      "category": "documentation",
+      "description": "Add JSDoc to public functions in feature-manager.ts",
+      "priority": "low",
+      "steps": [
+        "Identify public methods",
+        "Add JSDoc describing params and return values"
+      ],
+      "passes": false
+    },
+    {
+      "id": "DOC-003",
+      "category": "documentation",
+      "description": "Add JSDoc to public functions in status-reporter.ts",
+      "priority": "low",
+      "steps": [
+        "Identify public methods",
+        "Add JSDoc describing params and return values"
+      ],
+      "passes": false
     }
   ],
   "metadata": {
     "project_name": "pace-cleanup",
     "created_at": "2025-12-15",
-    "total_features": 50,
+    "total_features": 54,
     "passing": 0,
-    "failing": 50
+    "failing": 54
   }
 }
