@@ -357,3 +357,37 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Continue fixing lint configuration or addressing specific lint errors.
 
 ---
+
+### Session 12 - Cleanup
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- CLEAN-001: Fix linting errors in src/cli.ts
+
+**Actions Taken:**
+
+- Ran lint on `cli.ts` and identified `no-unsafe-finally` error and many `no-console` warnings.
+- Fixed `no-unsafe-finally` by restructuring `try...finally` block.
+- Disabled `no-console` rule for `cli.ts` as it is a CLI tool.
+- Fixed unrelated TypeScript errors (`kill` -> `close`, property access on unions) to ensure code cleanliness.
+- Added `src/declarations.d.ts` for markdown module imports.
+
+**Test Results:**
+
+- `bun run lint cli.ts` returns clean output.
+- `bun run build` succeeds.
+- `bun test` passes.
+- `./pace status` functions correctly.
+
+**Current Status:**
+
+- Features passing: 11/54
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: CLEAN-003 (Fix linting errors in feature-manager.ts).
+- Continue working through CLEAN-* or TEST-* tasks.

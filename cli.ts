@@ -115,7 +115,6 @@ function parseArgs(): ParsedArgs {
 			case '-V':
 				console.log('0.2.0');
 				process.exit(0);
-				break;
 			case '--project-dir':
 			case '-d':
 				options.projectDir = args[++i];
@@ -352,7 +351,7 @@ class Orchestrator {
 	private async shutdown(): Promise<void> {
 		if (this.opencode?.server?.close) {
 			this.log('Shutting down OpenCode server...');
-			await this.opencode.server.close();
+			this.opencode.server.close();
 		}
 	}
 
