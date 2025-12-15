@@ -663,3 +663,37 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Recommended next feature: LINT-002 (Enable and enforce no-explicit-any rule) or FMT-001 (Apply formatting globally).
 - Continue with linting rules or cleanup.
 
+
+---
+
+### Session 21 - Linting Rule Enforcement
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- LINT-002: Enable and enforce no-explicit-any rule
+
+**Actions Taken:**
+
+- Updated `.eslintrc.json` to set `@typescript-eslint/no-explicit-any` to `error`.
+- Refactored `src/validators.ts` to use `unknown` instead of `any` for input validation, adding proper type guards and checks.
+- Fixed an `any` usage in `src/types.ts`.
+- Removed unused imports and variables in `src/validators.ts` and `src/status-reporter.ts`.
+
+**Test Results:**
+
+- `bun run lint` is now free of errors (only `no-console` warnings remain).
+- `bun test` passes (155 tests).
+- `./pace validate` functions correctly with the new validation logic.
+
+**Current Status:**
+
+- Features passing: 20/55
+- Known issues: Lint warnings for `no-console` (LINT-003).
+
+**Next Steps:**
+
+- Recommended next feature: LINT-003 (Enable and enforce no-console rule) or CLEAN-002 (Fix linting in pace-plugin.ts).
+- Continue with remaining linting/cleanup tasks.
