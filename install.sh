@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# PACE Installation Script
+# pace Installation Script
 # This script downloads and installs the latest pace binary from GitHub releases
 # Supports Linux, macOS, and Windows across x86_64 and arm64 architectures
 
@@ -49,7 +49,7 @@ EOF
 # Help function
 show_help() {
     cat << EOF
-PACE Installation Script
+pace Installation Script
 
 USAGE:
     $0 [OPTIONS]
@@ -314,7 +314,7 @@ check_existing_installation() {
         log_info "Found existing installation: $existing_path (version: $existing_version)"
         
         if [[ "$FORCE_INSTALL" == "false" ]]; then
-            log_warn "PACE is already installed. Use --force to reinstall."
+            log_warn "pace is already installed. Use --force to reinstall."
             exit 0
         else
             log_info "Force install enabled, proceeding with installation..."

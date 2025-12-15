@@ -294,7 +294,7 @@ Each release includes standalone executables:
 
 ### Installation Methods
 
-Users can install PACE via:
+Users can install pace via:
 
 1. **Installation script** (recommended):
 
