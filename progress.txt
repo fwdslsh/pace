@@ -905,3 +905,36 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Recommended next feature: DEAD-001 (Identify and remove unused imports in src/cli.ts).
 - Note: DEAD-006 (Remove unused imports in src/opencode/pace-config.ts) is also verified clean.
 
+---
+
+### Session 28 - Dead Code Removal
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- DEAD-001: Identify and remove unused imports in src/cli.ts
+
+**Actions Taken:**
+
+- Verified `cli.ts` (root) for unused imports using `eslint` and manual inspection.
+- Confirmed no unused imports were present (verified detection by temporarily inserting an unused import).
+- Fixed a `no-fallthrough` lint error in `cli.ts` to ensure clean code.
+
+**Test Results:**
+
+- `bun run lint cli.ts` passes cleanly.
+- `bun build` succeeds.
+- `bun test` passes (155 tests).
+- `./pace status` works correctly.
+
+**Current Status:**
+
+- Features passing: 27/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: DEAD-002 (Identify and remove unused imports in src/feature-manager.ts).
+- Continue with DEAD-* tasks.
