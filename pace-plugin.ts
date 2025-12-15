@@ -569,10 +569,33 @@ Begin now.`;
 
 					try {
 						for await (const event of events.stream) {
+							// Session-level events (idle/error) have session ID in info.id
+							if (event.type === 'session.idle') {
+								const idleSessionId = event.properties?.info?.id;
+								if (idleSessionId === session.id) {
+									completed = true;
+									state.status = 'completed';
+									success = true;
+									break;
+								}
+								continue;
+							}
+
+							if (event.type === 'session.error') {
+								const errorSessionId = event.properties?.info?.id;
+								if (errorSessionId === session.id) {
+									completed = true;
+									state.status = 'failed';
+									success = false;
+									break;
+								}
+								continue;
+							}
+
+							// Message-level events have session ID in part.sessionID
 							const eventSessionId =
 								event.properties?.sessionID ||
-								event.properties?.part?.sessionID ||
-								event.properties?.info?.id;
+								event.properties?.part?.sessionID;
 
 							if (eventSessionId !== session.id) continue;
 
@@ -581,16 +604,6 @@ Begin now.`;
 								if (part?.type === 'tool') {
 									state.toolCalls++;
 								}
-							} else if (event.type === 'session.idle') {
-								completed = true;
-								state.status = 'completed';
-								success = true;
-								break;
-							} else if (event.type === 'session.error') {
-								completed = true;
-								state.status = 'failed';
-								success = false;
-								break;
 							}
 						}
 					} catch (error) {
@@ -721,16 +734,23 @@ Follow the coding agent workflow. Begin now.`;
 
 						try {
 							for await (const event of events.stream) {
-								const eventSessionId =
-									event.properties?.sessionID ||
-									event.properties?.part?.sessionID ||
-									event.properties?.info?.id;
+								// Session-level events (idle/error) have session ID in info.id
+								if (event.type === 'session.idle') {
+									const idleSessionId = event.properties?.info?.id;
+									if (idleSessionId === session.id) {
+										completed = true;
+										break;
+									}
+									continue;
+								}
 
-								if (eventSessionId !== session.id) continue;
-
-								if (event.type === 'session.idle' || event.type === 'session.error') {
-									completed = true;
-									break;
+								if (event.type === 'session.error') {
+									const errorSessionId = event.properties?.info?.id;
+									if (errorSessionId === session.id) {
+										completed = true;
+										break;
+									}
+									continue;
 								}
 							}
 						} catch {

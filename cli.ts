@@ -450,47 +450,51 @@ class Orchestrator {
 
 		try {
 			for await (const event of events.stream) {
-				// Filter for this session's events
-				const eventSessionId =
-					event.properties?.sessionID ||
-					event.properties?.part?.sessionID ||
-					event.properties?.info?.id;
-
-				if (eventSessionId !== session.id) continue;
-
-				// Handle different event types
-				switch (event.type) {
-					case 'message.part.updated':
-						const part = event.properties?.part;
-						if (part?.type === 'tool') {
-							toolCalls++;
-							if (part.state?.status === 'running') {
-								this.log(`  Tool: ${part.tool}...`);
-							} else if (part.state?.status === 'completed') {
-								this.log(`  Tool: ${part.tool} - ${part.state.title || 'done'}`);
-							}
-						} else if (part?.type === 'text') {
-							textParts++;
-							const text = part.text || '';
-							if (text.length > 0 && textParts % 5 === 0) {
-								this.log(`  [Text output ${textParts}...]`);
-							}
-						}
-						break;
-
-					case 'session.idle':
+				// Session-level events (idle/error) have session ID in info.id
+				if (event.type === 'session.idle') {
+					const idleSessionId = event.properties?.info?.id;
+					if (idleSessionId === session.id) {
 						this.log('\nSession completed.');
 						success = true;
 						break;
+					}
+					continue;
+				}
 
-					case 'session.error':
+				if (event.type === 'session.error') {
+					const errorSessionId = event.properties?.info?.id;
+					if (errorSessionId === session.id) {
 						console.error('\nSession encountered an error');
 						success = false;
 						break;
+					}
+					continue;
 				}
 
-				if (event.type === 'session.idle' || event.type === 'session.error') {
-					break;
+				// Message-level events have session ID in part.sessionID
+				const eventSessionId =
+					event.properties?.sessionID ||
+					event.properties?.part?.sessionID;
+
+				if (eventSessionId !== session.id) continue;
+
+				// Handle message events
+				if (event.type === 'message.part.updated') {
+					const part = event.properties?.part;
+					if (part?.type === 'tool') {
+						toolCalls++;
+						if (part.state?.status === 'running') {
+							this.log(`  Tool: ${part.tool}...`);
+						} else if (part.state?.status === 'completed') {
+							this.log(`  Tool: ${part.tool} - ${part.state.title || 'done'}`);
+						}
+					} else if (part?.type === 'text') {
+						textParts++;
+						const text = part.text || '';
+						if (text.length > 0 && textParts % 5 === 0) {
+							this.log(`  [Text output ${textParts}...]`);
+						}
+					}
 				}
 			}
 		} catch (error) {
@@ -940,14 +944,33 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 		}
 
 		for await (const event of events.stream) {
+			// Session-level events (idle/error) have session ID in info.id
+			if (event.type === 'session.idle') {
+				const idleSessionId = event.properties?.info?.id;
+				if (idleSessionId === session.id) {
+					success = true;
+					break;
+				}
+				continue;
+			}
+
+			if (event.type === 'session.error') {
+				const errorSessionId = event.properties?.info?.id;
+				if (errorSessionId === session.id) {
+					success = false;
+					break;
+				}
+				continue;
+			}
+
+			// Message-level events have session ID in part.sessionID
 			const eventSessionId =
 				event.properties?.sessionID ||
-				event.properties?.part?.sessionID ||
-				event.properties?.info?.id;
+				event.properties?.part?.sessionID;
 
 			if (eventSessionId !== session.id) continue;
 
-			// Handle different event types
+			// Handle message events
 			if (event.type === 'message.part.updated') {
 				const part = event.properties?.part;
 				if (part?.type === 'tool') {
@@ -980,12 +1003,6 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 						}
 					}
 				}
-			} else if (event.type === 'session.idle') {
-				success = true;
-				break;
-			} else if (event.type === 'session.error') {
-				success = false;
-				break;
 			}
 		}
 

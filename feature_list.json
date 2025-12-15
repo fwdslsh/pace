@@ -21,7 +21,7 @@
         "Configure parser and plugins",
         "Run eslint manually to verify config validity"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "INF-003",
@@ -614,7 +614,7 @@
     "project_name": "pace-cleanup",
     "created_at": "2025-12-15",
     "total_features": 54,
-    "passing": 1,
-    "failing": 53
+    "passing": 2,
+    "failing": 52
   }
 }
