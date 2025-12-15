@@ -115,6 +115,7 @@ function parseArgs(): ParsedArgs {
 			case '-V':
 				console.log('0.2.0');
 				process.exit(0);
+			// eslint-disable-next-line no-fallthrough
 			case '--project-dir':
 			case '-d':
 				options.projectDir = args[++i];
