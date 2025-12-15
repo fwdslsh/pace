@@ -43,16 +43,18 @@ export interface ValidationError {
   message: string;
 }
 
+export interface ValidationStats {
+  total: number;
+  passing: number;
+  failing: number;
+  byCategory: Record<string, number>;
+  byPriority: Record<Priority, number>;
+}
+
 export interface ValidationResult {
   valid: boolean;
   errors: ValidationError[];
-  stats: {
-    total: number;
-    passing: number;
-    failing: number;
-    byCategory: Record<string, number>;
-    byPriority: Record<Priority, number>;
-  };
+  stats: ValidationStats;
 }
 
 export interface StatusReportOptions {
@@ -61,6 +63,12 @@ export interface StatusReportOptions {
   showNextFeatures?: number;
   showProgress?: boolean;
   json?: boolean;
+}
+
+export interface CategoryStatus {
+  passing: number;
+  failing: number;
+  total: number;
 }
 
 export interface StatusOutput {
@@ -77,7 +85,7 @@ export interface StatusOutput {
     priority: Priority;
     category: string;
   }>;
-  byCategory?: Record<string, { passing: number; failing: number; total: number }>;
+  byCategory?: Record<string, CategoryStatus>;
   gitLog?: string[];
   lastSession?: string;
   workingDirectory: string;
@@ -87,13 +95,7 @@ export interface ValidationOutput {
   valid: boolean;
   errorCount: number;
   errors: ValidationError[];
-  stats: {
-    total: number;
-    passing: number;
-    failing: number;
-    byCategory: Record<string, number>;
-    byPriority: Record<Priority, number>;
-  };
+  stats: ValidationStats;
 }
 
 export interface UpdateOutput {
