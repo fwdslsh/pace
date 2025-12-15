@@ -1,6 +1,6 @@
 # About pace
 
-**pace: Pragmatic Agent for Compounding Engineering**
+**pace: Provider Agnostic Compound Engineering**
 
 pace is a harness for long-running AI coding agents that implements two cutting-edge patterns: multi-context window persistence and compounding engineering. It enables agents to work effectively across hours or days, with each feature making the next easier to build.
 

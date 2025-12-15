@@ -6,41 +6,49 @@ The codebase is organized into modular components for better maintainability:
 
 ```
 pace/
-├── cli.ts                    # Main CLI entry point
+├── cli.ts                    # Main CLI entry point with orchestration
+├── pace-plugin.ts            # OpenCode plugin for TUI integration
 ├── src/
 │   ├── types.ts              # Shared TypeScript type definitions
 │   ├── feature-manager.ts    # Feature list operations (load, save, query)
 │   ├── validators.ts         # Feature list validation logic
 │   ├── status-reporter.ts    # Status display and reporting
-│   ├── orchestrator.ts       # Main orchestration logic
-│   └── sdk/
-│       ├── base.ts           # SDK abstraction interface
-│       ├── claude.ts         # Claude Agent SDK implementation
-│       └── opencode.ts       # OpenCode SDK implementation
-├── tests/                    # Comprehensive test suite (90+ tests)
+│   └── opencode/
+│       ├── pace-config.ts    # Configuration loading (pace.json)
+│       ├── agents/           # Agent prompt markdown files
+│       │   ├── coding-agent.md
+│       │   ├── coordinator-agent.md
+│       │   ├── initializer-agent.md
+│       │   ├── code-reviewer.md
+│       │   └── practices-reviewer.md
+│       └── commands/         # Command markdown files
+│           ├── pace-init.md
+│           ├── pace-next.md
+│           └── ...
+├── tests/                    # Comprehensive test suite (100+ tests)
 │   ├── feature-manager.test.ts
 │   ├── validators.test.ts
 │   ├── status-reporter.test.ts
-│   ├── orchestrator.test.ts
+│   ├── pace-config.test.ts
 │   └── cli.test.ts
-├── examples/
-│   ├── show_status.py        # Python reference implementation
-│   ├── update_feature.py     # Python reference implementation
-│   └── validate_features.py  # Python reference implementation
+├── docs/
+│   ├── examples/             # Example agents and commands
+│   ├── SDK_PROGRAMMATIC_USAGE.md
+│   ├── PLUGIN_EXTENSION_POINTS.md
+│   └── ...
 └── package.json
 ```
 
 ### Module Responsibilities
 
-- **cli.ts**: Command-line interface, argument parsing, command routing
-- **orchestrator.ts**: Main orchestration loop, session management, stopping conditions
+- **cli.ts**: Command-line interface, argument parsing, orchestration loop, command handlers
+- **pace-plugin.ts**: OpenCode plugin providing custom agents, commands, and tools
 - **feature-manager.ts**: All operations on feature_list.json (CRUD, queries, statistics)
 - **validators.ts**: Validation logic for feature lists, error formatting
 - **status-reporter.ts**: Display project status, progress, git history
-- **sdk/**: SDK implementations following the AgentSessionRunner interface
-  - **base.ts**: Interface definition for SDK runners
-  - **claude.ts**: Claude Agent SDK wrapper with full event streaming
-  - **opencode.ts**: OpenCode SDK wrapper with event streaming
+- **opencode/pace-config.ts**: Configuration loading from pace.json
+- **opencode/agents/**: Agent prompt definitions in markdown format
+- **opencode/commands/**: Command definitions in markdown format
 
 ## Install from Source
 
@@ -60,6 +68,10 @@ When developing or running pace from source, use `bun run cli.ts` instead of the
 ### Basic Commands
 
 ```bash
+# Initialize a new project
+bun run cli.ts init -p "Build a todo app"
+bun run cli.ts init --file requirements.txt
+
 # Run the orchestrator
 bun run cli.ts
 bun run cli.ts run --max-sessions 10
@@ -79,19 +91,6 @@ bun run cli.ts update F002 fail
 bun run cli.ts update F001 pass --json
 ```
 
-### Using Different SDKs
-
-```bash
-# Use Claude SDK (default)
-bun run cli.ts --sdk claude --max-sessions 10
-
-# Use OpenCode SDK
-bun run cli.ts --sdk opencode
-
-# OpenCode with remote server
-OPENCODE_SERVER_URL=http://your-server:4096 bun run cli.ts --sdk opencode
-```
-
 ### Common Development Options
 
 ```bash
@@ -107,9 +106,8 @@ bun run cli.ts --max-failures 5
 # Preview without executing (dry run)
 bun run cli.ts --dry-run --max-sessions 5
 
-# Override SDK home directory for testing
-bun run cli.ts run --home-dir /tmp/test-claude --dry-run
-bun run cli.ts run --sdk opencode --home-dir /tmp/test-opencode --dry-run
+# Use custom OpenCode config directory
+bun run cli.ts run --config-dir /path/to/opencode-config --dry-run
 ```
 
 ### JSON Output for Development
@@ -144,18 +142,18 @@ bun run build:all
 
 Key areas to customize:
 
-- **Prompt Construction**: `src/orchestrator.ts` - `buildCodingPrompt()` method
+- **Prompt Construction**: `cli.ts` - `buildCodingAgentPrompt()` function
 - **Feature Selection**: `src/feature-manager.ts` - `getNextFeature()` method
-- **Success Criteria**: `src/orchestrator.ts` - `runCodingSession()` after execution
-- **Output Formatting**: `src/sdk/claude.ts` or `src/sdk/opencode.ts` - message handling
+- **Success Criteria**: `cli.ts` - `runCodingSession()` after execution
+- **Agent Prompts**: `src/opencode/agents/*.md` - Agent behavior definitions
+- **Configuration**: `src/opencode/pace-config.ts` - Config loading and defaults
 
-### Adding New SDK Implementations
+### Adding New Agents
 
-1. Create a new file in `src/sdk/` (e.g., `src/sdk/myai.ts`)
-2. Implement the `AgentSessionRunner` interface from `src/sdk/base.ts`
-3. Add the SDK choice to `SDKChoice` type in `src/types.ts`
-4. Update `Orchestrator.getSessionRunner()` in `src/orchestrator.ts`
-5. Update CLI help text and README
+1. Create a new markdown file in `src/opencode/agents/` (e.g., `my-agent.md`)
+2. Add frontmatter with agent metadata
+3. Register the agent in `pace-plugin.ts`
+4. Optionally add model configuration in `pace-config.ts`
 
 ### Adding New Commands
 
@@ -163,6 +161,7 @@ Key areas to customize:
 2. Create a `handle<Command>()` function
 3. Add command to the `switch` statement in `main()`
 4. Update `printHelp()` with command documentation
+5. Optionally create a matching markdown file in `src/opencode/commands/`
 
 ## Integration with Feature List
 
@@ -175,24 +174,52 @@ The orchestrator expects a `feature_list.json` file in the project directory wit
    "id": "AUTH-001",
    "description": "Implement user authentication",
    "priority": "critical",
+   "category": "auth",
+   "steps": ["Create login form", "Add JWT validation"],
    "passes": false
   },
   {
    "id": "UI-002",
    "description": "Add dark mode toggle",
    "priority": "medium",
+   "category": "ui",
+   "steps": ["Add theme context", "Create toggle button"],
    "passes": true
   }
  ],
  "metadata": {
-  "lastUpdated": "2025-11-28T10:30:00Z"
+  "project_name": "My Project",
+  "last_updated": "2025-01-01T10:30:00Z"
  }
+}
+```
+
+## Configuration
+
+pace can be configured via `pace.json`, `pace.config.json`, or `.pace.json`:
+
+```json
+{
+  "defaultModel": "anthropic/claude-sonnet-4-20250514",
+  "agents": {
+    "pace-coding": {
+      "model": "anthropic/claude-sonnet-4-20250514"
+    },
+    "pace-code-reviewer": {
+      "model": "anthropic/claude-opus-4-20250514"
+    }
+  },
+  "orchestrator": {
+    "maxSessions": 50,
+    "maxFailures": 5,
+    "sessionDelay": 5000
+  }
 }
 ```
 
 ## Testing
 
-The project includes a comprehensive test suite with 90+ tests covering all functionality.
+The project includes a comprehensive test suite with 100+ tests covering all functionality.
 
 ### Running Tests
 
@@ -215,13 +242,13 @@ bun test --verbose
 The test suite includes:
 
 - **Unit Tests**:
-  - `tests/feature-manager.test.ts` - Feature list operations (41 tests)
-  - `tests/validators.test.ts` - Validation logic (13 tests)
-  - `tests/status-reporter.test.ts` - Status reporting (13 tests)
-  - `tests/orchestrator.test.ts` - Orchestration logic (14 tests)
+  - `tests/feature-manager.test.ts` - Feature list operations
+  - `tests/validators.test.ts` - Validation logic
+  - `tests/status-reporter.test.ts` - Status reporting
+  - `tests/pace-config.test.ts` - Configuration loading
 
 - **Integration Tests**:
-  - `tests/cli.test.ts` - End-to-end CLI testing (20 tests)
+  - `tests/cli.test.ts` - End-to-end CLI testing
 
 ### Test Organization
 
@@ -230,7 +257,7 @@ tests/
 ├── feature-manager.test.ts   # Feature CRUD operations
 ├── validators.test.ts         # Feature list validation
 ├── status-reporter.test.ts    # Status display and JSON output
-├── orchestrator.test.ts       # Session orchestration
+├── pace-config.test.ts        # Configuration loading
 └── cli.test.ts                # CLI integration tests
 ```
 

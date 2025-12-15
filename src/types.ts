@@ -1,9 +1,8 @@
 /**
- * types.ts - Shared type definitions for the orchestrator
+ * types.ts - Shared type definitions for pace
  */
 
 export type Priority = 'critical' | 'high' | 'medium' | 'low';
-export type SDKChoice = 'claude' | 'opencode';
 
 export interface Feature {
 	id: string;
@@ -27,31 +26,6 @@ export interface FeatureListMetadata {
 export interface FeatureList {
 	features: Feature[];
 	metadata?: FeatureListMetadata;
-}
-
-export interface AgentSessionParams {
-	prompt: string;
-	projectDir: string;
-	featureId?: string;
-	homeDir?: string;
-}
-
-export interface AgentRunResult {
-	success: boolean;
-	duration?: number;
-	turns?: number;
-	cost?: number;
-}
-
-export interface OrchestratorOptions {
-	projectDir: string;
-	homeDir?: string;
-	maxSessions?: number;
-	maxFailures: number;
-	delay: number;
-	dryRun: boolean;
-	sdk: SDKChoice;
-	json?: boolean;
 }
 
 export interface SessionSummary {
