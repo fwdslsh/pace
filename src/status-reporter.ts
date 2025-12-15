@@ -38,10 +38,9 @@ export class StatusReporter {
         timeout: 5000,
       });
       return stdout.trim();
-    } catch (e) {
+    } catch {
       return null;
-    }
-  }
+    }  }
 
   /**
    * Load progress file
@@ -50,10 +49,9 @@ export class StatusReporter {
     try {
       const content = await readFile(join(this.projectDir, 'progress.txt'), 'utf-8');
       return content;
-    } catch (e) {
+    } catch {
       return null;
-    }
-  }
+    }  }
 
   /**
    * Print a progress bar

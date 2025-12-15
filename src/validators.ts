@@ -2,7 +2,7 @@
  * validators.ts - Validation logic for feature lists
  */
 
-import type { Feature, FeatureList, Priority, ValidationError, ValidationResult } from './types';
+import type { FeatureList, Priority, ValidationError, ValidationResult } from './types';
 
 const VALID_PRIORITIES: Priority[] = ['critical', 'high', 'medium', 'low'];
 const REQUIRED_FEATURE_FIELDS = ['id', 'category', 'description', 'priority', 'steps', 'passes'];
@@ -11,13 +11,25 @@ const REQUIRED_METADATA_FIELDS = ['project_name', 'total_features', 'passing', '
 /**
  * Validate a single feature
  */
-export function validateFeature(feature: any, index: number): ValidationError[] {
+export function validateFeature(feature: unknown, index: number): ValidationError[] {
   const errors: ValidationError[] = [];
-  const featureId = feature?.id || `index-${index}`;
+
+  if (!feature || typeof feature !== 'object') {
+    return [
+      {
+        featureId: `index-${index}`,
+        field: 'root',
+        message: 'Feature must be an object',
+      },
+    ];
+  }
+
+  const f = feature as Record<string, unknown>;
+  const featureId = typeof f.id === 'string' ? f.id : `index-${index}`;
 
   // Check required fields
   for (const field of REQUIRED_FEATURE_FIELDS) {
-    if (!(field in feature)) {
+    if (!(field in f)) {
       errors.push({
         featureId,
         field,
@@ -27,20 +39,20 @@ export function validateFeature(feature: any, index: number): ValidationError[] 
   }
 
   // Type validation
-  if ('id' in feature && typeof feature.id !== 'string') {
+  if ('id' in f && typeof f.id !== 'string') {
     errors.push({ featureId, field: 'id', message: "'id' must be a string" });
   }
 
-  if ('category' in feature && typeof feature.category !== 'string') {
+  if ('category' in f && typeof f.category !== 'string') {
     errors.push({ featureId, field: 'category', message: "'category' must be a string" });
   }
 
-  if ('description' in feature && typeof feature.description !== 'string') {
+  if ('description' in f && typeof f.description !== 'string') {
     errors.push({ featureId, field: 'description', message: "'description' must be a string" });
   }
 
-  if ('priority' in feature) {
-    if (!VALID_PRIORITIES.includes(feature.priority)) {
+  if ('priority' in f) {
+    if (typeof f.priority !== 'string' || !VALID_PRIORITIES.includes(f.priority as Priority)) {
       errors.push({
         featureId,
         field: 'priority',
@@ -49,14 +61,14 @@ export function validateFeature(feature: any, index: number): ValidationError[] 
     }
   }
 
-  if ('steps' in feature) {
-    if (!Array.isArray(feature.steps)) {
+  if ('steps' in f) {
+    if (!Array.isArray(f.steps)) {
       errors.push({ featureId, field: 'steps', message: "'steps' must be an array" });
-    } else if (feature.steps.length === 0) {
+    } else if (f.steps.length === 0) {
       errors.push({ featureId, field: 'steps', message: "'steps' array cannot be empty" });
     } else {
-      for (let i = 0; i < feature.steps.length; i++) {
-        if (typeof feature.steps[i] !== 'string') {
+      for (let i = 0; i < f.steps.length; i++) {
+        if (typeof f.steps[i] !== 'string') {
           errors.push({
             featureId,
             field: 'steps',
@@ -67,13 +79,13 @@ export function validateFeature(feature: any, index: number): ValidationError[] 
     }
   }
 
-  if ('passes' in feature && typeof feature.passes !== 'boolean') {
+  if ('passes' in f && typeof f.passes !== 'boolean') {
     errors.push({ featureId, field: 'passes', message: "'passes' must be a boolean" });
   }
 
   // Content validation
-  if ('description' in feature && typeof feature.description === 'string') {
-    if (feature.description.length < 10) {
+  if ('description' in f && typeof f.description === 'string') {
+    if (f.description.length < 10) {
       errors.push({
         featureId,
         field: 'description',
@@ -89,14 +101,26 @@ export function validateFeature(feature: any, index: number): ValidationError[] 
  * Validate metadata section
  */
 export function validateMetadata(
-  metadata: any,
+  metadata: unknown,
   actualCounts: { total: number; passing: number; failing: number },
 ): ValidationError[] {
   const errors: ValidationError[] = [];
 
+  if (!metadata || typeof metadata !== 'object') {
+    return [
+      {
+        featureId: 'metadata',
+        field: 'root',
+        message: 'Metadata must be an object',
+      },
+    ];
+  }
+
+  const m = metadata as Record<string, unknown>;
+
   // Check required fields
   for (const field of REQUIRED_METADATA_FIELDS) {
-    if (!(field in metadata)) {
+    if (!(field in m)) {
       errors.push({
         featureId: 'metadata',
         field,
@@ -106,42 +130,44 @@ export function validateMetadata(
   }
 
   // Check counts match
-  if ('total_features' in metadata && 'passing' in metadata && 'failing' in metadata) {
-    const total = metadata.total_features;
-    const passing = metadata.passing;
-    const failing = metadata.failing;
+  if ('total_features' in m && 'passing' in m && 'failing' in m) {
+    const total = typeof m.total_features === 'number' ? m.total_features : -1;
+    const passing = typeof m.passing === 'number' ? m.passing : -1;
+    const failing = typeof m.failing === 'number' ? m.failing : -1;
 
-    if (passing + failing !== total) {
-      errors.push({
-        featureId: 'metadata',
-        field: 'counts',
-        message: `passing (${passing}) + failing (${failing}) != total_features (${total})`,
-      });
-    }
+    if (total !== -1 && passing !== -1 && failing !== -1) {
+      if (passing + failing !== total) {
+        errors.push({
+          featureId: 'metadata',
+          field: 'counts',
+          message: `passing (${passing}) + failing (${failing}) != total_features (${total})`,
+        });
+      }
 
-    // Check against actual counts
-    if (metadata.total_features !== actualCounts.total) {
-      errors.push({
-        featureId: 'metadata',
-        field: 'total_features',
-        message: `metadata (${metadata.total_features}) doesn't match actual count (${actualCounts.total})`,
-      });
-    }
+      // Check against actual counts
+      if (total !== actualCounts.total) {
+        errors.push({
+          featureId: 'metadata',
+          field: 'total_features',
+          message: `metadata (${total}) doesn't match actual count (${actualCounts.total})`,
+        });
+      }
 
-    if (metadata.passing !== actualCounts.passing) {
-      errors.push({
-        featureId: 'metadata',
-        field: 'passing',
-        message: `metadata (${metadata.passing}) doesn't match actual count (${actualCounts.passing})`,
-      });
-    }
+      if (passing !== actualCounts.passing) {
+        errors.push({
+          featureId: 'metadata',
+          field: 'passing',
+          message: `metadata (${passing}) doesn't match actual count (${actualCounts.passing})`,
+        });
+      }
 
-    if (metadata.failing !== actualCounts.failing) {
-      errors.push({
-        featureId: 'metadata',
-        field: 'failing',
-        message: `metadata (${metadata.failing}) doesn't match actual count (${actualCounts.failing})`,
-      });
+      if (failing !== actualCounts.failing) {
+        errors.push({
+          featureId: 'metadata',
+          field: 'failing',
+          message: `metadata (${failing}) doesn't match actual count (${actualCounts.failing})`,
+        });
+      }
     }
   }
 

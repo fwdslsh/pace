@@ -20,7 +20,7 @@ export interface FeatureListMetadata {
   passing?: number;
   failing?: number;
   last_updated?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface FeatureList {
