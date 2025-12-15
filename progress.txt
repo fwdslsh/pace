@@ -22,3 +22,37 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Project initialized.
 - 0/54 features passing.
 - Environment ready for "coding-agent".
+
+---
+
+### Session 2 - Infrastructure Setup
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- INF-001: Install ESLint and TypeScript plugin dependencies
+
+**Actions Taken:**
+
+- Run `bun add -d eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin`
+- Verified `package.json` contains new devDependencies
+- Verified existing tests still pass with `bun test`
+
+**Test Results:**
+
+- Dependencies successfully installed
+- 155 tests passed
+
+**Current Status:**
+
+- Features passing: 1/54
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: INF-002 (Create .eslintrc.json)
+- Configure ESLint rules and ignore files
+
+---
