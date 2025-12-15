@@ -1,6 +1,7 @@
 /**
  * status-reporter.ts - Display project status and progress
  */
+/* eslint-disable no-console */
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
