@@ -920,6 +920,24 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 		let success = false;
 		let toolCalls = 0;
 		const startTime = Date.now();
+		let currentTool = '';
+		let lastProgressUpdate = 0;
+
+		// Progress indicator for non-verbose mode
+		const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+		let spinnerIndex = 0;
+		let spinnerInterval: ReturnType<typeof setInterval> | null = null;
+
+		if (!options.json && !options.verbose) {
+			spinnerInterval = setInterval(() => {
+				const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+				const frame = spinnerFrames[spinnerIndex % spinnerFrames.length];
+				const toolInfo = currentTool ? ` ${currentTool}` : '';
+				const statusLine = `${frame} Working... ${elapsed}s elapsed, ${toolCalls} tool calls${toolInfo}`;
+				process.stdout.write(`\r${statusLine.padEnd(80)}`);
+				spinnerIndex++;
+			}, 100);
+		}
 
 		for await (const event of events.stream) {
 			const eventSessionId =
@@ -933,7 +951,12 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 			if (event.type === 'message.part.updated') {
 				const part = event.properties?.part;
 				if (part?.type === 'tool') {
-					toolCalls++;
+					if (part.state?.status === 'running') {
+						currentTool = part.tool || '';
+						toolCalls++;
+					} else if (part.state?.status === 'completed') {
+						currentTool = '';
+					}
 					if (options.verbose && !options.json) {
 						if (part.state?.status === 'running') {
 							console.log(`  Tool: ${part.tool}...`);
@@ -941,10 +964,20 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 							console.log(`  Tool: ${part.tool} - done`);
 						}
 					}
-				} else if (part?.type === 'text' && options.verbose && !options.json) {
-					const text = part.text || '';
-					if (text.length > 0 && toolCalls % 10 === 0) {
-						console.log(`  [Progress: ${toolCalls} tool calls...]`);
+				} else if (part?.type === 'text') {
+					// Show periodic progress updates in non-verbose mode
+					const now = Date.now();
+					if (!options.json && !options.verbose && now - lastProgressUpdate > 10000 && toolCalls > 0) {
+						// Clear spinner line and show milestone
+						process.stdout.write('\r' + ' '.repeat(80) + '\r');
+						console.log(`  [${toolCalls} tool calls completed...]`);
+						lastProgressUpdate = now;
+					}
+					if (options.verbose && !options.json) {
+						const text = part.text || '';
+						if (text.length > 0 && toolCalls % 10 === 0) {
+							console.log(`  [Progress: ${toolCalls} tool calls...]`);
+						}
 					}
 				}
 			} else if (event.type === 'session.idle') {
@@ -954,6 +987,12 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 				success = false;
 				break;
 			}
+		}
+
+		// Clean up spinner
+		if (spinnerInterval) {
+			clearInterval(spinnerInterval);
+			process.stdout.write('\r' + ' '.repeat(80) + '\r');
 		}
 
 		const duration = ((Date.now() - startTime) / 1000).toFixed(1);
