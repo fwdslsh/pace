@@ -7,14 +7,17 @@ A Bun/TypeScript implementation that orchestrates continuous coding agent sessio
 ## Features
 
 - **Multi-SDK Support**: Choose between Claude Agent SDK or OpenCode SDK at runtime
+- **OpenCode-Native Architecture**: Custom agents and commands loaded from markdown files
+- **Configurable via pace.json**: Customize models, agents, commands, and permissions
 - **Full Visibility**: Stream all messages, tool uses, and results from agent sessions
+- **Child Session Orchestration**: Spawn autonomous child sessions for feature implementation
 - **Automatic Feature Progression**: Works through features in priority order
 - **Session Management**: Configurable session limits, failure thresholds, and delays
 - **Progress Tracking**: Monitors feature completion and provides detailed statistics
 - **Rich Output**: Shows system messages, assistant responses, tool executions, and results
 - **JSON Output**: Machine-readable output for scripting and CI/CD integration
 - **Home Directory Override**: Custom SDK home directories for testing and multi-environment setups
-- **Comprehensive Testing**: Full test suite with 90+ tests covering all functionality
+- **Comprehensive Testing**: Full test suite with 120+ tests covering all functionality
 
 ## Installation
 
@@ -325,6 +328,176 @@ OPENCODE_SERVER_URL=http://your-server:4096 pace --sdk opencode
 | Multiple Providers   | ✅           | ❌         |
 | Built-in Permissions | ✅           | ✅         |
 | Requires API Key     | Varies       | ✅         |
+
+## OpenCode-Native Orchestrator
+
+For deeper integration with OpenCode, use the standalone `pace-opencode` orchestrator. This version uses the OpenCode SDK's embedded server capabilities for maximum control:
+
+### Features
+
+- **Embedded Server**: Spawns its own OpenCode server instance
+- **Event Streaming**: Real-time monitoring via Server-Sent Events
+- **Session Metrics**: Tracks tool calls, duration, and success rates
+- **Self-Contained**: No external OpenCode server required
+- **Configurable via pace.json**: Customize models, agents, and behavior
+
+### Usage
+
+```bash
+# Run the OpenCode-native orchestrator
+bun run opencode-orchestrator.ts
+
+# Or use the npm script
+bun run opencode
+
+# With options
+bun run opencode -- --max-sessions 10 --verbose
+
+# Preview mode
+bun run opencode:dry-run
+```
+
+### Options
+
+```
+--project-dir, -d DIR    Project directory (default: current directory)
+--port N                 Port for OpenCode server (default: random)
+--max-sessions, -n N     Maximum sessions (default: from pace.json or unlimited)
+--max-failures, -f N     Stop after N consecutive failures (default: from pace.json or 3)
+--verbose, -v            Show detailed output
+--dry-run                Preview without executing
+--help, -h               Show this help
+```
+
+### Configuration (pace.json)
+
+Create a `pace.json`, `pace.config.json`, or `.pace.json` file in your project root:
+
+```json
+{
+  "defaultModel": "anthropic/claude-sonnet-4-20250514",
+  "agents": {
+    "pace-coding": {
+      "model": "anthropic/claude-sonnet-4-20250514"
+    },
+    "pace-code-reviewer": {
+      "model": "anthropic/claude-opus-4-20250514"
+    },
+    "pace-practices-reviewer": {
+      "enabled": false
+    }
+  },
+  "commands": {
+    "pace-review": {
+      "agent": "pace-code-reviewer"
+    }
+  },
+  "orchestrator": {
+    "maxSessions": 50,
+    "maxFailures": 5,
+    "sessionDelay": 5000
+  },
+  "permissions": {
+    "autoAllowEdit": true,
+    "autoAllowSafeBash": true,
+    "allowedBashPatterns": ["git *", "npm *", "bun *"]
+  }
+}
+```
+
+CLI arguments override config file settings.
+
+## OpenCode Plugin
+
+For interactive use within OpenCode, install the pace plugin to add custom tools, agents, and commands:
+
+### Installation
+
+```bash
+# Copy to project-local plugin directory
+mkdir -p .opencode/plugin
+cp pace-plugin.ts .opencode/plugin/
+
+# Or install globally
+mkdir -p ~/.config/opencode/plugin
+cp pace-plugin.ts ~/.config/opencode/plugin/
+```
+
+### Custom Agents
+
+The plugin provides five specialized agents (loaded from `src/opencode/agents/`):
+
+| Agent | Description |
+|-------|-------------|
+| **pace-coding** | Implements a single feature following the pace workflow |
+| **pace-coordinator** | Orchestrates multiple coding sessions |
+| **pace-initializer** | Sets up new pace projects |
+| **pace-code-reviewer** | Reviews code for quality, security, and best practices |
+| **pace-practices-reviewer** | Captures learnings and patterns from completed work |
+
+### Custom Commands
+
+The plugin provides eight slash commands (loaded from `src/opencode/commands/`):
+
+| Command | Description |
+|---------|-------------|
+| `/pace-init` | Initialize a new pace project |
+| `/pace-next` | Implement the next highest-priority feature |
+| `/pace-continue [id]` | Continue work on a specific or next feature |
+| `/pace-coordinate` | Run continuous sessions until complete |
+| `/pace-review` | Review code changes |
+| `/pace-compound` | Capture learnings and patterns |
+| `/pace-status` | Show current project progress |
+| `/pace-complete <id>` | Mark a feature as complete |
+
+### Custom Tools
+
+The plugin adds tools for workflow management:
+
+| Tool | Description |
+|------|-------------|
+| `pace_get_status` | Get feature progress and next recommended feature |
+| `pace_get_next_feature` | Get the highest-priority failing feature |
+| `pace_get_feature` | Get detailed information about a specific feature |
+| `pace_update_feature` | Mark a feature as passing or failing |
+| `pace_list_failing` | List all failing features sorted by priority |
+| `pace_spawn_session` | Spawn a child session for feature implementation |
+| `pace_orchestrate` | Run full orchestration loop with child sessions |
+
+### Child Session Orchestration
+
+The plugin supports spawning child sessions for autonomous feature implementation:
+
+```
+> /pace-coordinate --max-sessions 10
+
+Starting orchestration...
+Session 1: Implementing F001 - User authentication...
+  [Session completed in 45s - Feature now passing]
+Session 2: Implementing F002 - Dashboard layout...
+  [Session completed in 38s - Feature now passing]
+...
+Orchestration complete: 8/10 features passing
+```
+
+### Example Session
+
+```
+> /pace-status
+Progress: 5/12 features passing (41.7%)
+Next feature: AUTH-003 - Add password reset flow
+
+> /pace-next
+Beginning work on AUTH-003...
+[Agent follows the pace workflow automatically]
+
+> /pace-review
+Reviewing recent changes...
+[Code reviewer agent analyzes changes]
+
+> /pace-complete AUTH-003
+Feature AUTH-003 marked as passing.
+```
 
 
 ## License

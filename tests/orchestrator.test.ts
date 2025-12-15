@@ -175,7 +175,7 @@ describe('Orchestrator', () => {
 				logs.push(args.join(' '));
 			};
 
-			await orchestrator.summary();
+			await orchestrator.createSummaryReport();
 
 			console.log = originalLog;
 
@@ -213,7 +213,7 @@ describe('Orchestrator', () => {
 				sdk: 'claude'
 			});
 
-			const summary = await orchestrator.summary();
+			const summary = await orchestrator.createSummaryReport();
 
 			expect(summary.elapsedTime).toBeDefined();
 			// Should be in seconds format since test runs quickly
@@ -239,7 +239,7 @@ describe('Orchestrator', () => {
 			});
 
 			await orchestrator.run();
-			const summary = await orchestrator.summary();
+			const summary = await orchestrator.createSummaryReport();
 
 			expect(summary).toHaveProperty('sessionsRun');
 			expect(summary).toHaveProperty('featuresCompleted');

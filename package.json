@@ -4,13 +4,17 @@
   "description": "Project Autonomous Coding Environment - Long-running agent orchestrator",
   "main": "cli.ts",
   "bin": {
-    "pace": "./cli.ts"
+    "pace": "./cli.ts",
+    "pace-opencode": "./opencode-orchestrator.ts"
   },
   "type": "module",
   "scripts": {
     "test": "bun test",
     "test:watch": "bun test --watch",
+    "opencode": "bun run opencode-orchestrator.ts",
+    "opencode:dry-run": "bun run opencode-orchestrator.ts --dry-run",
     "build": "bun build --compile --minify --sourcemap ./cli.ts --outfile pace",
+    "build:opencode": "bun build --compile --minify --sourcemap ./opencode-orchestrator.ts --outfile pace-opencode",
     "build:all": "npm run build:linux-x64 && npm run build:linux-arm64 && npm run build:darwin-x64 && npm run build:darwin-arm64 && npm run build:windows-x64",
     "build:linux-x64": "bun build --compile --minify --target=bun-linux-x64 ./cli.ts --outfile pace-linux-x64",
     "build:linux-arm64": "bun build --compile --minify --target=bun-linux-arm64 ./cli.ts --outfile pace-linux-arm64",
@@ -40,6 +44,8 @@
   "homepage": "https://github.com/fwdslsh/pace#readme",
   "files": [
     "cli.ts",
+    "opencode-orchestrator.ts",
+    "pace-plugin.ts",
     "src/**/*.ts",
     "README.md",
     "LICENSE",

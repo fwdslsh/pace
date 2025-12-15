@@ -155,6 +155,14 @@ export class FeatureManager {
 	}
 
 	/**
+	 * Check if a specific feature was completed (is passing)
+	 */
+	async wasFeatureCompleted(featureId: string): Promise<boolean> {
+		const feature = await this.findFeature(featureId);
+		return feature?.passes === true;
+	}
+
+	/**
 	 * Get features grouped by category
 	 */
 	async getFeaturesByCategory(): Promise<Record<string, Feature[]>> {
