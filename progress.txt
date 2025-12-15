@@ -800,3 +800,39 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Recommended next feature: CLEAN-005 (Fix linting errors in src/types.ts).
 - Note: DEAD-003 and LOG-003 are verified clean and can be marked passing.
 
+
+---
+
+### Session 25 - Cleanup
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- CLEAN-005: Fix linting errors in src/types.ts
+
+**Actions Taken:**
+
+- Verified `src/types.ts` was already free of lint errors.
+- Refactored `src/types.ts` to extract `ValidationStats` and `CategoryStatus` interfaces from nested object types.
+- Fixed type errors in `tests/status-reporter.test.ts` where mock objects were missing required properties.
+- Updated `ValidationResult`, `ValidationOutput`, and `StatusOutput` to use these shared interfaces.
+- Verified build and tests pass.
+- Verified `pace status` and `pace validate` commands work correctly.
+
+**Test Results:**
+
+- `src/types.ts` is lint-free.
+- 155 tests passed.
+- CLI binary works as expected.
+
+**Current Status:**
+
+- Features passing: 24/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: CLEAN-006 (Fix linting errors in src/validators.ts).
+- Note: DEAD-004 (Remove unused imports in src/types.ts) is also verified as there are no imports.
