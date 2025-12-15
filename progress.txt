@@ -1007,3 +1007,38 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 
 - Recommended next feature: DEAD-004 (Identify and remove unused imports in src/types.ts).
 - Continue with DEAD-* tasks.
+
+---
+
+### Session 31 - Dead Code Removal
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- DEAD-004: Identify and remove unused imports in src/types.ts
+
+**Actions Taken:**
+
+- Analyzed `src/types.ts` for unused imports.
+- Verified file contains only type definitions and no imports.
+- Validated linter configuration by temporarily introducing an unused import (caught by `no-unused-vars` rule).
+- Confirmed file is clean.
+
+**Test Results:**
+
+- `bun run lint src/types.ts` passes cleanly.
+- `bun run build` succeeds.
+- `bun test` passes (155 tests).
+- `./pace status` functions correctly.
+
+**Current Status:**
+
+- Features passing: 30/55
+- Known issues: Duplicate entry for DEAD-003 in feature_list.json.
+
+**Next Steps:**
+
+- Recommended next feature: DEAD-005 (Identify and remove unused imports in src/validators.ts).
+- Clean up duplicate DEAD-003 entry in feature_list.json.
