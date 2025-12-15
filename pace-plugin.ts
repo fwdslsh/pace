@@ -519,6 +519,9 @@ Backup saved to feature_list.json.bak`;
 					};
 					childSessions.set(session.id, state);
 
+					// Subscribe to events BEFORE sending prompt to avoid missing events
+					const events = await client.event.subscribe();
+
 					// Build the prompt for the coding agent
 					const [passing, total] = await featureManager.getProgress();
 					const prompt = `Implement feature ${feature.id}: ${feature.description}
@@ -562,8 +565,7 @@ Begin now.`;
 						return `Child session started for feature ${args.feature_id}. Session ID: ${session.id}`;
 					}
 
-					// Wait for completion by subscribing to events
-					const events = await client.event.subscribe();
+					// Wait for completion
 					let completed = false;
 					let success = false;
 
@@ -709,6 +711,9 @@ Begin now.`;
 
 						const session = sessionResult.data;
 
+						// Subscribe to events BEFORE sending prompt to avoid missing events
+						const events = await client.event.subscribe();
+
 						// Build prompt
 						const prompt = `Implement feature ${nextFeature.id}: ${nextFeature.description}
 
@@ -729,7 +734,6 @@ Follow the coding agent workflow. Begin now.`;
 						});
 
 						// Wait for completion
-						const events = await client.event.subscribe();
 						let completed = false;
 
 						try {

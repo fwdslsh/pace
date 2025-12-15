@@ -420,6 +420,9 @@ class Orchestrator {
 		const session = sessionResult.data;
 		this.log(`\nSession created: ${session.id}`);
 
+		// Subscribe to events BEFORE sending prompt to avoid missing events
+		const events = await client.event.subscribe();
+
 		// Get project context
 		const projectContext = await this.loadProjectContext();
 
@@ -439,11 +442,10 @@ class Orchestrator {
 			return false;
 		}
 
-		// Subscribe to events and wait for completion
+		// Wait for completion
 		if (!this.json) {
 			console.log('\nAgent working...');
 		}
-		const events = await client.event.subscribe();
 		let success = false;
 		let toolCalls = 0;
 		let textParts = 0;
@@ -893,6 +895,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
 
 		const session = sessionResult.data;
 
+		// Subscribe to events BEFORE sending prompt to avoid missing events
+		const events = await client.event.subscribe();
+
 		// Get the initializer agent prompt
 		const { content: agentPrompt } = parseFrontmatter(initializerAgentMd);
 
@@ -919,8 +924,7 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 			throw new Error(`Failed to send prompt: ${JSON.stringify(promptResult.error)}`);
 		}
 
-		// Subscribe to events and wait for completion
-		const events = await client.event.subscribe();
+		// Wait for completion
 		let success = false;
 		let toolCalls = 0;
 		const startTime = Date.now();
