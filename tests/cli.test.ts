@@ -213,7 +213,7 @@ describe('CLI Integration Tests', () => {
 					{
 						id: 'INVALID',
 						description: '',
-						priority: 'invalid' as any,
+						priority: 'invalid' as unknown as 'high',
 						category: 'core',
 						steps: [],
 						passes: true
@@ -560,7 +560,7 @@ describe('CLI Integration Tests', () => {
 /**
  * Unit tests for parseArgs and Orchestrator
  */
-import { parseArgs, Orchestrator, type ParsedArgs } from '../cli';
+import { parseArgs, Orchestrator } from '../cli';
 
 describe('parseArgs Unit Tests', () => {
 	// Store and restore original argv

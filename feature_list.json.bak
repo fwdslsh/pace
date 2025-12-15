@@ -143,7 +143,7 @@
         "Run lint on src/feature-manager.ts",
         "Fix all reported errors"
       ],
-      "passes": true
+      "passes": false
     },
     {
       "id": "CLEAN-004",
@@ -298,7 +298,7 @@
         "Run lint on test file",
         "Run bun test tests/cli.test.ts"
       ],
-      "passes": true
+      "passes": false
     },
     {
       "id": "TEST-002",
@@ -613,9 +613,8 @@
   "metadata": {
     "project_name": "pace-cleanup",
     "created_at": "2025-12-15",
-    "total_features": 55,
-    "passing": 13,
-    "failing": 42,
-    "last_updated": "2025-12-15T15:58:00.000Z"
+    "total_features": 54,
+    "passing": 11,
+    "failing": 43
   }
 }
