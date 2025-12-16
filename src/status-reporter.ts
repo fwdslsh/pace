@@ -19,6 +19,13 @@ const PRIORITY_ICONS: Record<Priority, string> = {
   low: '🟢',
 };
 
+/** Shared type for category statistics */
+interface CategoryStats {
+  passing: number;
+  failing: number;
+  total: number;
+}
+
 /**
  * Status reporter for displaying project progress
  */
@@ -54,6 +61,33 @@ export class StatusReporter {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Extract last session lines from progress content
+   */
+  private getLastSessionLines(progressContent: string, lineCount: number = 10): string[] | null {
+    const sessions = progressContent.split('### Session ');
+    if (sessions.length > 1) {
+      const lastSession = sessions[sessions.length - 1];
+      return lastSession.split('\n').slice(0, lineCount);
+    }
+    return null;
+  }
+
+  /**
+   * Calculate stats for each category from features
+   */
+  private getCategoryStats(
+    categoriesData: Record<string, Feature[]>,
+  ): Record<string, CategoryStats> {
+    const result: Record<string, CategoryStats> = {};
+    for (const [cat, features] of Object.entries(categoriesData)) {
+      const passing = features.filter((f) => f.passes).length;
+      const failing = features.length - passing;
+      result[cat] = { passing, failing, total: features.length };
+    }
+    return result;
   }
 
   /**
@@ -99,16 +133,11 @@ export class StatusReporter {
       category: f.category,
     }));
 
-    // Build category breakdown
-    let byCategory: Record<string, { passing: number; failing: number; total: number }> | undefined;
+    // Build category breakdown using extracted helper
+    let byCategory: Record<string, CategoryStats> | undefined;
     if (verbose) {
       const categoriesData = await this.featureManager.getFeaturesByCategory();
-      byCategory = {};
-      for (const [cat, features] of Object.entries(categoriesData)) {
-        const passing = features.filter((f) => f.passes).length;
-        const failing = features.length - passing;
-        byCategory[cat] = { passing, failing, total: features.length };
-      }
+      byCategory = this.getCategoryStats(categoriesData);
     }
 
     // Get git log
@@ -118,14 +147,13 @@ export class StatusReporter {
       gitLog = log ? log.split('\n') : undefined;
     }
 
-    // Get last session
+    // Get last session using extracted helper
     let lastSession: string | undefined;
     const progressContent = await this.loadProgressFile();
     if (progressContent) {
-      const sessions = progressContent.split('### Session ');
-      if (sessions.length > 1) {
-        const session = sessions[sessions.length - 1];
-        lastSession = session.split('\n').slice(0, 10).join('\n');
+      const lines = this.getLastSessionLines(progressContent);
+      if (lines) {
+        lastSession = lines.join('\n');
       }
     }
 
@@ -205,16 +233,15 @@ export class StatusReporter {
       }
     }
 
-    // Category breakdown
+    // Category breakdown using extracted helper
     if (verbose) {
-      const byCategory = await this.featureManager.getFeaturesByCategory();
-      if (Object.keys(byCategory).length > 0) {
+      const categoriesData = await this.featureManager.getFeaturesByCategory();
+      if (Object.keys(categoriesData).length > 0) {
+        const categoryStats = this.getCategoryStats(categoriesData);
         console.log('📁 Progress by Category:');
-        for (const [cat, features] of Object.entries(byCategory).sort()) {
-          const passing = features.filter((f) => f.passes).length;
-          const total = features.length;
-          const pct = total > 0 ? (passing / total) * 100 : 0;
-          console.log(`   ${cat}: ${passing}/${total} (${pct.toFixed(0)}%)`);
+        for (const [cat, stats] of Object.entries(categoryStats).sort()) {
+          const pct = stats.total > 0 ? (stats.passing / stats.total) * 100 : 0;
+          console.log(`   ${cat}: ${stats.passing}/${stats.total} (${pct.toFixed(0)}%)`);
         }
         console.log();
       }
@@ -234,14 +261,11 @@ export class StatusReporter {
       }
     }
 
-    // Progress file summary
+    // Progress file summary using extracted helper
     const progressContent = await this.loadProgressFile();
     if (progressContent) {
-      const sessions = progressContent.split('### Session ');
-      if (sessions.length > 1) {
-        const lastSession = sessions[sessions.length - 1];
-        const lines = lastSession.split('\n').slice(0, 10);
-
+      const lines = this.getLastSessionLines(progressContent);
+      if (lines) {
         console.log('📝 Last Session Summary:');
         for (const line of lines) {
           if (line.trim()) {
