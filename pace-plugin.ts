@@ -16,35 +16,31 @@
  *   Or add to global: ~/.config/opencode/plugin/pace-plugin.ts
  */
 
-import type { Plugin } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
 
-// Import shared code from src/
 import { FeatureManager } from './src/feature-manager';
+import codeReviewerMd from './src/opencode/agents/code-reviewer.md' with { type: 'text' };
+import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
+import coordinatorAgentMd from './src/opencode/agents/coordinator-agent.md' with { type: 'text' };
+import initializerAgentMd from './src/opencode/agents/initializer-agent.md' with { type: 'text' };
+import practicesReviewerMd from './src/opencode/agents/practices-reviewer.md' with { type: 'text' };
+import paceCompleteMd from './src/opencode/commands/pace-complete.md' with { type: 'text' };
+import paceCompoundMd from './src/opencode/commands/pace-compound.md' with { type: 'text' };
+import paceContinueMd from './src/opencode/commands/pace-continue.md' with { type: 'text' };
+import paceCoordinateMd from './src/opencode/commands/pace-coordinate.md' with { type: 'text' };
+import paceInitMd from './src/opencode/commands/pace-init.md' with { type: 'text' };
+import paceNextMd from './src/opencode/commands/pace-next.md' with { type: 'text' };
+import paceReviewMd from './src/opencode/commands/pace-review.md' with { type: 'text' };
+import paceStatusMd from './src/opencode/commands/pace-status.md' with { type: 'text' };
 import {
-  loadConfig,
   getAgentModel,
   getCommandAgent,
   isAgentEnabled,
   isCommandEnabled,
+  loadConfig,
 } from './src/opencode/pace-config';
 
-// Import agent prompts from markdown files
-import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
-import coordinatorAgentMd from './src/opencode/agents/coordinator-agent.md' with { type: 'text' };
-import initializerAgentMd from './src/opencode/agents/initializer-agent.md' with { type: 'text' };
-import codeReviewerMd from './src/opencode/agents/code-reviewer.md' with { type: 'text' };
-import practicesReviewerMd from './src/opencode/agents/practices-reviewer.md' with { type: 'text' };
-
-// Import command templates from markdown files
-import paceInitMd from './src/opencode/commands/pace-init.md' with { type: 'text' };
-import paceNextMd from './src/opencode/commands/pace-next.md' with { type: 'text' };
-import paceContinueMd from './src/opencode/commands/pace-continue.md' with { type: 'text' };
-import paceCoordinateMd from './src/opencode/commands/pace-coordinate.md' with { type: 'text' };
-import paceReviewMd from './src/opencode/commands/pace-review.md' with { type: 'text' };
-import paceCompoundMd from './src/opencode/commands/pace-compound.md' with { type: 'text' };
-import paceStatusMd from './src/opencode/commands/pace-status.md' with { type: 'text' };
-import paceCompleteMd from './src/opencode/commands/pace-complete.md' with { type: 'text' };
+import type { Plugin } from '@opencode-ai/plugin';
 
 // ============================================================================
 // Types

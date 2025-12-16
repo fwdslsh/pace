@@ -4,11 +4,14 @@
 /* eslint-disable no-console */
 
 import { exec } from 'child_process';
-import { promisify } from 'util';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
-import type { Feature, Priority, StatusReportOptions } from './types';
+import { promisify } from 'util';
+
 import { FeatureManager } from './feature-manager';
+
+import type { Feature, Priority, StatusReportOptions } from './types';
+
 
 const execAsync = promisify(exec);
 

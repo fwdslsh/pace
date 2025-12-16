@@ -21,22 +21,30 @@
  *     pace update F001 pass
  */
 
+import { readFile, stat } from 'fs/promises';
+import { join, resolve } from 'path';
+
 import { createOpencode } from '@opencode-ai/sdk';
-import { StatusReporter } from './src/status-reporter';
+
 import { FeatureManager } from './src/feature-manager';
+import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
+import initializerAgentMd from './src/opencode/agents/initializer-agent.md' with { type: 'text' };
+import {
+  loadConfig,
+  type PaceConfig,
+  DEFAULT_CONFIG,
+  getAgentModel,
+} from './src/opencode/pace-config';
+import { StatusReporter } from './src/status-reporter';
 import {
   validateFeatureList,
   formatValidationErrors,
   formatValidationStats,
 } from './src/validators';
-import { loadConfig, type PaceConfig, DEFAULT_CONFIG } from './src/opencode/pace-config';
+
 import type { Feature, SessionSummary } from './src/types';
-import { readFile, stat } from 'fs/promises';
-import { join, resolve } from 'path';
 
 // Import agent prompts from markdown files
-import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
-import initializerAgentMd from './src/opencode/agents/initializer-agent.md' with { type: 'text' };
 
 // ============================================================================
 // Types
@@ -220,6 +228,18 @@ function parseArgs(): ParsedArgs {
 function parseFrontmatter(markdown: string): { content: string } {
   const match = markdown.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
   return { content: match ? match[1].trim() : markdown };
+}
+
+/**
+ * Parse a model string "provider/model" into SDK format
+ */
+function parseModelId(modelId: string): { providerID: string; modelID: string } | undefined {
+  const slashIndex = modelId.indexOf('/');
+  if (slashIndex === -1) return undefined;
+  return {
+    providerID: modelId.slice(0, slashIndex),
+    modelID: modelId.slice(slashIndex + 1),
+  };
 }
 
 /**
@@ -407,6 +427,11 @@ class Orchestrator {
     const client = this.opencode.client;
     const startTime = Date.now();
 
+    // Get agent-specific model if configured
+    const agentModelId = getAgentModel(this.paceConfig, 'pace-coding');
+    const agentModel = agentModelId ? parseModelId(agentModelId) : undefined;
+    const displayModel = agentModelId ?? this.activeModel;
+
     if (!this.json) {
       console.log('\n' + '='.repeat(60));
       console.log(`SESSION ${this.state.sessionCount + 1}: Feature ${feature.id}`);
@@ -414,8 +439,8 @@ class Orchestrator {
       console.log(`Description: ${feature.description.slice(0, 60)}...`);
       console.log(`Priority: ${feature.priority}`);
       console.log(`Category: ${feature.category}`);
-      if (this.activeModel) {
-        console.log(`Model: ${this.activeModel}`);
+      if (displayModel) {
+        console.log(`Model: ${displayModel}`);
       }
     }
 
@@ -456,6 +481,7 @@ class Orchestrator {
       path: { id: session.id },
       body: {
         parts: [{ type: 'text', text: prompt }],
+        ...(agentModel && { model: agentModel }),
       },
     });
 
@@ -889,13 +915,23 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
   let opencode: Awaited<ReturnType<typeof createOpencode>> | null = null;
 
   try {
+    // Load pace config for agent model overrides
+    const paceConfig = await loadConfig(projectDir);
+
     // OpenCode reads its config from .opencode/opencode.jsonc automatically
     opencode = await createOpencode({
       port: 0,
     });
 
+    // Get agent-specific model if configured
+    const agentModelId = getAgentModel(paceConfig, 'pace-initializer');
+    const agentModel = agentModelId ? parseModelId(agentModelId) : undefined;
+
     if (!options.json) {
       console.log(`OpenCode server started: ${opencode.server.url}`);
+      if (agentModelId) {
+        console.log(`Model: ${agentModelId}`);
+      }
       console.log('\nRunning initializer agent...\n');
     }
 
@@ -936,6 +972,7 @@ Begin now by analyzing the requirements and creating all necessary files.`;
       path: { id: session.id },
       body: {
         parts: [{ type: 'text', text: fullPrompt }],
+        ...(agentModel && { model: agentModel }),
       },
     });
 
@@ -1363,20 +1400,28 @@ GLOBAL OPTIONS:
 CONFIGURATION:
     Pace uses two configuration files:
 
-    1. .opencode/opencode.jsonc - OpenCode settings (model, providers)
+    1. .opencode/opencode.jsonc - OpenCode settings (default model, providers)
        {
          "enabled_providers": ["github-copilot"],
          "model": "github-copilot/claude-sonnet-4"
        }
 
-    2. pace.json - Pace-specific settings (orchestrator)
+    2. pace.json - Pace-specific settings (orchestrator, per-agent models)
        {
+         "agents": {
+           "pace-coding": { "model": "anthropic/claude-opus-4" },
+           "pace-initializer": { "model": "openai/gpt-4o" }
+         },
          "orchestrator": {
            "maxSessions": 50,
            "maxFailures": 5,
            "sessionDelay": 5000
          }
        }
+
+    Per-agent model overrides in pace.json take precedence over the default
+    model in opencode.jsonc. Available agents: pace-coding, pace-initializer,
+    pace-code-reviewer, pace-coordinator, pace-practices-reviewer.
 
 EXAMPLES:
     # Initialize a new pace project

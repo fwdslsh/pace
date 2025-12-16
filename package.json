@@ -17,7 +17,7 @@
     "build:darwin-x64": "bun build --compile --minify --target=bun-darwin-x64 ./cli.ts --outfile pace-darwin-x64",
     "build:darwin-arm64": "bun build --compile --minify --target=bun-darwin-arm64 ./cli.ts --outfile pace-darwin-arm64",
     "build:windows-x64": "bun build --compile --minify --target=bun-windows-x64 ./cli.ts --outfile pace-windows-x64.exe",
-    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint 'src/**/*.ts'",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint 'src/**/*.ts' cli.ts pace-plugin.ts",
     "format": "prettier --write 'src/**/*.ts' *.ts",
     "prepare": "husky"
   },
@@ -60,8 +60,9 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@typescript-eslint/eslint-plugin": "^8.49.0",
-    "@typescript-eslint/parser": "^8.49.0",
+    "@typescript-eslint/parser": "^8.50.0",
     "eslint": "^9.39.2",
+    "eslint-plugin-import": "^2.32.0",
     "husky": "^9.1.7",
     "prettier": "^3.7.4"
   }
