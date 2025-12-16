@@ -162,7 +162,6 @@ pace --dry-run --max-sessions 5
 
 ```
 --project-dir, -d DIR    Project directory (default: current directory)
---model, -m MODEL        Model to use for sessions (e.g., anthropic/claude-sonnet-4-20250514)
 --max-sessions, -n N     Maximum number of sessions to run (default: 10)
 --max-failures, -f N     Stop after N consecutive failures (default: 3)
 --delay SECONDS          Seconds to wait between sessions (default: 5)

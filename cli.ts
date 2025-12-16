@@ -239,26 +239,6 @@ function formatDuration(ms: number): string {
 }
 
 /**
- * Load OpenCode configuration from .opencode/opencode.jsonc
- * Returns the parsed config or undefined if not found
- */
-async function loadOpencodeConfig(
-  projectDir: string,
-): Promise<Record<string, unknown> | undefined> {
-  const configPath = join(projectDir, '.opencode', 'opencode.jsonc');
-  try {
-    const content = await readFile(configPath, 'utf-8');
-    // Strip comments from JSONC (simple approach - handles // and /* */ comments)
-    const jsonContent = content
-      .replace(/\/\*[\s\S]*?\*\//g, '') // Remove /* */ comments
-      .replace(/\/\/.*$/gm, ''); // Remove // comments
-    return JSON.parse(jsonContent);
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * Build the coding agent prompt for a specific feature
  */
 function buildCodingAgentPrompt(feature: Feature, projectContext: string): string {
@@ -290,7 +270,6 @@ ${basePrompt}`;
 class Orchestrator {
   private projectDir: string;
   private port?: number;
-  private model?: string;
   private maxSessions?: number;
   private maxFailures: number;
   private delay: number;
@@ -302,11 +281,11 @@ class Orchestrator {
   private featureManager: FeatureManager;
   private state: OrchestratorState;
   private opencode: Awaited<ReturnType<typeof createOpencode>> | null = null;
+  private activeModel: string | null = null;
 
   constructor(options: ParsedArgs['options']) {
     this.projectDir = resolve(options.projectDir);
     this.port = options.port;
-    this.model = options.model;
     this.maxSessions = options.untilComplete ? undefined : (options.maxSessions ?? 10);
     this.maxFailures = options.maxFailures ?? 3;
     this.delay = options.delay ?? 5;
@@ -322,13 +301,6 @@ class Orchestrator {
       startTime: new Date(),
       metrics: [],
     };
-  }
-
-  /**
-   * Get effective model (CLI overrides config)
-   */
-  private get effectiveModel(): string | undefined {
-    return this.model ?? this.paceConfig.defaultModel;
   }
 
   /**
@@ -371,23 +343,22 @@ class Orchestrator {
 
     this.log('Initializing OpenCode server...');
 
-    // Load .opencode/opencode.jsonc and pass it to SDK
-    // The SDK sets OPENCODE_CONFIG_CONTENT which overrides file-based config,
-    // so we need to read and pass the file contents ourselves
-    const opencodeConfig = await loadOpencodeConfig(this.projectDir);
-    const config: Record<string, unknown> = opencodeConfig ?? {};
-
-    // CLI model override takes precedence
-    if (this.effectiveModel) {
-      config.model = this.effectiveModel;
-    }
-
+    // OpenCode reads its config from .opencode/opencode.jsonc automatically
     this.opencode = await createOpencode({
       port: this.port ?? 0,
-      config,
     });
 
     this.log(`OpenCode server started: ${this.opencode.server.url}`);
+
+    // Fetch the active model from OpenCode config
+    try {
+      const configResult = await this.opencode.client.config.get();
+      if (configResult.data?.model) {
+        this.activeModel = configResult.data.model;
+      }
+    } catch {
+      // Config fetch failed, model will remain unknown
+    }
   }
 
   /**
@@ -443,6 +414,9 @@ class Orchestrator {
       console.log(`Description: ${feature.description.slice(0, 60)}...`);
       console.log(`Priority: ${feature.priority}`);
       console.log(`Category: ${feature.category}`);
+      if (this.activeModel) {
+        console.log(`Model: ${this.activeModel}`);
+      }
     }
 
     if (this.dryRun) {
@@ -639,19 +613,12 @@ class Orchestrator {
   async run(): Promise<SessionSummary> {
     // Load config first for display
     this.paceConfig = await loadConfig(this.projectDir);
-    const opencodeConfig = await loadOpencodeConfig(this.projectDir);
-
-    // Determine effective model: CLI flag > pace.json > opencode.jsonc
-    const displayModel = this.effectiveModel ?? (opencodeConfig?.model as string | undefined);
 
     if (!this.json) {
       console.log('\n' + '='.repeat(60));
       console.log(' PACE ORCHESTRATOR');
       console.log('='.repeat(60));
       console.log(`\nProject: ${this.projectDir}`);
-      if (displayModel) {
-        console.log(`Model: ${displayModel}`);
-      }
       console.log(`Max sessions: ${this.effectiveMaxSessions || 'unlimited'}`);
       console.log(`Max consecutive failures: ${this.effectiveMaxFailures}`);
       console.log(`Delay between sessions: ${this.effectiveDelay / 1000}s`);
@@ -708,6 +675,10 @@ class Orchestrator {
 
     // Initialize only when we actually need to run sessions
     await this.initialize();
+
+    if (!this.json && this.activeModel) {
+      console.log(`Model: ${this.activeModel}`);
+    }
 
     try {
       // Main loop
@@ -918,13 +889,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
   let opencode: Awaited<ReturnType<typeof createOpencode>> | null = null;
 
   try {
-    // Load .opencode/opencode.jsonc and pass it to SDK
-    const opencodeConfig = await loadOpencodeConfig(projectDir);
-    const config: Record<string, unknown> = opencodeConfig ?? {};
-
+    // OpenCode reads its config from .opencode/opencode.jsonc automatically
     opencode = await createOpencode({
       port: 0,
-      config,
     });
 
     if (!options.json) {
@@ -1371,7 +1338,6 @@ INIT OPTIONS:
 
 RUN OPTIONS:
     --project-dir, -d DIR        Project directory (default: current directory)
-    --model, -m MODEL            Model to use for sessions (e.g., anthropic/claude-sonnet-4-20250514)
     --max-sessions, -n N         Maximum number of sessions to run (default: 10)
     --max-failures, -f N         Stop after N consecutive failures (default: 3)
     --delay SECONDS              Seconds to wait between sessions (default: 5)
@@ -1403,9 +1369,8 @@ CONFIGURATION:
          "model": "github-copilot/claude-sonnet-4"
        }
 
-    2. pace.json - Pace-specific settings (orchestrator, agents)
+    2. pace.json - Pace-specific settings (orchestrator)
        {
-         "defaultModel": "anthropic/claude-opus-4",  // overrides opencode config
          "orchestrator": {
            "maxSessions": 50,
            "maxFailures": 5,
@@ -1425,10 +1390,6 @@ EXAMPLES:
 
     # Run until all features complete
     pace run --until-complete
-
-    # Use a specific model
-    pace run --model anthropic/claude-sonnet-4-20250514
-    pace run -m openai/gpt-4o
 
     # Show project status
     pace status

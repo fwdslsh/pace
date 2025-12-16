@@ -702,18 +702,6 @@ describe('parseArgs Unit Tests', () => {
       expect(result.options.port).toBe(8080);
     });
 
-    it('should parse --model', () => {
-      setArgs(['run', '--model', 'anthropic/claude-sonnet-4-20250514']);
-      const result = parseArgs();
-      expect(result.options.model).toBe('anthropic/claude-sonnet-4-20250514');
-    });
-
-    it('should parse -m shorthand for model', () => {
-      setArgs(['run', '-m', 'openai/gpt-4o']);
-      const result = parseArgs();
-      expect(result.options.model).toBe('openai/gpt-4o');
-    });
-
     it('should handle multiple options together', () => {
       setArgs([
         'run',
