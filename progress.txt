@@ -1333,3 +1333,39 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Recommended next feature: LOG-001 (Remove development console.logs from src/cli.ts).
 - Continue with remaining cleanup tasks.
 
+---
+
+### Session 40 - Console Log Cleanup
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- LOG-001: Remove development console.logs from src/cli.ts
+
+**Actions Taken:**
+
+- Analyzed `cli.ts` (located at root, not `src/cli.ts`) for development console.logs.
+- Found that all console.log statements are legitimate CLI output mechanisms, not development debugging.
+- Verified proper patterns: uses `this.log()` method for conditional output, direct console.log for always-shown user messages.
+- Confirmed `/* eslint-disable no-console */` is appropriate for a CLI tool.
+- No changes needed - file is already clean of development console.logs.
+
+**Test Results:**
+
+- `bun run lint cli.ts` passes cleanly.
+- `bun build` succeeds.
+- `bun test` passes (155 tests).
+- `./pace status` functions correctly.
+
+**Current Status:**
+
+- Features passing: 38/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: LOG-002 (Remove development console.logs from src/feature-manager.ts).
+- Continue with remaining LOG-* tasks.
+
