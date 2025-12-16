@@ -6,6 +6,32 @@ import { readFile, writeFile, copyFile } from 'fs/promises';
 import { join } from 'path';
 import type { Feature, FeatureList, Priority } from './types';
 
+/**
+ * Priority ordering constant used for sorting features
+ */
+const PRIORITY_ORDER: Record<Priority, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+/**
+ * All priority values in order
+ */
+const PRIORITY_VALUES: Priority[] = ['critical', 'high', 'medium', 'low'];
+
+/**
+ * Helper to increment passing or failing count on a stats object
+ */
+function incrementPassFail(target: { passing: number; failing: number }, passes: boolean): void {
+  if (passes) {
+    target.passing++;
+  } else {
+    target.failing++;
+  }
+}
+
 export class FeatureManager {
   constructor(private projectDir: string) {}
 
@@ -106,17 +132,11 @@ export class FeatureManager {
    */
   async getFailingFeatures(): Promise<Feature[]> {
     const data = await this.load();
-    const priorityOrder: Record<string, number> = {
-      critical: 0,
-      high: 1,
-      medium: 2,
-      low: 3,
-    };
 
     const failing = data.features.filter((f) => !f.passes);
     failing.sort((a, b) => {
-      const aPriority = priorityOrder[a.priority] ?? 4;
-      const bPriority = priorityOrder[b.priority] ?? 4;
+      const aPriority = PRIORITY_ORDER[a.priority] ?? 4;
+      const bPriority = PRIORITY_ORDER[b.priority] ?? 4;
       return aPriority - bPriority;
     });
 
@@ -190,12 +210,12 @@ export class FeatureManager {
    */
   async getFeaturesByPriority(): Promise<Record<Priority, Feature[]>> {
     const data = await this.load();
-    const byPriority: Record<string, Feature[]> = {
-      critical: [],
-      high: [],
-      medium: [],
-      low: [],
-    };
+    const byPriority: Record<string, Feature[]> = {};
+
+    // Initialize all priority buckets using the constant
+    for (const pri of PRIORITY_VALUES) {
+      byPriority[pri] = [];
+    }
 
     for (const feature of data.features) {
       const pri = feature.priority || 'low';
@@ -217,45 +237,34 @@ export class FeatureManager {
   }> {
     const data = await this.load();
 
+    // Initialize byPriority stats using the constant
+    const byPriority = {} as Record<Priority, { passing: number; failing: number }>;
+    for (const pri of PRIORITY_VALUES) {
+      byPriority[pri] = { passing: 0, failing: 0 };
+    }
+
     const stats = {
       total: data.features.length,
       passing: 0,
       failing: 0,
       byCategory: {} as Record<string, { passing: number; failing: number }>,
-      byPriority: {
-        critical: { passing: 0, failing: 0 },
-        high: { passing: 0, failing: 0 },
-        medium: { passing: 0, failing: 0 },
-        low: { passing: 0, failing: 0 },
-      } as Record<Priority, { passing: number; failing: number }>,
+      byPriority,
     };
 
     for (const feature of data.features) {
-      // Total stats
-      if (feature.passes) {
-        stats.passing++;
-      } else {
-        stats.failing++;
-      }
+      // Total stats - use helper
+      incrementPassFail(stats, feature.passes);
 
       // Category stats
       const cat = feature.category || 'uncategorized';
       if (!stats.byCategory[cat]) {
         stats.byCategory[cat] = { passing: 0, failing: 0 };
       }
-      if (feature.passes) {
-        stats.byCategory[cat].passing++;
-      } else {
-        stats.byCategory[cat].failing++;
-      }
+      incrementPassFail(stats.byCategory[cat], feature.passes);
 
-      // Priority stats
+      // Priority stats - use helper
       const pri = feature.priority || 'low';
-      if (feature.passes) {
-        stats.byPriority[pri].passing++;
-      } else {
-        stats.byPriority[pri].failing++;
-      }
+      incrementPassFail(stats.byPriority[pri], feature.passes);
     }
 
     return stats;
