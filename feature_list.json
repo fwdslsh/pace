@@ -370,7 +370,7 @@
       "description": "Remove commented out code in src/feature-manager.ts",
       "priority": "low",
       "steps": ["Scan for large blocks of commented code", "Remove them"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "VER-001",
@@ -477,8 +477,8 @@
     "project_name": "pace-cleanup",
     "created_at": "2025-12-15",
     "total_features": 55,
-    "passing": 46,
-    "failing": 9,
+    "passing": 47,
+    "failing": 8,
     "last_updated": "2025-12-16T03:50:31.293Z"
   }
 }
