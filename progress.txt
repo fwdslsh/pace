@@ -1293,3 +1293,43 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Recommended next feature: CI-002 (Setup linting in CI workflow) or LOG-001 (Remove development console.logs).
 - Continue with remaining cleanup tasks.
 
+---
+
+### Session 39 - CI Setup
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- CI-002: Setup linting in CI workflow (if github actions exist)
+
+**Actions Taken:**
+
+- Checked existing `.github/workflows/` structure.
+- Found `release.yml` which runs on tags for releases (not appropriate for PR checks).
+- Created new `.github/workflows/pr-check.yml` workflow that:
+  - Triggers on pull requests to main and pushes to main
+  - Uses `actions/checkout@v4` and `oven-sh/setup-bun@v2`
+  - Runs `bun install`, `bun run lint`, `bun test`, and `bun run build`
+- Validated YAML syntax using Python's yaml parser.
+- Verified all workflow commands pass locally.
+
+**Test Results:**
+
+- YAML is valid (validated with Python yaml.safe_load).
+- `bun run lint` passes cleanly.
+- `bun test` passes (155 tests).
+- `bun run build` succeeds.
+- `./pace status` shows 37/55 passing.
+
+**Current Status:**
+
+- Features passing: 37/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: LOG-001 (Remove development console.logs from src/cli.ts).
+- Continue with remaining cleanup tasks.
+
