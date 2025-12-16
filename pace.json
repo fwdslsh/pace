@@ -1,0 +1,17 @@
+{
+    // "agent": {
+    //     "pace-coding": {
+    //         "model": "anthropic/claude-opus-4"
+    //     },
+    //     "pace-initializer": {
+    //         "model": "openai/gpt-4o"
+    //     }
+    // },
+    "pace": {
+        "orchestrator": {
+            "maxSessions": 5000,
+            "maxFailures": 5,
+            "sessionDelay": 1000
+        }
+    }
+}

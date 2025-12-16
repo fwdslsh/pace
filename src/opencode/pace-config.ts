@@ -1,161 +1,72 @@
 /**
- * pace-config.ts - Configuration schema for pace workflow
+ * pace-config.ts - Configuration for Pace CLI
  *
- * This module defines the configuration options for pace agents and commands,
- * allowing users to customize model assignments and behavior.
+ * Pace uses the same configuration schema as OpenCode, extended with a `pace`
+ * section for CLI-specific settings. The `pace` section is stripped before
+ * passing config to OpenCode.
+ *
+ * Config file: pace.json (same format as opencode.jsonc + pace section)
  */
 
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+
+import type { ServerOptions } from '@opencode-ai/sdk';
+
 // ============================================================================
 // Types
 // ============================================================================
 
 /**
- * Model identifier in the format "provider/model"
- * Examples: "anthropic/claude-sonnet-4-20250514", "openai/gpt-4o"
+ * OpenCode's Config type, extracted from ServerOptions
  */
-export type ModelID = string;
+export type OpencodeConfig = NonNullable<ServerOptions['config']>;
 
 /**
- * Agent configuration
+ * Pace-specific orchestrator settings
  */
-export interface AgentConfig {
-  /** Model to use for this agent (overrides default) */
-  model?: ModelID;
-  /** Whether this agent is enabled */
-  enabled?: boolean;
-  /** Additional prompt instructions to append */
-  additionalInstructions?: string;
-}
-
-/**
- * Command configuration
- */
-export interface CommandConfig {
-  /** Agent to use for this command (overrides default from command definition) */
-  agent?: string;
-  /** Model to use for this command (overrides agent default) */
-  model?: ModelID;
-  /** Whether this command is enabled */
-  enabled?: boolean;
-}
-
-/**
- * Orchestrator configuration
- */
-export interface OrchestratorConfig {
-  /** Maximum number of child sessions to spawn */
+export interface PaceOrchestratorConfig {
+  /** Maximum number of sessions to run */
   maxSessions?: number;
   /** Maximum consecutive failures before stopping */
   maxFailures?: number;
   /** Delay between sessions in milliseconds */
   sessionDelay?: number;
-  /** Whether to continue automatically after each feature */
-  autoContinue?: boolean;
 }
 
 /**
- * Main pace configuration
+ * Pace-specific settings (stored under `pace` key in config)
  */
-export interface PaceConfig {
-  /** Default model for all agents (can be overridden per-agent) */
-  defaultModel?: ModelID;
+export interface PaceSettings {
+  /** Orchestrator settings for the CLI */
+  orchestrator?: PaceOrchestratorConfig;
+}
 
-  /** Agent-specific configurations */
-  agents?: {
-    'pace-coding'?: AgentConfig;
-    'pace-coordinator'?: AgentConfig;
-    'pace-initializer'?: AgentConfig;
-    'pace-code-reviewer'?: AgentConfig;
-    'pace-practices-reviewer'?: AgentConfig;
-    [key: string]: AgentConfig | undefined;
-  };
-
-  /** Command-specific configurations */
-  commands?: {
-    'pace-init'?: CommandConfig;
-    'pace-next'?: CommandConfig;
-    'pace-continue'?: CommandConfig;
-    'pace-coordinate'?: CommandConfig;
-    'pace-review'?: CommandConfig;
-    'pace-compound'?: CommandConfig;
-    'pace-status'?: CommandConfig;
-    'pace-complete'?: CommandConfig;
-    [key: string]: CommandConfig | undefined;
-  };
-
-  /** Orchestrator settings */
-  orchestrator?: OrchestratorConfig;
-
-  /** Permission settings */
-  permissions?: {
-    /** Auto-allow file edits */
-    autoAllowEdit?: boolean;
-    /** Auto-allow safe bash commands */
-    autoAllowSafeBash?: boolean;
-    /** Patterns for allowed bash commands */
-    allowedBashPatterns?: string[];
-  };
+/**
+ * Extended config: OpenCode config + pace section
+ */
+export interface PaceConfig extends OpencodeConfig {
+  pace?: PaceSettings;
 }
 
 // ============================================================================
-// Default Configuration
+// Defaults
 // ============================================================================
 
-export const DEFAULT_CONFIG: PaceConfig = {
-  // No default model - let .opencode/opencode.jsonc be the source of truth
-  // Users can override via pace.json or --model CLI flag
-
-  agents: {
-    'pace-coding': { enabled: true },
-    'pace-coordinator': { enabled: true },
-    'pace-initializer': { enabled: true },
-    'pace-code-reviewer': { enabled: true },
-    'pace-practices-reviewer': { enabled: true },
-  },
-
-  commands: {
-    'pace-init': { enabled: true },
-    'pace-next': { enabled: true },
-    'pace-continue': { enabled: true },
-    'pace-coordinate': { enabled: true },
-    'pace-review': { enabled: true },
-    'pace-compound': { enabled: true },
-    'pace-status': { enabled: true },
-    'pace-complete': { enabled: true },
-  },
-
+const DEFAULT_PACE_SETTINGS: PaceSettings = {
   orchestrator: {
-    maxSessions: undefined, // unlimited
+    maxSessions: undefined,
     maxFailures: 3,
     sessionDelay: 3000,
-    autoContinue: true,
-  },
-
-  permissions: {
-    autoAllowEdit: true,
-    autoAllowSafeBash: true,
-    allowedBashPatterns: [
-      'git *',
-      'npm *',
-      'bun *',
-      'pnpm *',
-      'yarn *',
-      'cat *',
-      'ls *',
-      'pwd',
-      './init.sh',
-    ],
   },
 };
 
 // ============================================================================
-// Configuration Loading
+// Loading
 // ============================================================================
 
 /**
- * Load pace configuration from a file
+ * Load pace config from pace.json
  */
 export async function loadConfig(directory: string): Promise<PaceConfig> {
   const configPaths = [
@@ -167,61 +78,71 @@ export async function loadConfig(directory: string): Promise<PaceConfig> {
   for (const configPath of configPaths) {
     try {
       const content = await readFile(configPath, 'utf-8');
-      const userConfig = JSON.parse(content) as Partial<PaceConfig>;
-      return mergeConfig(DEFAULT_CONFIG, userConfig);
+      return JSON.parse(content) as PaceConfig;
     } catch {
-      // File doesn't exist or isn't valid JSON, continue to next
+      // File doesn't exist or isn't valid JSON, continue
     }
   }
 
-  return DEFAULT_CONFIG;
+  return { pace: DEFAULT_PACE_SETTINGS };
 }
 
 /**
- * Deep merge configuration objects
+ * Get OpenCode config (strips `pace` section)
  */
-function mergeConfig(base: PaceConfig, override: Partial<PaceConfig>): PaceConfig {
+export function getOpencodeConfig(config: PaceConfig): OpencodeConfig {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { pace: _, ...opencodeConfig } = config;
+  return opencodeConfig;
+}
+
+/**
+ * Get Pace-specific settings
+ */
+export function getPaceSettings(config: PaceConfig): PaceSettings {
   return {
-    defaultModel: override.defaultModel ?? base.defaultModel,
-    agents: { ...base.agents, ...override.agents },
-    commands: { ...base.commands, ...override.commands },
-    orchestrator: { ...base.orchestrator, ...override.orchestrator },
-    permissions: { ...base.permissions, ...override.permissions },
+    ...DEFAULT_PACE_SETTINGS,
+    ...config.pace,
+    orchestrator: {
+      ...DEFAULT_PACE_SETTINGS.orchestrator,
+      ...config.pace?.orchestrator,
+    },
   };
 }
 
+// ============================================================================
+// Helpers
+// ============================================================================
+
 /**
- * Get model for a specific agent
- * Returns undefined if no model is configured (uses OpenCode's default)
+ * Get model for a specific agent (falls back to global model)
  */
-export function getAgentModel(config: PaceConfig, agentName: string): ModelID | undefined {
-  return config.agents?.[agentName]?.model ?? config.defaultModel;
+export function getAgentModel(config: PaceConfig, agentName: string): string | undefined {
+  return config.agent?.[agentName]?.model ?? config.model;
 }
 
 /**
- * Get agent for a specific command
+ * Get the agent configured for a command
  */
 export function getCommandAgent(config: PaceConfig, commandName: string): string | undefined {
-  return config.commands?.[commandName]?.agent;
+  return config.command?.[commandName]?.agent;
 }
 
 /**
- * Get model for a specific command
+ * Check if an agent is enabled (agents are enabled by default)
+ * Note: OpenCode doesn't have a native "enabled" field for agents,
+ * so this always returns true unless explicitly disabled in config
  */
-export function getCommandModel(config: PaceConfig, commandName: string): ModelID | undefined {
-  return config.commands?.[commandName]?.model;
+export function isAgentEnabled(_config: PaceConfig, _agentName: string): boolean {
+  // All agents are enabled by default in the new config model
+  // Users can remove agents from config if they don't want them
+  return true;
 }
 
 /**
- * Check if an agent is enabled
+ * Check if a command is enabled (commands are enabled by default)
  */
-export function isAgentEnabled(config: PaceConfig, agentName: string): boolean {
-  return config.agents?.[agentName]?.enabled !== false;
-}
-
-/**
- * Check if a command is enabled
- */
-export function isCommandEnabled(config: PaceConfig, commandName: string): boolean {
-  return config.commands?.[commandName]?.enabled !== false;
+export function isCommandEnabled(_config: PaceConfig, _commandName: string): boolean {
+  // All commands are enabled by default
+  return true;
 }

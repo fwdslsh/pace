@@ -32,17 +32,16 @@ import initializerAgentMd from './src/opencode/agents/initializer-agent.md' with
 import {
   loadConfig,
   type PaceConfig,
-  DEFAULT_CONFIG,
   getAgentModel,
+  getPaceSettings,
 } from './src/opencode/pace-config';
 import { StatusReporter } from './src/status-reporter';
+import { PACE_AGENTS, type Feature, type SessionSummary } from './src/types';
 import {
   validateFeatureList,
   formatValidationErrors,
   formatValidationStats,
 } from './src/validators';
-
-import type { Feature, SessionSummary } from './src/types';
 
 // Import agent prompts from markdown files
 
@@ -291,13 +290,13 @@ class Orchestrator {
   private projectDir: string;
   private port?: number;
   private maxSessions?: number;
-  private maxFailures: number;
-  private delay: number;
+  private maxFailures?: number;
+  private delay?: number;
   private dryRun: boolean;
   private verbose: boolean;
   private json: boolean;
 
-  private paceConfig: PaceConfig = DEFAULT_CONFIG;
+  private paceConfig: PaceConfig = {};
   private featureManager: FeatureManager;
   private state: OrchestratorState;
   private opencode: Awaited<ReturnType<typeof createOpencode>> | null = null;
@@ -306,9 +305,14 @@ class Orchestrator {
   constructor(options: ParsedArgs['options']) {
     this.projectDir = resolve(options.projectDir);
     this.port = options.port;
-    this.maxSessions = options.untilComplete ? undefined : (options.maxSessions ?? 10);
-    this.maxFailures = options.maxFailures ?? 3;
-    this.delay = options.delay ?? 5;
+    // Only set maxSessions if explicitly provided or untilComplete is true
+    this.maxSessions = options.untilComplete
+      ? undefined
+      : options.maxSessions !== undefined
+        ? options.maxSessions
+        : undefined;
+    this.maxFailures = options.maxFailures;
+    this.delay = options.delay;
     this.dryRun = options.dryRun ?? false;
     this.verbose = options.verbose ?? false;
     this.json = options.json ?? false;
@@ -327,22 +331,25 @@ class Orchestrator {
    * Get effective max sessions (CLI overrides config)
    */
   private get effectiveMaxSessions(): number | undefined {
-    return this.maxSessions ?? this.paceConfig.orchestrator?.maxSessions;
+    const paceSettings = getPaceSettings(this.paceConfig);
+    return this.maxSessions ?? paceSettings.orchestrator?.maxSessions;
   }
 
   /**
    * Get effective max failures (CLI overrides config)
    */
   private get effectiveMaxFailures(): number {
-    return this.maxFailures ?? this.paceConfig.orchestrator?.maxFailures ?? 3;
+    const paceSettings = getPaceSettings(this.paceConfig);
+    return this.maxFailures ?? paceSettings.orchestrator?.maxFailures ?? 3;
   }
 
   /**
    * Get session delay (CLI overrides config)
    */
   private get effectiveDelay(): number {
+    const paceSettings = getPaceSettings(this.paceConfig);
     if (this.delay !== undefined) return this.delay * 1000;
-    return this.paceConfig.orchestrator?.sessionDelay ?? 5000;
+    return paceSettings.orchestrator?.sessionDelay ?? 5000;
   }
 
   /**
@@ -428,7 +435,7 @@ class Orchestrator {
     const startTime = Date.now();
 
     // Get agent-specific model if configured
-    const agentModelId = getAgentModel(this.paceConfig, 'pace-coding');
+    const agentModelId = getAgentModel(this.paceConfig, PACE_AGENTS.CODING);
     const agentModel = agentModelId ? parseModelId(agentModelId) : undefined;
     const displayModel = agentModelId ?? this.activeModel;
 
@@ -924,7 +931,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     });
 
     // Get agent-specific model if configured
-    const agentModelId = getAgentModel(paceConfig, 'pace-initializer');
+    const agentModelId = getAgentModel(paceConfig, PACE_AGENTS.INITIALIZER);
     const agentModel = agentModelId ? parseModelId(agentModelId) : undefined;
 
     if (!options.json) {
@@ -1398,30 +1405,29 @@ GLOBAL OPTIONS:
     --json                       Output in JSON format
 
 CONFIGURATION:
-    Pace uses two configuration files:
+    Pace uses the same configuration format as OpenCode. Create a pace.json
+    file with OpenCode settings plus a "pace" section for CLI-specific options:
 
-    1. .opencode/opencode.jsonc - OpenCode settings (default model, providers)
+    pace.json:
        {
-         "enabled_providers": ["github-copilot"],
-         "model": "github-copilot/claude-sonnet-4"
-       }
-
-    2. pace.json - Pace-specific settings (orchestrator, per-agent models)
-       {
-         "agents": {
-           "pace-coding": { "model": "anthropic/claude-opus-4" },
-           "pace-initializer": { "model": "openai/gpt-4o" }
+         "model": "anthropic/claude-sonnet-4",
+         "agent": {
+           "${PACE_AGENTS.CODING}": { "model": "anthropic/claude-opus-4" },
+           "${PACE_AGENTS.INITIALIZER}": { "model": "openai/gpt-4o" }
          },
-         "orchestrator": {
-           "maxSessions": 50,
-           "maxFailures": 5,
-           "sessionDelay": 5000
+         "pace": {
+           "orchestrator": {
+             "maxSessions": 50,
+             "maxFailures": 5,
+             "sessionDelay": 5000
+           }
          }
        }
 
-    Per-agent model overrides in pace.json take precedence over the default
-    model in opencode.jsonc. Available agents: pace-coding, pace-initializer,
-    pace-code-reviewer, pace-coordinator, pace-practices-reviewer.
+    The "pace" section is stripped before passing config to OpenCode.
+    Available agents: ${PACE_AGENTS.CODING}, ${PACE_AGENTS.INITIALIZER}, 
+    ${PACE_AGENTS.CODE_REVIEWER}, ${PACE_AGENTS.COORDINATOR}, 
+    ${PACE_AGENTS.PRACTICES_REVIEWER}.
 
 EXAMPLES:
     # Initialize a new pace project
@@ -1512,4 +1518,4 @@ if (import.meta.main) {
 }
 
 // Export for testing
-export { Orchestrator, parseArgs, type ParsedArgs };
+export { Orchestrator, parseArgs, parseModelId, type ParsedArgs };

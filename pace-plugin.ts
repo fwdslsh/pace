@@ -38,6 +38,7 @@ import {
   isAgentEnabled,
   isCommandEnabled,
   loadConfig,
+  getPaceSettings,
 } from './src/opencode/pace-config';
 
 import type { Plugin } from '@opencode-ai/plugin';
@@ -295,23 +296,8 @@ export const PacePlugin: Plugin = async (ctx) => {
         };
       }
 
-      // Configure permissions
-      if (config.permissions?.autoAllowEdit || config.permissions?.autoAllowSafeBash) {
-        if (!opencodeConfig.permission) opencodeConfig.permission = {};
-
-        if (config.permissions.autoAllowEdit) {
-          opencodeConfig.permission.edit = 'allow' as const;
-        }
-
-        if (config.permissions.autoAllowSafeBash && config.permissions.allowedBashPatterns) {
-          opencodeConfig.permission.bash = {
-            '*': 'ask' as const,
-          };
-          for (const pattern of config.permissions.allowedBashPatterns) {
-            (opencodeConfig.permission.bash as Record<string, string>)[pattern] = 'allow';
-          }
-        }
-      }
+      // Permissions are now configured directly in pace.json using OpenCode's
+      // native permission system (e.g., permission.edit: "allow")
     },
 
     // ========================================================================
@@ -666,9 +652,10 @@ Begin now.`;
             .describe('Stop after N consecutive failures (default: 3)'),
         },
         async execute(args, context) {
-          const maxSessions = args.max_sessions ?? config.orchestrator?.maxSessions;
-          const maxFailures = args.max_failures ?? config.orchestrator?.maxFailures ?? 3;
-          const sessionDelay = config.orchestrator?.sessionDelay ?? 3000;
+          const paceSettings = getPaceSettings(config);
+          const maxSessions = args.max_sessions ?? paceSettings.orchestrator?.maxSessions;
+          const maxFailures = args.max_failures ?? paceSettings.orchestrator?.maxFailures ?? 3;
+          const sessionDelay = paceSettings.orchestrator?.sessionDelay ?? 3000;
 
           let sessionCount = 0;
           let consecutiveFailures = 0;
@@ -848,33 +835,10 @@ Follow the coding agent workflow. Begin now.`;
     },
 
     // ========================================================================
-    // Permission Hook - Auto-allow safe operations
+    // Permission Hook - Permissions are now handled via OpenCode's native
+    // permission config (e.g., permission.edit: "allow", permission.bash: {...})
+    // No custom permission logic needed here.
     // ========================================================================
-    'permission.ask': async (input, output) => {
-      if (!config.permissions) return;
-
-      // Auto-allow reading most files (except secrets)
-      if (config.permissions.autoAllowEdit && input.type === 'read') {
-        const path = input.metadata?.filePath || '';
-        if (!path.includes('.env') && !path.includes('secret') && !path.includes('credential')) {
-          output.status = 'allow';
-        }
-      }
-
-      // Auto-allow configured bash patterns
-      if (config.permissions.autoAllowSafeBash && input.type === 'bash') {
-        const cmd = input.metadata?.command || '';
-
-        for (const pattern of config.permissions.allowedBashPatterns || []) {
-          // Simple glob matching
-          const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
-          if (regex.test(cmd)) {
-            output.status = 'allow';
-            break;
-          }
-        }
-      }
-    },
   };
 };
 

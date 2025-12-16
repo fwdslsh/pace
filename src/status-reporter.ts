@@ -12,7 +12,6 @@ import { FeatureManager } from './feature-manager';
 
 import type { Feature, Priority, StatusReportOptions } from './types';
 
-
 const execAsync = promisify(exec);
 
 const PRIORITY_ICONS: Record<Priority, string> = {
@@ -119,6 +118,8 @@ export class StatusReporter {
 
   /**
    * Get status data for JSON output
+   * @param options - Display options including verbosity, git log, and feature count
+   * @returns Promise resolving to structured status data with progress, next features, and optional detailed breakdowns
    */
   async getStatusData(options: StatusReportOptions = {}): Promise<import('./types').StatusOutput> {
     const { verbose = false, showGitLog = true, showNextFeatures = 5 } = options;
@@ -177,7 +178,9 @@ export class StatusReporter {
   }
 
   /**
-   * Print comprehensive status report
+   * Print comprehensive status report to console
+   * @param options - Display options including JSON output, verbosity, git log, feature count, and progress bar visibility
+   * @returns Promise resolving when status has been printed to console (or JSON to stdout if json option is true)
    */
   async printStatus(options: StatusReportOptions = {}): Promise<void> {
     const {
@@ -295,7 +298,8 @@ export class StatusReporter {
   }
 
   /**
-   * Print a compact one-line status
+   * Print a compact one-line status showing passing/total features
+   * @returns Promise resolving when compact status has been printed to console
    */
   async printCompactStatus(): Promise<void> {
     const [passing, total] = await this.featureManager.getProgress();
@@ -304,7 +308,8 @@ export class StatusReporter {
   }
 
   /**
-   * Print only the next feature
+   * Print only the next recommended feature to implement
+   * @returns Promise resolving when next feature has been printed to console (or completion message if all features pass)
    */
   async printNextFeature(): Promise<void> {
     const next = await this.featureManager.getNextFeature();

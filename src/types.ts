@@ -2,6 +2,27 @@
  * types.ts - Shared type definitions for pace
  */
 
+// ============================================================================
+// Agent Names
+// ============================================================================
+
+/**
+ * Built-in Pace agent names used by the CLI
+ */
+export const PACE_AGENTS = {
+  CODING: 'pace-coding',
+  INITIALIZER: 'pace-initializer',
+  COORDINATOR: 'pace-coordinator',
+  CODE_REVIEWER: 'pace-code-reviewer',
+  PRACTICES_REVIEWER: 'pace-practices-reviewer',
+} as const;
+
+export type PaceAgentName = (typeof PACE_AGENTS)[keyof typeof PACE_AGENTS];
+
+// ============================================================================
+// Feature Types
+// ============================================================================
+
 export type Priority = 'critical' | 'high' | 'medium' | 'low';
 
 export interface Feature {

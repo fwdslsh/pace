@@ -267,39 +267,53 @@ Complete: No
 
 ### pace.json
 
-Create a `pace.json`, `pace.config.json`, or `.pace.json` file in your project root:
+Pace uses the same configuration format as OpenCode, extended with a `pace` section for CLI-specific settings. Create a `pace.json`, `pace.config.json`, or `.pace.json` file in your project root:
 
 ```json
 {
-  "defaultModel": "anthropic/claude-sonnet-4-20250514",
-  "agents": {
+  "model": "anthropic/claude-sonnet-4-20250514",
+  "agent": {
     "pace-coding": {
       "model": "anthropic/claude-sonnet-4-20250514"
     },
     "pace-code-reviewer": {
       "model": "anthropic/claude-opus-4-20250514"
-    },
-    "pace-practices-reviewer": {
-      "enabled": false
     }
   },
-  "commands": {
+  "command": {
     "pace-review": {
       "agent": "pace-code-reviewer"
     }
   },
-  "orchestrator": {
-    "maxSessions": 50,
-    "maxFailures": 5,
-    "sessionDelay": 5000
+  "permission": {
+    "edit": "allow",
+    "bash": {
+      "*": "ask",
+      "git *": "allow",
+      "npm *": "allow",
+      "bun *": "allow"
+    }
   },
-  "permissions": {
-    "autoAllowEdit": true,
-    "autoAllowSafeBash": true,
-    "allowedBashPatterns": ["git *", "npm *", "bun *"]
+  "pace": {
+    "orchestrator": {
+      "maxSessions": 50,
+      "maxFailures": 5,
+      "sessionDelay": 5000
+    }
   }
 }
 ```
+
+The configuration uses OpenCode's schema with these additions:
+
+- **model**: Default model for all agents (format: `provider/model-name`)
+- **agent**: Per-agent model overrides (e.g., `pace-coding`, `pace-initializer`)
+- **command**: Command configurations
+- **permission**: OpenCode's native permission system
+- **pace**: CLI-specific settings (stripped before passing to OpenCode)
+  - **orchestrator.maxSessions**: Maximum sessions to run
+  - **orchestrator.maxFailures**: Stop after N consecutive failures
+  - **orchestrator.sessionDelay**: Delay between sessions (ms)
 
 CLI arguments override config file settings.
 
