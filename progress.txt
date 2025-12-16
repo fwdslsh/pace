@@ -1477,3 +1477,42 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Recommended next feature: DEP-001 (Audit package.json for unused dependencies).
 - Continue with remaining cleanup and documentation tasks.
 
+
+---
+
+### Session 44 - Dependency Audit
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- DEP-001: Audit package.json for unused dependencies
+
+**Actions Taken:**
+
+- Reviewed all production and dev dependencies in package.json.
+- Verified @opencode-ai/sdk is used in cli.ts and debug-events.ts.
+- Verified @types/node is required for Node.js API types (fs, path, process).
+- Verified dev dependencies for linting (eslint, @typescript-eslint/*) are in use.
+- Identified eslint-config-prettier and eslint-plugin-prettier as unused (not configured in .eslintrc.json).
+- Removed both unused packages with `bun remove`.
+
+**Test Results:**
+
+- `bun run build` succeeds.
+- `bun test` passes (155 tests).
+- `bun run lint` works correctly.
+- `bun run format` works correctly.
+- `./pace status` shows 42/55 passing.
+
+**Current Status:**
+
+- Features passing: 42/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: REFAC-001 (Identify code duplication in feature-manager.ts).
+- Continue with remaining cleanup and refactoring tasks.
+
