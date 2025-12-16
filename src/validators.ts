@@ -8,6 +8,9 @@ const VALID_PRIORITIES: Priority[] = ['critical', 'high', 'medium', 'low'];
 const REQUIRED_FEATURE_FIELDS = ['id', 'category', 'description', 'priority', 'steps', 'passes'];
 const REQUIRED_METADATA_FIELDS = ['project_name', 'total_features', 'passing', 'failing'];
 
+/** Minimum length for feature descriptions */
+const MIN_DESCRIPTION_LENGTH = 10;
+
 /**
  * Validate a single feature
  */
@@ -85,11 +88,11 @@ export function validateFeature(feature: unknown, index: number): ValidationErro
 
   // Content validation
   if ('description' in f && typeof f.description === 'string') {
-    if (f.description.length < 10) {
+    if (f.description.length < MIN_DESCRIPTION_LENGTH) {
       errors.push({
         featureId,
         field: 'description',
-        message: 'description too short (min 10 chars)',
+        message: `description too short (min ${MIN_DESCRIPTION_LENGTH} chars)`,
       });
     }
   }
