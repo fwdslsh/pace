@@ -105,9 +105,6 @@ bun run cli.ts --max-failures 5
 
 # Preview without executing (dry run)
 bun run cli.ts --dry-run --max-sessions 5
-
-# Use custom OpenCode config directory
-bun run cli.ts run --config-dir /path/to/opencode-config --dry-run
 ```
 
 ### JSON Output for Development
@@ -169,28 +166,28 @@ The orchestrator expects a `feature_list.json` file in the project directory wit
 
 ```json
 {
- "features": [
-  {
-   "id": "AUTH-001",
-   "description": "Implement user authentication",
-   "priority": "critical",
-   "category": "auth",
-   "steps": ["Create login form", "Add JWT validation"],
-   "passes": false
-  },
-  {
-   "id": "UI-002",
-   "description": "Add dark mode toggle",
-   "priority": "medium",
-   "category": "ui",
-   "steps": ["Add theme context", "Create toggle button"],
-   "passes": true
+  "features": [
+    {
+      "id": "AUTH-001",
+      "description": "Implement user authentication",
+      "priority": "critical",
+      "category": "auth",
+      "steps": ["Create login form", "Add JWT validation"],
+      "passes": false
+    },
+    {
+      "id": "UI-002",
+      "description": "Add dark mode toggle",
+      "priority": "medium",
+      "category": "ui",
+      "steps": ["Add theme context", "Create toggle button"],
+      "passes": true
+    }
+  ],
+  "metadata": {
+    "project_name": "My Project",
+    "last_updated": "2025-01-01T10:30:00Z"
   }
- ],
- "metadata": {
-  "project_name": "My Project",
-  "last_updated": "2025-01-01T10:30:00Z"
- }
 }
 ```
 
@@ -269,17 +266,17 @@ Tests use Bun's built-in test runner:
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 
 describe('MyFeature', () => {
- beforeEach(() => {
-  // Setup code
- });
+  beforeEach(() => {
+    // Setup code
+  });
 
- afterEach(() => {
-  // Cleanup code
- });
+  afterEach(() => {
+    // Cleanup code
+  });
 
- it('should do something', () => {
-  expect(1 + 1).toBe(2);
- });
+  it('should do something', () => {
+    expect(1 + 1).toBe(2);
+  });
 });
 ```
 

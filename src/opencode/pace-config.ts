@@ -104,7 +104,8 @@ export interface PaceConfig {
 // ============================================================================
 
 export const DEFAULT_CONFIG: PaceConfig = {
-  defaultModel: 'anthropic/claude-sonnet-4-20250514',
+  // No default model - let .opencode/opencode.jsonc be the source of truth
+  // Users can override via pace.json or --model CLI flag
 
   agents: {
     'pace-coding': { enabled: true },
@@ -191,9 +192,10 @@ function mergeConfig(base: PaceConfig, override: Partial<PaceConfig>): PaceConfi
 
 /**
  * Get model for a specific agent
+ * Returns undefined if no model is configured (uses OpenCode's default)
  */
-export function getAgentModel(config: PaceConfig, agentName: string): ModelID {
-  return config.agents?.[agentName]?.model ?? config.defaultModel ?? DEFAULT_CONFIG.defaultModel!;
+export function getAgentModel(config: PaceConfig, agentName: string): ModelID | undefined {
+  return config.agents?.[agentName]?.model ?? config.defaultModel;
 }
 
 /**

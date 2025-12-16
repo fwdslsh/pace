@@ -46,7 +46,6 @@ interface ParsedArgs {
   command: 'run' | 'init' | 'status' | 'validate' | 'update' | 'help';
   options: {
     projectDir: string;
-    configDir?: string;
     port?: number;
     model?: string;
     maxSessions?: number;
@@ -144,9 +143,7 @@ function parseArgs(): ParsedArgs {
       case '-d':
         options.projectDir = args[++i];
         break;
-      case '--config-dir':
-        options.configDir = args[++i];
-        break;
+
       case '--port':
         options.port = parseInt(args[++i]);
         break;
@@ -242,6 +239,26 @@ function formatDuration(ms: number): string {
 }
 
 /**
+ * Load OpenCode configuration from .opencode/opencode.jsonc
+ * Returns the parsed config or undefined if not found
+ */
+async function loadOpencodeConfig(
+  projectDir: string,
+): Promise<Record<string, unknown> | undefined> {
+  const configPath = join(projectDir, '.opencode', 'opencode.jsonc');
+  try {
+    const content = await readFile(configPath, 'utf-8');
+    // Strip comments from JSONC (simple approach - handles // and /* */ comments)
+    const jsonContent = content
+      .replace(/\/\*[\s\S]*?\*\//g, '') // Remove /* */ comments
+      .replace(/\/\/.*$/gm, ''); // Remove // comments
+    return JSON.parse(jsonContent);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Build the coding agent prompt for a specific feature
  */
 function buildCodingAgentPrompt(feature: Feature, projectContext: string): string {
@@ -272,7 +289,6 @@ ${basePrompt}`;
 
 class Orchestrator {
   private projectDir: string;
-  private configDir?: string;
   private port?: number;
   private model?: string;
   private maxSessions?: number;
@@ -289,7 +305,6 @@ class Orchestrator {
 
   constructor(options: ParsedArgs['options']) {
     this.projectDir = resolve(options.projectDir);
-    this.configDir = options.configDir;
     this.port = options.port;
     this.model = options.model;
     this.maxSessions = options.untilComplete ? undefined : (options.maxSessions ?? 10);
@@ -356,16 +371,21 @@ class Orchestrator {
 
     this.log('Initializing OpenCode server...');
 
-    const opencodeOptions: { cwd: string; port?: number; configDir?: string } = {
-      cwd: this.projectDir,
-      port: this.port ?? 0,
-    };
+    // Load .opencode/opencode.jsonc and pass it to SDK
+    // The SDK sets OPENCODE_CONFIG_CONTENT which overrides file-based config,
+    // so we need to read and pass the file contents ourselves
+    const opencodeConfig = await loadOpencodeConfig(this.projectDir);
+    const config: Record<string, unknown> = opencodeConfig ?? {};
 
-    if (this.configDir) {
-      opencodeOptions.configDir = this.configDir;
+    // CLI model override takes precedence
+    if (this.effectiveModel) {
+      config.model = this.effectiveModel;
     }
 
-    this.opencode = await createOpencode(opencodeOptions);
+    this.opencode = await createOpencode({
+      port: this.port ?? 0,
+      config,
+    });
 
     this.log(`OpenCode server started: ${this.opencode.server.url}`);
   }
@@ -619,21 +639,22 @@ class Orchestrator {
   async run(): Promise<SessionSummary> {
     // Load config first for display
     this.paceConfig = await loadConfig(this.projectDir);
+    const opencodeConfig = await loadOpencodeConfig(this.projectDir);
+
+    // Determine effective model: CLI flag > pace.json > opencode.jsonc
+    const displayModel = this.effectiveModel ?? (opencodeConfig?.model as string | undefined);
 
     if (!this.json) {
       console.log('\n' + '='.repeat(60));
       console.log(' PACE ORCHESTRATOR');
       console.log('='.repeat(60));
       console.log(`\nProject: ${this.projectDir}`);
-      if (this.effectiveModel) {
-        console.log(`Model: ${this.effectiveModel}`);
+      if (displayModel) {
+        console.log(`Model: ${displayModel}`);
       }
       console.log(`Max sessions: ${this.effectiveMaxSessions || 'unlimited'}`);
       console.log(`Max consecutive failures: ${this.effectiveMaxFailures}`);
       console.log(`Delay between sessions: ${this.effectiveDelay / 1000}s`);
-      if (this.configDir) {
-        console.log(`Config directory: ${this.configDir}`);
-      }
     }
 
     // Check initial state before initializing server
@@ -897,16 +918,14 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
   let opencode: Awaited<ReturnType<typeof createOpencode>> | null = null;
 
   try {
-    const opencodeOptions: { cwd: string; port: number; configDir?: string } = {
-      cwd: projectDir,
+    // Load .opencode/opencode.jsonc and pass it to SDK
+    const opencodeConfig = await loadOpencodeConfig(projectDir);
+    const config: Record<string, unknown> = opencodeConfig ?? {};
+
+    opencode = await createOpencode({
       port: 0,
-    };
-
-    if (options.configDir) {
-      opencodeOptions.configDir = options.configDir;
-    }
-
-    opencode = await createOpencode(opencodeOptions);
+      config,
+    });
 
     if (!options.json) {
       console.log(`OpenCode server started: ${opencode.server.url}`);
@@ -1352,7 +1371,6 @@ INIT OPTIONS:
 
 RUN OPTIONS:
     --project-dir, -d DIR        Project directory (default: current directory)
-    --config-dir DIR             OpenCode config directory for custom agents/plugins
     --model, -m MODEL            Model to use for sessions (e.g., anthropic/claude-sonnet-4-20250514)
     --max-sessions, -n N         Maximum number of sessions to run (default: 10)
     --max-failures, -f N         Stop after N consecutive failures (default: 3)
@@ -1374,20 +1392,26 @@ UPDATE OPTIONS:
 
 GLOBAL OPTIONS:
     --project-dir, -d DIR        Project directory (default: current directory)
-    --config-dir DIR             OpenCode config directory (~/.config/opencode)
     --json                       Output in JSON format
 
 CONFIGURATION:
-    Create a pace.json file in your project for custom settings:
+    Pace uses two configuration files:
 
-    {
-      "defaultModel": "anthropic/claude-sonnet-4-20250514",
-      "orchestrator": {
-        "maxSessions": 50,
-        "maxFailures": 5,
-        "sessionDelay": 5000
-      }
-    }
+    1. .opencode/opencode.jsonc - OpenCode settings (model, providers)
+       {
+         "enabled_providers": ["github-copilot"],
+         "model": "github-copilot/claude-sonnet-4"
+       }
+
+    2. pace.json - Pace-specific settings (orchestrator, agents)
+       {
+         "defaultModel": "anthropic/claude-opus-4",  // overrides opencode config
+         "orchestrator": {
+           "maxSessions": 50,
+           "maxFailures": 5,
+           "sessionDelay": 5000
+         }
+       }
 
 EXAMPLES:
     # Initialize a new pace project
@@ -1422,9 +1446,6 @@ EXAMPLES:
     # Preview without executing
     pace run --dry-run --max-sessions 5
     pace init -p "My project" --dry-run
-
-    # Use custom config directory
-    pace run --config-dir /path/to/opencode-config
 
     # Get JSON output for scripting
     pace run --json --max-sessions 5

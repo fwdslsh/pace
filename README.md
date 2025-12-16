@@ -162,7 +162,7 @@ pace --dry-run --max-sessions 5
 
 ```
 --project-dir, -d DIR    Project directory (default: current directory)
---config-dir DIR         OpenCode config directory for custom agents/plugins
+--model, -m MODEL        Model to use for sessions (e.g., anthropic/claude-sonnet-4-20250514)
 --max-sessions, -n N     Maximum number of sessions to run (default: 10)
 --max-failures, -f N     Stop after N consecutive failures (default: 3)
 --delay SECONDS          Seconds to wait between sessions (default: 5)
@@ -303,18 +303,6 @@ Create a `pace.json`, `pace.config.json`, or `.pace.json` file in your project r
 ```
 
 CLI arguments override config file settings.
-
-### Custom Config Directory
-
-Use the `--config-dir` flag to specify a custom OpenCode configuration directory. This is useful for:
-
-- Loading custom agents and plugins
-- Using different configurations for different projects
-- Testing with isolated configurations
-
-```bash
-pace run --config-dir /path/to/opencode-config
-```
 
 ## OpenCode Plugin
 

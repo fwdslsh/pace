@@ -453,7 +453,7 @@ describe('CLI Integration Tests', () => {
   });
 
   describe('argument parsing', () => {
-    it('should handle --config-dir argument', async () => {
+    it('should handle --delay argument', async () => {
       await createFeatureList({
         metadata: {},
         features: [
@@ -468,16 +468,7 @@ describe('CLI Integration Tests', () => {
         ],
       });
 
-      const result = await runCLI([
-        'run',
-        '--dry-run',
-        '--max-sessions',
-        '1',
-        '--config-dir',
-        '/custom/path',
-        '--delay',
-        '0',
-      ]);
+      const result = await runCLI(['run', '--dry-run', '--max-sessions', '1', '--delay', '0']);
       // Should run without errors (exit code 1 when features are incomplete)
       expect(result.exitCode).toBe(1);
     }, 10000);
@@ -693,12 +684,6 @@ describe('parseArgs Unit Tests', () => {
       expect(result.options.json).toBe(true);
     });
 
-    it('should parse --config-dir', () => {
-      setArgs(['run', '--config-dir', '/custom/path']);
-      const result = parseArgs();
-      expect(result.options.configDir).toBe('/custom/path');
-    });
-
     it('should parse --project-dir', () => {
       setArgs(['run', '--project-dir', '/my/project']);
       const result = parseArgs();
@@ -852,14 +837,6 @@ describe('Orchestrator Unit Tests', () => {
         verbose: true,
         json: false,
         dryRun: true,
-      });
-      expect(orchestrator).toBeDefined();
-    });
-
-    it('should accept config directory option', () => {
-      const orchestrator = new Orchestrator({
-        projectDir: tempDir,
-        configDir: '/custom/config',
       });
       expect(orchestrator).toBeDefined();
     });

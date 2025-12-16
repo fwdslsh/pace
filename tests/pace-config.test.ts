@@ -29,8 +29,8 @@ describe('pace-config', () => {
   });
 
   describe('DEFAULT_CONFIG', () => {
-    it('should have a default model', () => {
-      expect(DEFAULT_CONFIG.defaultModel).toBe('anthropic/claude-sonnet-4-20250514');
+    it('should not have a default model (uses opencode config)', () => {
+      expect(DEFAULT_CONFIG.defaultModel).toBeUndefined();
     });
 
     it('should have all agents enabled by default', () => {
@@ -180,9 +180,9 @@ describe('pace-config', () => {
       expect(getAgentModel(config, 'pace-coding')).toBe('default-model');
     });
 
-    it('should return DEFAULT_CONFIG model if nothing set', () => {
+    it('should return undefined if nothing set', () => {
       const config: PaceConfig = {};
-      expect(getAgentModel(config, 'pace-coding')).toBe(DEFAULT_CONFIG.defaultModel);
+      expect(getAgentModel(config, 'pace-coding')).toBeUndefined();
     });
   });
 
