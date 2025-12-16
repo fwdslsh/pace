@@ -462,7 +462,7 @@
       "description": "Add JSDoc to public functions in feature-manager.ts",
       "priority": "low",
       "steps": ["Identify public methods", "Add JSDoc describing params and return values"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "DOC-003",
@@ -477,8 +477,8 @@
     "project_name": "pace-cleanup",
     "created_at": "2025-12-15",
     "total_features": 55,
-    "passing": 53,
-    "failing": 2,
+    "passing": 54,
+    "failing": 1,
     "last_updated": "2025-12-15T17:00:00.000Z"
   }
 }
