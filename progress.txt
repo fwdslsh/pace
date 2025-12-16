@@ -1254,3 +1254,42 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 
 - Recommended next feature: TYPE-002 (Review 'any' usages in cli.ts).
 - Continue with type cleanup or other medium priority tasks.
+---
+
+### Session 38 - Type Review
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- TYPE-002: Review 'any' usages in cli.ts
+
+**Actions Taken:**
+
+- Searched `cli.ts` for explicit `any` usages using grep.
+- Found 2 occurrences at lines 493 and 993, both using `as any` with eslint-disable comments.
+- Analyzed the SDK types to understand the event properties structure.
+- Created `EventPropertiesWithSessionID` interface to type the event properties safely.
+- Replaced both `as any` casts with `as EventPropertiesWithSessionID`.
+- Removed the eslint-disable-next-line comments for no-explicit-any.
+- Verified ESLint passes cleanly with no-explicit-any rule enforced.
+
+**Test Results:**
+
+- `grep -n 'any' cli.ts` returns no results.
+- `bun run lint cli.ts` passes cleanly.
+- `bun build` succeeds.
+- `bun test` passes (155 tests).
+- `./pace status` functions correctly.
+
+**Current Status:**
+
+- Features passing: 36/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: CI-002 (Setup linting in CI workflow) or LOG-001 (Remove development console.logs).
+- Continue with remaining cleanup tasks.
+
