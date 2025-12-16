@@ -1182,3 +1182,38 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 
 - Recommended next feature: FMT-002 (Apply Prettier formatting to test files).
 - Continue with formatting or other cleanup tasks.
+
+---
+
+### Session 36 - Formatting
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- FMT-002: Apply Prettier formatting to test files
+
+**Actions Taken:**
+
+- Ran `bunx prettier --check "tests/**/*.ts"` to identify 4 files needing formatting.
+- Applied Prettier formatting with `bunx prettier --write "tests/**/*.ts"`.
+- Formatted files: cli.test.ts, feature-manager.test.ts, pace-config.test.ts, validators.test.ts.
+- Verified formatting is idempotent (subsequent runs produce no changes).
+
+**Test Results:**
+
+- `bunx prettier --check "tests/**/*.ts"` passes (all files formatted).
+- `bun test` passes (155 tests).
+- `bun build` succeeds.
+- `./pace status` functions correctly.
+
+**Current Status:**
+
+- Features passing: 34/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: TYPE-001 (Review 'any' usages in types.ts) or TYPE-002.
+- Continue with type cleanup or other medium priority tasks.
