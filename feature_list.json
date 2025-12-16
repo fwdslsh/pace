@@ -354,7 +354,7 @@
       "description": "Check for unused template files in src/assets/templates",
       "priority": "low",
       "steps": ["Verify which templates are loaded by the code", "Remove any that are obsolete"],
-      "passes": false
+      "passes": true
     },
     {
       "id": "DEAD-008",
@@ -477,8 +477,8 @@
     "project_name": "pace-cleanup",
     "created_at": "2025-12-15",
     "total_features": 55,
-    "passing": 44,
-    "failing": 11,
+    "passing": 45,
+    "failing": 10,
     "last_updated": "2025-12-16T03:50:31.293Z"
   }
 }
