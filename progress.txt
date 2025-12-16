@@ -1442,3 +1442,38 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Recommended next feature: DOC-001 (Update README.md with development/linting instructions).
 - Continue with remaining cleanup tasks.
 
+---
+
+### Session 43 - Documentation
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- DOC-001: Update README.md with development/linting instructions
+
+**Actions Taken:**
+
+- Added 'Linting' section to README.md in the Development section (after Building).
+- Documented `bun run lint` command for checking code issues.
+- Documented `bun run format` command for formatting files with Prettier.
+- Verified both commands work correctly.
+
+**Test Results:**
+
+- `bun run lint` works correctly (no errors).
+- `bun run format` works correctly (formats all source files).
+- `bun test` passes (155 tests).
+- `./pace status` shows 41/55 passing.
+
+**Current Status:**
+
+- Features passing: 41/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: DEP-001 (Audit package.json for unused dependencies).
+- Continue with remaining cleanup and documentation tasks.
+
