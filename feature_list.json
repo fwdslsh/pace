@@ -296,7 +296,7 @@
         "Add 'Linting' section to README",
         "Document 'bun run lint' and 'bun run format' commands"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "DEP-001",
@@ -478,8 +478,8 @@
     "project_name": "pace-cleanup",
     "created_at": "2025-12-15",
     "total_features": 55,
-    "passing": 40,
-    "failing": 15,
+    "passing": 41,
+    "failing": 14,
     "last_updated": "2025-12-15T22:00:00.000Z"
   }
 }

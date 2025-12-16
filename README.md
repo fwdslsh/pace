@@ -67,15 +67,15 @@ npx @fwdslsh/pace [COMMAND] [OPTIONS]  # Using npx (no install)
 
 ### Common Operations Quick Reference
 
-| Task | Command |
-|------|---------|
+| Task               | Command                           |
+| ------------------ | --------------------------------- |
 | Initialize project | `pace init -p "Build a todo app"` |
-| Run orchestrator | `pace` |
-| Run until complete | `pace --until-complete` |
-| Check status | `pace status` |
-| Validate features | `pace validate` |
-| Update feature | `pace update F001 pass` |
-| Get help | `pace help` |
+| Run orchestrator   | `pace`                            |
+| Run until complete | `pace --until-complete`           |
+| Check status       | `pace status`                     |
+| Validate features  | `pace validate`                   |
+| Update feature     | `pace update F001 pass`           |
+| Get help           | `pace help`                       |
 
 ### Quick Start
 
@@ -93,8 +93,9 @@ pace init "Build a REST API for inventory management"
 ```
 
 This creates:
+
 - `feature_list.json` with 50-200+ features
-- `init.sh` development environment script  
+- `init.sh` development environment script
 - `progress.txt` progress log
 - Git repository with initial commit
 
@@ -335,42 +336,42 @@ cp pace-plugin.ts ~/.config/opencode/plugin/
 
 The plugin provides five specialized agents (loaded from `src/opencode/agents/`):
 
-| Agent | Description |
-|-------|-------------|
-| **pace-coding** | Implements a single feature following the pace workflow |
-| **pace-coordinator** | Orchestrates multiple coding sessions |
-| **pace-initializer** | Sets up new pace projects |
-| **pace-code-reviewer** | Reviews code for quality, security, and best practices |
-| **pace-practices-reviewer** | Captures learnings and patterns from completed work |
+| Agent                       | Description                                             |
+| --------------------------- | ------------------------------------------------------- |
+| **pace-coding**             | Implements a single feature following the pace workflow |
+| **pace-coordinator**        | Orchestrates multiple coding sessions                   |
+| **pace-initializer**        | Sets up new pace projects                               |
+| **pace-code-reviewer**      | Reviews code for quality, security, and best practices  |
+| **pace-practices-reviewer** | Captures learnings and patterns from completed work     |
 
 ### Custom Commands
 
 The plugin provides eight slash commands (loaded from `src/opencode/commands/`):
 
-| Command | Description |
-|---------|-------------|
-| `/pace-init` | Initialize a new pace project |
-| `/pace-next` | Implement the next highest-priority feature |
+| Command               | Description                                 |
+| --------------------- | ------------------------------------------- |
+| `/pace-init`          | Initialize a new pace project               |
+| `/pace-next`          | Implement the next highest-priority feature |
 | `/pace-continue [id]` | Continue work on a specific or next feature |
-| `/pace-coordinate` | Run continuous sessions until complete |
-| `/pace-review` | Review code changes |
-| `/pace-compound` | Capture learnings and patterns |
-| `/pace-status` | Show current project progress |
-| `/pace-complete <id>` | Mark a feature as complete |
+| `/pace-coordinate`    | Run continuous sessions until complete      |
+| `/pace-review`        | Review code changes                         |
+| `/pace-compound`      | Capture learnings and patterns              |
+| `/pace-status`        | Show current project progress               |
+| `/pace-complete <id>` | Mark a feature as complete                  |
 
 ### Custom Tools
 
 The plugin adds tools for workflow management:
 
-| Tool | Description |
-|------|-------------|
-| `pace_get_status` | Get feature progress and next recommended feature |
-| `pace_get_next_feature` | Get the highest-priority failing feature |
-| `pace_get_feature` | Get detailed information about a specific feature |
-| `pace_update_feature` | Mark a feature as passing or failing |
-| `pace_list_failing` | List all failing features sorted by priority |
-| `pace_spawn_session` | Spawn a child session for feature implementation |
-| `pace_orchestrate` | Run full orchestration loop with child sessions |
+| Tool                    | Description                                       |
+| ----------------------- | ------------------------------------------------- |
+| `pace_get_status`       | Get feature progress and next recommended feature |
+| `pace_get_next_feature` | Get the highest-priority failing feature          |
+| `pace_get_feature`      | Get detailed information about a specific feature |
+| `pace_update_feature`   | Mark a feature as passing or failing              |
+| `pace_list_failing`     | List all failing features sorted by priority      |
+| `pace_spawn_session`    | Spawn a child session for feature implementation  |
+| `pace_orchestrate`      | Run full orchestration loop with child sessions   |
 
 ### Example Session
 
@@ -443,6 +444,18 @@ bun run build
 
 # Build for all platforms
 bun run build:all
+```
+
+### Linting
+
+The project uses ESLint and Prettier to ensure code quality and consistent formatting.
+
+```bash
+# Run linter to check for code issues
+bun run lint
+
+# Format all source files with Prettier
+bun run format
 ```
 
 ## License
