@@ -84,6 +84,19 @@ interface OrchestratorState {
   metrics: SessionMetrics[];
 }
 
+/**
+ * Type for accessing sessionID from various event properties.
+ * Different event types have sessionID at different levels:
+ * - Session events: properties.sessionID
+ * - Message part events: properties.part.sessionID
+ */
+interface EventPropertiesWithSessionID {
+  sessionID?: string;
+  part?: {
+    sessionID?: string;
+  };
+}
+
 // ============================================================================
 // Argument Parsing
 // ============================================================================
@@ -489,8 +502,7 @@ class Orchestrator {
         }
 
         // Message-level events have session ID in part.sessionID
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const props = event.properties as any;
+        const props = event.properties as EventPropertiesWithSessionID;
         const eventSessionId = props?.sessionID || props?.part?.sessionID;
 
         if (eventSessionId !== session.id) continue;
@@ -989,8 +1001,7 @@ Begin now by analyzing the requirements and creating all necessary files.`;
       }
 
       // Message-level events have session ID in part.sessionID
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const props = event.properties as any;
+      const props = event.properties as EventPropertiesWithSessionID;
       const eventSessionId = props?.sessionID || props?.part?.sessionID;
 
       if (eventSessionId !== session.id) continue;
