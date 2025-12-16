@@ -1600,3 +1600,47 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Recommended next feature: DEAD-007 (Check for unused template files in src/assets/templates).
 - Continue with remaining dead code removal tasks.
 
+
+---
+
+### Session 47 - Dead Code Removal
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- DEAD-007: Check for unused template files in src/assets/templates
+
+**Actions Taken:**
+
+- Identified all files in `src/assets/templates/` (5 template files) and `src/assets/SKILL.md`.
+- Searched codebase for references to these files - found NONE in any TypeScript code.
+- Analyzed that current implementation uses `src/opencode/agents/` and `src/opencode/commands/` for all agent and command definitions.
+- Confirmed these were legacy files from an earlier architecture ("WIP: starting refactor" commit).
+- Removed entire `src/assets/` directory containing obsolete files:
+  - `templates/CLAUDE.md`
+  - `templates/feature_list.json`
+  - `templates/init.sh`
+  - `templates/opencode.jsonc`
+  - `templates/progress.txt`
+  - `SKILL.md`
+- This removed 842 lines of dead code.
+
+**Test Results:**
+
+- `bun run build` succeeds.
+- `bun run lint` passes cleanly.
+- `bun test` passes (153 tests).
+- `./pace --help` and `./pace status` work correctly.
+
+**Current Status:**
+
+- Features passing: 45/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: DEAD-008 (Remove commented out code in src/cli.ts).
+- Continue with remaining dead code removal tasks.
+
