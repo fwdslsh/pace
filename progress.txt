@@ -1644,3 +1644,43 @@ The next agent should begin by picking a feature from `feature_list.json`, likel
 - Recommended next feature: DEAD-008 (Remove commented out code in src/cli.ts).
 - Continue with remaining dead code removal tasks.
 
+
+---
+
+### Session 48 - Dead Code Removal
+
+**Date:** Mon Dec 15 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- DEAD-008: Remove commented out code in src/cli.ts
+
+**Actions Taken:**
+
+- Scanned `cli.ts` (located at root, not in src/) for commented out code blocks.
+- Used grep patterns to identify all comments in the file.
+- Verified all comments are legitimate documentation/explanatory comments:
+  - JSDoc documentation blocks describing functions and types
+  - Section dividers (`// ====...`) for code organization
+  - Inline explanatory comments describing code intent
+  - ESLint directives (`/* eslint-disable no-console */`)
+- Confirmed NO commented out code exists in the file.
+- Note: The feature description mentions "src/cli.ts" but the actual file is `cli.ts` at the project root.
+
+**Test Results:**
+
+- `bun run lint cli.ts` passes cleanly.
+- `bun run build` succeeds.
+- `bun test` passes (153 tests).
+- `./pace status` works correctly.
+
+**Current Status:**
+
+- Features passing: 46/55
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: DEAD-009 (Remove commented out code in src/feature-manager.ts).
+- Continue with remaining dead code removal tasks.
