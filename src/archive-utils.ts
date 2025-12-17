@@ -3,7 +3,61 @@
  */
 
 /**
+ * Validates that a directory name is safe and doesn't contain path traversal characters
+ *
+ * Security: Prevents directory traversal attacks by rejecting:
+ * - Path separators (/, \)
+ * - Parent directory references (..)
+ * - Absolute paths (starting with / or drive letter)
+ * - Null bytes or other control characters
+ *
+ * @param dirname - The directory name to validate
+ * @returns true if the directory name is safe, false otherwise
+ *
+ * @example
+ * ```typescript
+ * isValidDirectoryName("2025-12-15_17-00-00")  // Returns: true
+ * isValidDirectoryName("../../../etc")          // Returns: false
+ * isValidDirectoryName("/etc/passwd")           // Returns: false
+ * isValidDirectoryName("foo/../bar")            // Returns: false
+ * ```
+ */
+function isValidDirectoryName(dirname: string): boolean {
+  // Check for empty string
+  if (!dirname || dirname.length === 0) {
+    return false;
+  }
+
+  // Check for path traversal patterns
+  if (dirname.includes('..')) {
+    return false;
+  }
+
+  // Check for path separators (Unix and Windows)
+  if (dirname.includes('/') || dirname.includes('\\')) {
+    return false;
+  }
+
+  // Check for null bytes or control characters
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f\x7f]/.test(dirname)) {
+    return false;
+  }
+
+  // Only allow alphanumeric, hyphens, underscores, and dots (but not ..)
+  if (!/^[a-zA-Z0-9_-]+$/.test(dirname)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Normalizes an ISO timestamp string to a directory-safe format: YYYY-MM-DD_HH-MM-SS
+ *
+ * Security: This function ensures the output contains only alphanumeric characters,
+ * hyphens, and underscores. It is safe from path traversal attacks as it constructs
+ * the output from numeric date components only.
  *
  * @param isoTimestamp - An ISO 8601 timestamp string (e.g., "2025-12-15T17:00:00.000Z")
  * @returns A directory-safe timestamp string (e.g., "2025-12-15_17-00-00")
@@ -13,6 +67,7 @@
  * normalizeTimestamp("2025-12-15T17:00:00.000Z")  // Returns: "2025-12-15_17-00-00"
  * normalizeTimestamp("invalid")                    // Returns: current timestamp
  * normalizeTimestamp("")                           // Returns: current timestamp
+ * normalizeTimestamp("../../../etc/passwd")        // Returns: current timestamp (invalid date)
  * ```
  */
 export function normalizeTimestamp(isoTimestamp: string): string {
@@ -39,7 +94,15 @@ export function normalizeTimestamp(isoTimestamp: string): string {
     const seconds = String(date.getUTCSeconds()).padStart(2, '0');
 
     // Format as YYYY-MM-DD_HH-MM-SS
-    return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+    const normalized = `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+
+    // Security: Validate the normalized string only contains safe characters
+    // This should always pass given numeric inputs, but provides defense in depth
+    if (!isValidDirectoryName(normalized)) {
+      return getFallbackTimestamp();
+    }
+
+    return normalized;
   } catch {
     // If any error occurs, return fallback
     return getFallbackTimestamp();
@@ -63,13 +126,59 @@ function getFallbackTimestamp(): string {
 }
 
 /**
+ * Validates that the destination path is within a safe parent directory
+ *
+ * Security: Ensures that path operations cannot escape the project directory
+ * by resolving both paths and checking that the destination is a child of the parent.
+ *
+ * @param destPath - The destination path to validate
+ * @param parentPath - The parent directory path that should contain destPath
+ * @returns true if destPath is within parentPath, false otherwise
+ *
+ * @example
+ * ```typescript
+ * isPathWithinDirectory("/project/.runs/archive", "/project")  // Returns: true
+ * isPathWithinDirectory("/etc/passwd", "/project")             // Returns: false
+ * isPathWithinDirectory("/project/../etc", "/project")         // Returns: false
+ * ```
+ */
+async function isPathWithinDirectory(destPath: string, parentPath: string): Promise<boolean> {
+  const { resolve, relative } = await import('path');
+
+  try {
+    // Resolve both paths to absolute paths (this resolves .. and symlinks)
+    const resolvedDest = resolve(destPath);
+    const resolvedParent = resolve(parentPath);
+
+    // Get the relative path from parent to destination
+    const relativePath = relative(resolvedParent, resolvedDest);
+
+    // If the relative path starts with '..' or is an absolute path,
+    // then destPath is outside parentPath
+    if (relativePath.startsWith('..') || resolve(relativePath) === relativePath) {
+      return false;
+    }
+
+    return true;
+  } catch {
+    // If path resolution fails, reject the path as unsafe
+    return false;
+  }
+}
+
+/**
  * Safely moves a file to an archive directory
+ *
+ * Security: Validates that destination directory is safe and within the project directory.
+ * This prevents path traversal attacks and ensures files are only archived to intended locations.
  *
  * @param sourcePath - The path to the source file to move
  * @param destDirectory - The destination directory path
  * @param filename - The filename to use in the destination (defaults to original filename)
+ * @param projectDir - The project root directory (defaults to process.cwd())
  * @returns A promise that resolves to the destination file path
  * @throws Error if the source file doesn't exist or move operation fails
+ * @throws Error if the destination path is unsafe or outside the project directory
  *
  * @example
  * ```typescript
@@ -81,10 +190,11 @@ export async function moveToArchive(
   sourcePath: string,
   destDirectory: string,
   filename?: string,
+  projectDir?: string,
 ): Promise<string> {
   // Import here to avoid circular dependencies at top level
   const { mkdir, rename, copyFile, unlink, stat } = await import('fs/promises');
-  const { join, basename } = await import('path');
+  const { join, basename, resolve } = await import('path');
 
   try {
     // Verify source file exists
@@ -100,7 +210,32 @@ export async function moveToArchive(
 
     // Use provided filename or extract from source path
     const destFilename = filename || basename(sourcePath);
+
+    // Security: Validate destination filename doesn't contain path traversal
+    if (destFilename.includes('..') || destFilename.includes('/') || destFilename.includes('\\')) {
+      throw new Error(`Invalid filename: ${destFilename} (contains path separators or traversal)`);
+    }
+
     const destPath = join(destDirectory, destFilename);
+
+    // Security: Validate that destination is within the project directory
+    // Get the current working directory as the project root (or use provided projectDir)
+    const rootDir = projectDir || process.cwd();
+    const isWithinProject = await isPathWithinDirectory(destPath, rootDir);
+    if (!isWithinProject) {
+      throw new Error(
+        `Security: Destination path ${destPath} is outside project directory ${rootDir}`,
+      );
+    }
+
+    // Security: Validate that destination directory doesn't contain path traversal
+    const resolvedDestDir = resolve(destDirectory);
+    const isDestDirWithinProject = await isPathWithinDirectory(resolvedDestDir, rootDir);
+    if (!isDestDirWithinProject) {
+      throw new Error(
+        `Security: Destination directory ${destDirectory} is outside project directory ${rootDir}`,
+      );
+    }
 
     // Create destination directory if it doesn't exist (mkdir -p equivalent)
     await mkdir(destDirectory, { recursive: true });

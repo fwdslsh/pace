@@ -2923,8 +2923,8 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     const firstArchivePath = join(tempDir, '.runs', firstNormalized);
 
     // Archive first init files
-    await moveToArchive(featureListPath, firstArchivePath, 'feature_list.json');
-    await moveToArchive(progressPath, firstArchivePath, 'progress.txt');
+    await moveToArchive(featureListPath, firstArchivePath, 'feature_list.json', tempDir);
+    await moveToArchive(progressPath, firstArchivePath, 'progress.txt', tempDir);
 
     // Create second init files
     const secondFeatureList = {
@@ -2968,8 +2968,8 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     const secondArchivePath = join(tempDir, '.runs', secondNormalized);
 
     // Archive second init files
-    await moveToArchive(featureListPath, secondArchivePath, 'feature_list.json');
-    await moveToArchive(progressPath, secondArchivePath, 'progress.txt');
+    await moveToArchive(featureListPath, secondArchivePath, 'feature_list.json', tempDir);
+    await moveToArchive(progressPath, secondArchivePath, 'progress.txt', tempDir);
 
     // Create third init files
     const thirdFeatureList = {
@@ -3005,8 +3005,8 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     const thirdArchivePath = join(tempDir, '.runs', thirdNormalized);
 
     // Archive third init files
-    await moveToArchive(featureListPath, thirdArchivePath, 'feature_list.json');
-    await moveToArchive(progressPath, thirdArchivePath, 'progress.txt');
+    await moveToArchive(featureListPath, thirdArchivePath, 'feature_list.json', tempDir);
+    await moveToArchive(progressPath, thirdArchivePath, 'progress.txt', tempDir);
 
     // Create fourth (final) init files
     const fourthFeatureList = {

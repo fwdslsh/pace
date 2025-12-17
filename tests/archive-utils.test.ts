@@ -118,6 +118,59 @@ describe('normalizeTimestamp', () => {
       expect(resultMs).toBeLessThanOrEqual(after + 1000);
     }
   });
+
+  describe('security: path traversal protection', () => {
+    test('rejects path traversal attempt with ../../../', () => {
+      const maliciousTimestamp = '../../../etc/passwd';
+      const result = normalizeTimestamp(maliciousTimestamp);
+
+      // Should return fallback timestamp, not the malicious input
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
+      expect(result).not.toContain('..');
+      expect(result).not.toContain('/');
+    });
+
+    test('rejects absolute path', () => {
+      const maliciousTimestamp = '/etc/passwd';
+      const result = normalizeTimestamp(maliciousTimestamp);
+
+      // Should return fallback timestamp
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
+      expect(result).not.toContain('/');
+    });
+
+    test('rejects Windows path traversal', () => {
+      const maliciousTimestamp = '..\\..\\..\\Windows\\System32';
+      const result = normalizeTimestamp(maliciousTimestamp);
+
+      // Should return fallback timestamp
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
+      expect(result).not.toContain('\\');
+      expect(result).not.toContain('..');
+    });
+
+    test('rejects null bytes', () => {
+      const maliciousTimestamp = '2025-12-15T17:00:00\x00../etc/passwd';
+      const result = normalizeTimestamp(maliciousTimestamp);
+
+      // Should return fallback timestamp
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
+      expect(result).not.toContain('\x00');
+      expect(result).not.toContain('..');
+    });
+
+    test('output contains only safe characters', () => {
+      const validTimestamp = '2025-12-15T17:00:00.000Z';
+      const result = normalizeTimestamp(validTimestamp);
+
+      // Verify output matches expected safe format
+      expect(/^[0-9_-]+$/.test(result)).toBe(true);
+      expect(result).not.toContain('/');
+      expect(result).not.toContain('\\');
+      expect(result).not.toContain('..');
+      expect(result).not.toContain('\x00');
+    });
+  });
 });
 
 describe('moveToArchive', () => {
@@ -143,7 +196,7 @@ describe('moveToArchive', () => {
     await writeFile(sourceFile, testContent);
 
     // Execute: Move file to archive
-    const destPath = await moveToArchive(sourceFile, destDir, 'test.txt');
+    const destPath = await moveToArchive(sourceFile, destDir, 'test.txt', testDir);
 
     // Verify: File exists in destination
     const destContent = await readFile(destPath, 'utf-8');
@@ -171,7 +224,7 @@ describe('moveToArchive', () => {
 
     // Execute: Move to deeply nested directory
     const nestedDestDir = join(destDir, 'level1', 'level2', 'level3');
-    const destPath = await moveToArchive(sourceFile, nestedDestDir, 'test.txt');
+    const destPath = await moveToArchive(sourceFile, nestedDestDir, 'test.txt', testDir);
 
     // Verify: File exists in nested destination
     const content = await readFile(destPath, 'utf-8');
@@ -185,7 +238,7 @@ describe('moveToArchive', () => {
     await writeFile(sourceFile, '{"test": true}');
 
     // Execute: Move without specifying filename
-    const destPath = await moveToArchive(sourceFile, destDir);
+    const destPath = await moveToArchive(sourceFile, destDir, undefined, testDir);
 
     // Verify: Destination uses original filename
     expect(destPath).toBe(join(destDir, 'original-name.json'));
@@ -200,7 +253,7 @@ describe('moveToArchive', () => {
     await writeFile(sourceFile, 'rename test');
 
     // Execute: Move with new filename
-    const destPath = await moveToArchive(sourceFile, destDir, 'new-name.txt');
+    const destPath = await moveToArchive(sourceFile, destDir, 'new-name.txt', testDir);
 
     // Verify: File exists with new name
     expect(destPath).toBe(join(destDir, 'new-name.txt'));
@@ -212,7 +265,7 @@ describe('moveToArchive', () => {
     // Execute and verify: Should throw error for non-existent file
     const nonExistentFile = join(sourceDir, 'does-not-exist.txt');
 
-    await expect(moveToArchive(nonExistentFile, destDir, 'test.txt')).rejects.toThrow(
+    await expect(moveToArchive(nonExistentFile, destDir, 'test.txt', testDir)).rejects.toThrow(
       /Source file not found/,
     );
   });
@@ -225,7 +278,7 @@ describe('moveToArchive', () => {
     await writeFile(sourceFile, largeContent);
 
     // Execute: Move large file
-    const destPath = await moveToArchive(sourceFile, destDir, 'large.txt');
+    const destPath = await moveToArchive(sourceFile, destDir, 'large.txt', testDir);
 
     // Verify: File content is intact
     const content = await readFile(destPath, 'utf-8');
@@ -241,7 +294,7 @@ describe('moveToArchive', () => {
     await writeFile(sourceFile, JSON.stringify(jsonData, null, 2));
 
     // Execute: Move JSON file
-    const destPath = await moveToArchive(sourceFile, destDir, 'feature_list.json');
+    const destPath = await moveToArchive(sourceFile, destDir, 'feature_list.json', testDir);
 
     // Verify: JSON file is intact and parseable
     const content = await readFile(destPath, 'utf-8');
@@ -257,7 +310,7 @@ describe('moveToArchive', () => {
     await writeFile(sourceFile, specialContent);
 
     // Execute: Move text file
-    const destPath = await moveToArchive(sourceFile, destDir, 'progress.txt');
+    const destPath = await moveToArchive(sourceFile, destDir, 'progress.txt', testDir);
 
     // Verify: Content preserved including special characters
     const content = await readFile(destPath, 'utf-8');
@@ -278,5 +331,118 @@ describe('moveToArchive', () => {
     await expect(moveToArchive(sourceFile, invalidDest, 'test.txt')).rejects.toThrow(
       /Failed to move file to archive/,
     );
+  });
+
+  describe('security: path traversal protection', () => {
+    test('rejects path traversal in destination directory', async () => {
+      // Setup: Create source file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'test.txt');
+      await writeFile(sourceFile, 'test content');
+
+      // Try to archive to a directory outside the project using ../
+      const maliciousDestDir = join(testDir, '..', '..', '..', 'tmp', 'malicious');
+
+      await expect(
+        moveToArchive(sourceFile, maliciousDestDir, 'test.txt', testDir),
+      ).rejects.toThrow(/Security:.*outside project directory/);
+
+      // Verify source file was not moved
+      const sourceContent = await readFile(sourceFile, 'utf-8');
+      expect(sourceContent).toBe('test content');
+    });
+
+    test('rejects absolute path in destination directory', async () => {
+      // Setup: Create source file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'test.txt');
+      await writeFile(sourceFile, 'test content');
+
+      // Try to archive to an absolute path outside the test directory
+      const maliciousDestDir = '/tmp/malicious-archive';
+
+      await expect(
+        moveToArchive(sourceFile, maliciousDestDir, 'test.txt', testDir),
+      ).rejects.toThrow(/Security:.*outside project directory/);
+
+      // Verify source file was not moved
+      const sourceContent = await readFile(sourceFile, 'utf-8');
+      expect(sourceContent).toBe('test content');
+    });
+
+    test('rejects path traversal in filename', async () => {
+      // Setup: Create source file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'test.txt');
+      await writeFile(sourceFile, 'test content');
+
+      // Try to use a malicious filename with path traversal
+      const maliciousFilename = '../../../etc/passwd';
+
+      await expect(moveToArchive(sourceFile, destDir, maliciousFilename, testDir)).rejects.toThrow(
+        /Invalid filename: .* \(contains path separators or traversal\)/,
+      );
+
+      // Verify source file was not moved
+      const sourceContent = await readFile(sourceFile, 'utf-8');
+      expect(sourceContent).toBe('test content');
+    });
+
+    test('rejects filename with path separators', async () => {
+      // Setup: Create source file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'test.txt');
+      await writeFile(sourceFile, 'test content');
+
+      // Try to use a filename with path separators
+      const maliciousFilename = 'subdir/malicious.txt';
+
+      await expect(moveToArchive(sourceFile, destDir, maliciousFilename, testDir)).rejects.toThrow(
+        /Invalid filename: .* \(contains path separators or traversal\)/,
+      );
+
+      // Verify source file was not moved
+      const sourceContent = await readFile(sourceFile, 'utf-8');
+      expect(sourceContent).toBe('test content');
+    });
+
+    test('rejects Windows-style path separators in filename', async () => {
+      // Setup: Create source file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'test.txt');
+      await writeFile(sourceFile, 'test content');
+
+      // Try to use a filename with Windows path separators
+      const maliciousFilename = 'subdir\\malicious.txt';
+
+      await expect(moveToArchive(sourceFile, destDir, maliciousFilename, testDir)).rejects.toThrow(
+        /Invalid filename: .* \(contains path separators or traversal\)/,
+      );
+
+      // Verify source file was not moved
+      const sourceContent = await readFile(sourceFile, 'utf-8');
+      expect(sourceContent).toBe('test content');
+    });
+
+    test('accepts safe filenames with dots (file extensions)', async () => {
+      // Setup: Create source file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'test.txt');
+      await writeFile(sourceFile, 'test content');
+
+      // Create destination directory
+      await mkdir(destDir, { recursive: true });
+
+      // Use a safe filename with extension (dots are allowed for extensions)
+      const safeFilename = 'feature_list.json';
+
+      // This should succeed
+      const destPath = await moveToArchive(sourceFile, destDir, safeFilename, testDir);
+
+      // Verify file was moved successfully
+      const destContent = await readFile(destPath, 'utf-8');
+      expect(destContent).toBe('test content');
+      expect(destPath).toBe(join(destDir, safeFilename));
+    });
   });
 });

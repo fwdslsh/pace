@@ -532,7 +532,7 @@ describe('FeatureManager', () => {
       const archivePath = join(testDir, '.runs', normalizedTimestamp);
 
       const featureListPath = join(testDir, 'feature_list.json');
-      await moveToArchive(featureListPath, archivePath, 'feature_list.json');
+      await moveToArchive(featureListPath, archivePath, 'feature_list.json', testDir);
 
       // Step 3: Verify FeatureManager.load() returns empty list after archiving
       const emptyList = await manager.load();
@@ -593,7 +593,7 @@ describe('FeatureManager', () => {
       const archivePath = join(testDir, '.runs', normalizedTimestamp);
 
       const featureListPath = join(testDir, 'feature_list.json');
-      await moveToArchive(featureListPath, archivePath, 'feature_list.json');
+      await moveToArchive(featureListPath, archivePath, 'feature_list.json', testDir);
 
       // Create new feature list
       const newData: FeatureList = {
@@ -660,6 +660,7 @@ describe('FeatureManager', () => {
         join(testDir, 'feature_list.json'),
         firstArchivePath,
         'feature_list.json',
+        testDir,
       );
 
       // Second feature list
@@ -691,6 +692,7 @@ describe('FeatureManager', () => {
         join(testDir, 'feature_list.json'),
         secondArchivePath,
         'feature_list.json',
+        testDir,
       );
 
       // Third feature list (current)
