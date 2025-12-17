@@ -4158,3 +4158,59 @@ The archiving system will gracefully handle the conflict by creating a new direc
 - Continue with remaining edge-case features
 
 ---
+ 95 - Path Handling Edge Cases
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F029: Handle very long or invalid project directory paths
+
+**Actions Taken:**
+
+- **Created comprehensive test suite**:
+  - Created tests/archive-path-handling.test.ts with 20 tests
+  - Tested deeply nested project directories (5 levels, 10 levels)
+  - Tested extremely long path names (>250 characters)
+  - Tested directory names with special characters (spaces, hyphens, underscores, dots, parentheses, brackets)
+  - Tested relative paths and current directory (.)
+  - Verified .runs directory is created in correct location
+  - Tested path resolution consistency across multiple operations
+  - Tested symbolic links (platform-dependent)
+  - Tested path normalization with redundant separators and trailing slashes
+
+- **Fixed ArchiveManager bug**:
+  - Updated archiveFile() to accept and pass projectDir parameter
+  - Pass projectDir to moveToArchive() for proper path validation
+  - Fixes security check that validates archive paths are within project directory
+  - Required for tests with projects in non-cwd directories
+
+- **Fixed test race condition**:
+  - Restored original cwd before afterEach cleanup
+  - Prevents error when cleanup deletes directory we're in
+
+**Test Results:**
+
+- All 20 new tests passing (archive path handling)
+- All 355 total tests passing
+- No regressions
+- Verified archiving works correctly with:
+  - Deeply nested paths
+  - Special characters in directory names
+  - Relative paths
+  - Custom archive directories
+  - Multiple consecutive operations
+
+**Current Status:**
+
+- Features passing: 37/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F030 (Handle timezone differences in timestamp normalization)
+- Continue with remaining edge-case features
+
+---
+
