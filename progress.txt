@@ -3419,3 +3419,66 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining documentation tasks (F020-F023)
 
 ---
+
+---
+
+### Session 81 - Path Traversal Security Protection
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F032: Validate directory paths to prevent path traversal
+
+**Actions Taken:**
+
+- **Security Analysis**: Reviewed timestamp normalization and archiving functions for vulnerabilities
+- **Added Path Validation Functions**:
+  - `isValidDirectoryName()`: Validates directory names against path traversal patterns
+  - Checks for `..`, `/`, `\`, null bytes, and control characters
+  - Only allows alphanumeric characters, hyphens, and underscores
+- **Added Project Boundary Validation**:
+  - `isPathWithinDirectory()`: Ensures archive paths stay within project directory
+  - Uses path resolution to detect traversal attempts
+  - Validates both destination directory and final file path
+- **Enhanced Existing Functions**:
+  - `normalizeTimestamp()`: Added security validation and documentation
+  - `moveToArchive()`: Added path traversal checks for filenames and directories
+  - Added optional `projectDir` parameter for testing flexibility (defaults to `process.cwd()`)
+- **Comprehensive Security Tests**:
+  - 5 tests for malicious timestamps (path traversal, absolute paths, null bytes)
+  - 6 tests for moveToArchive path traversal protection
+  - Tests cover Unix/Windows paths, filename attacks, and safe filenames
+- **Updated All Test Calls**:
+  - Fixed archive-utils.test.ts to pass testDir as projectDir (8 calls)
+  - Fixed feature-manager.test.ts to pass testDir as projectDir (4 calls)
+  - Fixed init-command.test.ts to pass tempDir as projectDir (6 calls)
+
+**Test Results:**
+
+- `bun run lint src/archive-utils.ts` passes cleanly
+- `bun test tests/archive-utils.test.ts` passes (36 tests including 11 new security tests)
+- `bun test` passes (271 tests total)
+- `bun run build` succeeds
+- All path traversal attacks are correctly rejected
+
+**Security Improvements:**
+
+- Normalized timestamps are validated to only contain safe characters (0-9, -, _)
+- Archive directories are validated to be within project root
+- Filenames are checked for path separators and traversal patterns
+- Comprehensive defense against Unix and Windows path traversal attacks
+- Security considerations documented in JSDoc comments
+
+**Current Status:**
+
+- Features passing: 23/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F020 (Update CLI help text to mention archiving behavior)
+- Continue with remaining documentation and feature tasks
+
+---
