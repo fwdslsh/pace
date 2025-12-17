@@ -2559,3 +2559,60 @@ The coding agent should start with critical and high priority features:
 - Will be used in archiving workflow to determine archive directory name
 - Continue building core archiving functionality
 
+
+---
+
+### Session 65 - Fallback Timestamp Warning
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F006: Use current timestamp as fallback if last_updated is missing
+
+**Actions Taken:**
+
+- Enhanced archive logic in `handleInit()` function (cli.ts:1088-1113):
+  - Changed from simple OR operator (`||`) to explicit if/else check
+  - Added warning message when `metadata.last_updated` is missing
+  - Differentiated between missing metadata and corrupted JSON errors
+  - Separate warning messages for each case:
+    - "⚠️  Warning: metadata.last_updated is missing, using current timestamp as fallback"
+    - "⚠️  Warning: Could not read metadata from feature_list.json, using current timestamp"
+- Verified warning appears only when last_updated is missing (not when present)
+- Verified warning appears for corrupted JSON
+- Tested with three scenarios:
+  1. Valid last_updated present: No warning, archives to correct timestamp directory
+  2. Missing last_updated: Warning appears, uses current timestamp
+  3. Corrupted JSON: Different warning appears, uses current timestamp
+
+**Test Results:**
+
+- All existing tests pass (242 pass, 20 skip, 0 fail)
+- Manual testing verified:
+  - Warning appears when metadata.last_updated is missing
+  - Warning appears when JSON is corrupted
+  - No warning when metadata.last_updated is present
+  - Archives are created successfully in all cases
+- Build succeeds
+- CLI help and status commands work correctly
+
+**Implementation Details:**
+
+- Location: cli.ts:1088-1113
+- Key change: Explicit conditional check instead of OR operator
+- Maintains backward compatibility with existing archiving logic
+- Respects --json flag (no warning output in JSON mode)
+
+**Current Status:**
+
+- Features passing: 7/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F007 (Handle case where progress.txt doesn't exist during archiving)
+- Continue implementing core archiving features
+
+---
