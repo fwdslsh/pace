@@ -1143,8 +1143,23 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
           console.log('  ✓ Archived feature_list.json');
         }
       } catch (error) {
+        // If archiving to .runs fails, try .bak fallback
         if (!options.json) {
-          console.error(`  ✗ Failed to archive feature_list.json: ${error}`);
+          console.error(`  ✗ Failed to archive to .runs: ${error}`);
+          console.log('  ⚠️  Attempting fallback: creating .bak backup');
+        }
+        try {
+          const { copyFile } = await import('fs/promises');
+          const bakPath = `${featureListPath}.bak`;
+          await copyFile(featureListPath, bakPath);
+          if (!options.json) {
+            console.log(`  ✓ Created backup: ${bakPath}`);
+          }
+        } catch (bakError) {
+          if (!options.json) {
+            console.error(`  ✗ Fallback backup also failed: ${bakError}`);
+            console.log('  ⚠️  Init will continue, but old files may be overwritten');
+          }
         }
       }
 
@@ -1152,12 +1167,32 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       const progressPath = join(projectDir, 'progress.txt');
       try {
         await stat(progressPath);
-        await moveToArchive(progressPath, archivePath, 'progress.txt');
-        if (!options.json) {
-          console.log('  ✓ Archived progress.txt');
+        try {
+          await moveToArchive(progressPath, archivePath, 'progress.txt');
+          if (!options.json) {
+            console.log('  ✓ Archived progress.txt');
+          }
+        } catch (moveError) {
+          // If archiving to .runs fails, try .bak fallback
+          if (!options.json) {
+            console.error(`  ✗ Failed to archive progress.txt to .runs: ${moveError}`);
+            console.log('  ⚠️  Attempting fallback: creating .bak backup');
+          }
+          try {
+            const { copyFile } = await import('fs/promises');
+            const bakPath = `${progressPath}.bak`;
+            await copyFile(progressPath, bakPath);
+            if (!options.json) {
+              console.log(`  ✓ Created backup: ${bakPath}`);
+            }
+          } catch (bakError) {
+            if (!options.json) {
+              console.error(`  ✗ Fallback backup also failed: ${bakError}`);
+            }
+          }
         }
       } catch {
-        // progress.txt doesn't exist or failed to move, that's OK
+        // progress.txt doesn't exist, that's OK
       }
 
       if (!options.json) {
