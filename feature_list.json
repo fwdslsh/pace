@@ -625,7 +625,7 @@
         "Test migration path from old to new behavior",
         "Add upgrade notes to release"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F045",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 11,
-    "failing": 39,
+    "passing": 12,
+    "failing": 38,
     "last_updated": "2025-12-17T00:00:00.000Z"
   }
 }

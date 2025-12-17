@@ -1416,6 +1416,309 @@ Created project after archiving previous run.
 
     // STEP 7: Cleanup is handled by afterEach
   });
+
+  /**
+   * F044: Backwards Compatibility Tests
+   * Ensures the new archiving feature doesn't break existing pace installations
+   */
+  describe('Backwards Compatibility (F044)', () => {
+    it('should handle feature_list.json from old pace installations (no metadata.last_updated)', async () => {
+      // Simulate a feature_list.json created by an old version of pace (before archiving feature)
+      const oldFormatFeatureList = {
+        features: [
+          {
+            id: 'F001',
+            category: 'core',
+            description: 'Legacy feature',
+            priority: 'high',
+            steps: ['Step 1', 'Step 2'],
+            passes: false,
+          },
+        ],
+        metadata: {
+          project_name: 'Old Project',
+          created_at: '2025-01-01',
+          total_features: 1,
+          passing: 0,
+          failing: 1,
+          // No last_updated field - this is the key test
+        },
+      };
+
+      const featureListPath = join(tempDir, 'feature_list.json');
+      await writeFile(featureListPath, JSON.stringify(oldFormatFeatureList, null, 2));
+
+      // Run init with dry-run to verify it handles missing last_updated gracefully
+      const result = await runCLI(['init', '--prompt', 'Upgrade project', '--dry-run']);
+
+      // Should not crash and should show archiving intent
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Existing project files found');
+      expect(result.stdout).toContain('[DRY RUN] Would archive to');
+      // Should not contain error messages
+      expect(result.stderr).not.toContain('Error');
+      expect(result.stderr).not.toContain('undefined');
+    });
+
+    it('should handle feature_list.json with minimal metadata', async () => {
+      // Old installations might have had very minimal metadata
+      const minimalMetadataList = {
+        features: [
+          {
+            id: 'F001',
+            category: 'core',
+            description: 'Test feature',
+            priority: 'medium',
+            steps: [],
+            passes: false,
+          },
+        ],
+        metadata: {
+          project_name: 'Minimal Project',
+          // Only project_name - missing all other fields
+        },
+      };
+
+      const featureListPath = join(tempDir, 'feature_list.json');
+      await writeFile(featureListPath, JSON.stringify(minimalMetadataList, null, 2));
+
+      // Run init with dry-run
+      const result = await runCLI(['init', '--prompt', 'New initialization', '--dry-run']);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Existing project files found');
+      // Should use fallback timestamp
+      expect(result.stdout).toContain('[DRY RUN] Would archive to');
+    });
+
+    it('should handle feature_list.json with no metadata at all', async () => {
+      // Edge case: very old format with no metadata object
+      const noMetadataList = {
+        features: [
+          {
+            id: 'F001',
+            description: 'Ancient feature',
+            priority: 'low',
+            category: 'legacy',
+            steps: [],
+            passes: false,
+          },
+        ],
+        // No metadata field at all
+      };
+
+      const featureListPath = join(tempDir, 'feature_list.json');
+      await writeFile(featureListPath, JSON.stringify(noMetadataList, null, 2));
+
+      const result = await runCLI(['init', '--prompt', 'Modern project', '--dry-run']);
+
+      // Should still work without crashing
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Existing project files found');
+      expect(result.stdout).toContain('[DRY RUN] Would archive to');
+    });
+
+    it('should create .runs directory on first upgrade from old installation', async () => {
+      // Simulate upgrading from old installation that never had .runs directory
+      const oldFeatureList = {
+        features: [
+          {
+            id: 'F001',
+            description: 'Old feature',
+            priority: 'high',
+            category: 'core',
+            steps: [],
+            passes: false,
+          },
+        ],
+        metadata: {
+          project_name: 'Old Installation',
+          created_at: '2024-12-01',
+        },
+      };
+
+      const featureListPath = join(tempDir, 'feature_list.json');
+      await writeFile(featureListPath, JSON.stringify(oldFeatureList, null, 2));
+
+      // Verify .runs doesn't exist yet
+      const runsPath = join(tempDir, '.runs');
+      let runsExists = false;
+      try {
+        await stat(runsPath);
+        runsExists = true;
+      } catch {
+        runsExists = false;
+      }
+      expect(runsExists).toBe(false);
+
+      // Simulate archiving (what happens during actual init)
+      const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
+      const timestamp = new Date().toISOString(); // Fallback timestamp since last_updated is missing
+      const normalizedTimestamp = normalizeTimestamp(timestamp);
+      const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+
+      // Move the file - this should create .runs directory automatically
+      await moveToArchive(featureListPath, archivePath, 'feature_list.json');
+
+      // Verify .runs was created
+      const runsStats = await stat(runsPath);
+      expect(runsStats.isDirectory()).toBe(true);
+
+      // Verify archive was created
+      const archivedFile = join(archivePath, 'feature_list.json');
+      const archivedContent = await readFile(archivedFile, 'utf-8');
+      expect(archivedContent).toContain('Old Installation');
+    });
+
+    it('should handle corrupted feature_list.json during upgrade gracefully', async () => {
+      // Simulate a corrupted JSON file (might happen in old installations)
+      const featureListPath = join(tempDir, 'feature_list.json');
+      await writeFile(featureListPath, '{ "features": [ invalid json }');
+
+      const result = await runCLI(['init', '--prompt', 'New project', '--dry-run']);
+
+      // Should not crash - should use fallback behavior
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Existing project files found');
+      expect(result.stdout).toContain('[DRY RUN] Would archive to');
+    });
+
+    it('should successfully archive and reinitialize old project', async () => {
+      // Full end-to-end test: old format -> archive -> new format
+      const oldProject = {
+        features: [
+          {
+            id: 'F001',
+            description: 'Old feature 1',
+            priority: 'critical',
+            category: 'core',
+            steps: ['Implement', 'Test'],
+            passes: true,
+          },
+          {
+            id: 'F002',
+            description: 'Old feature 2',
+            priority: 'high',
+            category: 'functional',
+            steps: ['Design', 'Build'],
+            passes: false,
+          },
+        ],
+        metadata: {
+          project_name: 'Legacy Project',
+          total_features: 2,
+          passing: 1,
+          failing: 1,
+          // No last_updated - simulating old installation
+        },
+      };
+
+      const featureListPath = join(tempDir, 'feature_list.json');
+      const progressPath = join(tempDir, 'progress.txt');
+
+      await writeFile(featureListPath, JSON.stringify(oldProject, null, 2));
+      await writeFile(progressPath, '# Old progress log\n\nSome old progress...');
+
+      // Verify files exist
+      let featureStats = await stat(featureListPath);
+      expect(featureStats.isFile()).toBe(true);
+
+      // Perform archiving (simulating what init does)
+      const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
+      const timestamp = new Date().toISOString(); // Fallback since no last_updated
+      const normalizedTimestamp = normalizeTimestamp(timestamp);
+      const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+
+      await moveToArchive(featureListPath, archivePath, 'feature_list.json');
+      await moveToArchive(progressPath, archivePath, 'progress.txt');
+
+      // Verify files were moved to archive
+      const archivedFeatureList = await readFile(join(archivePath, 'feature_list.json'), 'utf-8');
+      const archivedProgress = await readFile(join(archivePath, 'progress.txt'), 'utf-8');
+
+      expect(archivedFeatureList).toContain('Legacy Project');
+      expect(archivedFeatureList).toContain('Old feature 1');
+      expect(archivedFeatureList).toContain('Old feature 2');
+      expect(archivedProgress).toContain('Old progress log');
+
+      // Verify original files are gone
+      let originalExists = true;
+      try {
+        await stat(featureListPath);
+      } catch {
+        originalExists = false;
+      }
+      expect(originalExists).toBe(false);
+
+      // Now create new feature_list.json (simulating what init agent creates)
+      const newProject = {
+        features: [
+          {
+            id: 'F001',
+            description: 'New feature 1',
+            priority: 'high',
+            category: 'core',
+            steps: [],
+            passes: false,
+          },
+        ],
+        metadata: {
+          project_name: 'Upgraded Project',
+          created_at: new Date().toISOString().split('T')[0],
+          total_features: 1,
+          passing: 0,
+          failing: 1,
+          last_updated: new Date().toISOString(), // New installations have this
+        },
+      };
+
+      await writeFile(featureListPath, JSON.stringify(newProject, null, 2));
+
+      // Verify new file was created successfully
+      const newContent = await readFile(featureListPath, 'utf-8');
+      expect(newContent).toContain('Upgraded Project');
+      expect(newContent).toContain('New feature 1');
+      expect(newContent).not.toContain('Legacy Project');
+
+      // Verify archive still exists with old data
+      const stillArchivedContent = await readFile(join(archivePath, 'feature_list.json'), 'utf-8');
+      expect(stillArchivedContent).toContain('Legacy Project');
+    });
+
+    it('should work with feature_list.json that has extra unknown fields', async () => {
+      // Old installations might have had custom fields we don't know about
+      const customFieldsList = {
+        features: [
+          {
+            id: 'F001',
+            description: 'Feature',
+            priority: 'medium',
+            category: 'core',
+            steps: [],
+            passes: false,
+            customField: 'some value', // Unknown field
+          },
+        ],
+        metadata: {
+          project_name: 'Custom Project',
+          customMetadata: 'custom value', // Unknown metadata field
+          experimentalFeature: true,
+          // No last_updated
+        },
+        unknownTopLevel: 'unknown', // Unknown top-level field
+      };
+
+      const featureListPath = join(tempDir, 'feature_list.json');
+      await writeFile(featureListPath, JSON.stringify(customFieldsList, null, 2));
+
+      const result = await runCLI(['init', '--prompt', 'Standard project', '--dry-run']);
+
+      // Should handle gracefully - just ignore unknown fields
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('Existing project files found');
+      expect(result.stdout).toContain('[DRY RUN] Would archive to');
+    });
+  });
 });
 
 /**
