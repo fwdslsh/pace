@@ -1038,10 +1038,15 @@ Begin now by analyzing the requirements and creating all necessary files.`;
         const displayEmojis = toolEmojis.slice(-maxEmojis).join('');
         const emojiRow = displayEmojis.length > 0 ? `[${displayEmojis}]` : '';
 
-        // Build the track with turtle (flips based on direction)
+        // ASCII art turtles that face the direction they're walking
+        const turtleRight = '@)~~';
+        const turtleLeft = '~~(@';
+        const turtle = turtleDirection > 0 ? turtleRight : turtleLeft;
+        const turtleWidth = turtle.length;
+
+        // Build the track with turtle
         const leftPad = ' '.repeat(turtlePosition);
-        const rightPad = ' '.repeat(trackWidth - turtlePosition);
-        const turtle = turtleDirection > 0 ? '🐢' : '🐢\u200D↩️'.slice(0, 2); // Use mirror trick
+        const rightPad = ' '.repeat(Math.max(0, trackWidth - turtleWidth - turtlePosition));
         const track = `[${leftPad}${turtle}${rightPad}]`;
 
         // Clear previous lines and draw new ones
@@ -1057,8 +1062,9 @@ Begin now by analyzing the requirements and creating all necessary files.`;
 
         // Move turtle
         turtlePosition += turtleDirection;
-        if (turtlePosition >= trackWidth) {
-          turtlePosition = trackWidth;
+        const maxPosition = trackWidth - turtleWidth;
+        if (turtlePosition >= maxPosition) {
+          turtlePosition = maxPosition;
           turtleDirection = -1;
         } else if (turtlePosition <= 0) {
           turtlePosition = 0;
