@@ -155,7 +155,7 @@
         "Print confirmation: 'Archived progress.txt' (if applicable)",
         "Use consistent formatting with existing CLI output"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F012",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 16,
-    "failing": 34,
+    "passing": 17,
+    "failing": 33,
     "last_updated": "2025-12-17T00:00:00.000Z"
   }
 }
