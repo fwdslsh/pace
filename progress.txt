@@ -1,0 +1,44 @@
+# Project Progress Log
+
+## Project: pace-init-archiving
+
+## Created: 2025-12-17
+
+---
+
+### Session 104 - [Feature Focus]
+
+**Date:** 2025-12-17
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F038: Ensure archive messages are accessible in --json mode
+
+**Actions Taken:**
+
+- Modified ArchiveManager to populate archive information in dry-run mode
+- Added archive object to dry-run JSON output in cli.ts
+- Ensured all required fields are present: archived (boolean), archivePath (string), archivedFiles (array)
+- Verified JSON parsing works correctly across all --json modes
+- Updated feature_list.json to mark F038 as passing (45/50)
+
+**Test Results:**
+
+- Archive object correctly included in dry-run JSON output
+- All required fields present with correct types
+- JSON parsing validation successful
+- All existing tests continue to pass (361 pass, 0 fail)
+- --archive-only and normal mode JSON outputs unaffected
+
+**Current Status:**
+
+- Features passing: 45/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F039 (Create archive metadata file)
+- All F038 verification steps completed successfully
+
+---
