@@ -3688,3 +3688,55 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining low priority documentation and UX tasks
 
 ---
+
+---
+
+### Session 86 - JSON Flag Support for Archive Messages
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F012: Respect --json flag when displaying archive messages
+
+**Actions Taken:**
+
+- **Added Archive Tracking Variables**:
+  - Added `archived` boolean flag to track if archiving occurred
+  - Added `archivedFiles` array to track which files were archived (e.g., ['feature_list.json', 'progress.txt'])
+  - Initialized variables at the start of handleInit function
+
+- **Suppressed Console Messages in JSON Mode**:
+  - All archiving console.log statements already had `if (!options.json)` guards
+  - Updated archiving logic to track files even when console messages are suppressed
+  - Set `archived = true` when feature_list.json is successfully archived
+  - Added files to `archivedFiles` array when successfully archived
+
+- **Enhanced JSON Output**:
+  - Added three new fields to the final JSON output at line 1549-1561:
+    - `archived`: boolean indicating if archiving occurred
+    - `archivePath`: string path to the archive directory (or null if no archiving)
+    - `archivedFiles`: array of filenames that were archived
+  - These fields provide programmatic access to archiving information
+
+**Test Results:**
+
+- Created manual test script `test-json-flag.sh` to verify behavior:
+  - Test 1 (without --json): Confirmed archiving messages are displayed (📦, 📁, ✓)
+  - Test 2 (with --json): Confirmed archiving console messages are suppressed
+  - Test 3: Verified JSON output is properly formatted and parseable
+- All existing tests pass: 281 pass, 0 fail
+- Build succeeds without errors
+
+**Current Status:**
+
+- Features passing: 28/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F020 (Update CLI help text to mention archiving behavior)
+- Continue with remaining documentation and cleanup tasks
+
+---
