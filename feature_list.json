@@ -71,7 +71,7 @@
         "Log archiving actions to console",
         "Continue with normal init flow"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F006",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 2,
-    "failing": 48,
+    "passing": 3,
+    "failing": 47,
     "last_updated": "2025-12-17T00:00:00.000Z"
   }
 }
