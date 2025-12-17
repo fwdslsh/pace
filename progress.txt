@@ -1,0 +1,51 @@
+# Project Progress Log
+
+## Project: pace-init-archiving
+
+## Created: 2025-12-17
+
+---
+
+### Session 106 - [Feature Focus]
+
+**Date:** 2025-12-17
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F040: Add utility command to list archived runs
+
+**Actions Taken:**
+
+- Added 'archives' command to ParsedArgs interface and command parsing
+- Implemented listArchives method in ArchiveManager class with ArchiveInfo interface
+- Created handleArchives function with human-readable and JSON output formats
+- Added support for reading .archive-info.json metadata files from archives
+- Implemented proper timestamp parsing for directory names (YYYY-MM-DD_HH-MM-SS format)
+- Updated help text to include archives command, options, and examples
+- Archives sorted by timestamp (newest first) for better user experience
+- Graceful handling of missing archive directory with helpful message
+- Full JSON output integration for scripting and automation
+
+**Test Results:**
+
+- Archives command successfully lists all directories in .runs/
+- Timestamps correctly parsed and displayed in readable format
+- Metadata files (.archive-info.json) read and displayed when available
+- JSON output format works correctly for scripting integration
+- Help text updated with proper documentation and examples
+- Empty archive directory case handled with informative message
+- All existing tests continue to pass (367 pass, 0 fail)
+- No regressions in existing functionality
+
+**Current Status:**
+
+- Features passing: 47/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F041 (Add utility command to restore archived run)
+- All F040 verification steps completed successfully
+
+---
