@@ -4214,3 +4214,54 @@ The archiving system will gracefully handle the conflict by creating a new direc
 
 ---
 
+
+---
+
+### Session 96 - Timezone Handling Documentation and Testing
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F030: Handle timezone differences in timestamp normalization
+
+**Actions Taken:**
+
+- **Enhanced JSDoc documentation**:
+  - Updated `normalizeTimestamp()` documentation to explicitly explain UTC normalization
+  - Added detailed timezone handling section with 6 examples showing different timezone offsets
+  - Enhanced `getFallbackTimestamp()` documentation to clarify UTC usage across geographic locations
+
+- **Added comprehensive timezone tests** (22 new tests):
+  - Positive and negative UTC offsets (+02:00, -05:00)
+  - Extreme timezone offsets (+14:00 Line Islands, -12:00 Baker Island)
+  - Day, month, and year boundary crossings with timezone conversion
+  - Partial hour offsets (+05:30 India, +05:45 Nepal, -03:30 Newfoundland)
+  - DST transitions (spring forward and fall back)
+  - Consistency verification: same UTC moment produces same directory name across 7 different timezone representations
+  - Midnight and end-of-day edge cases
+  - Millisecond truncation behavior
+  - Invalid leap second graceful fallback
+
+- **Fixed failing test**:
+  - Corrected leap second test expectation (JavaScript Date doesn't support 60 seconds)
+  - Updated test to verify graceful fallback to current timestamp
+
+**Test Results:**
+
+- `bun test tests/archive-utils.test.ts`: 84 pass (22 new timezone tests added)
+- `bun test`: 343 pass, 34 skip, 0 fail
+- All existing functionality remains intact
+
+**Current Status:**
+
+- Features passing: 38/50 (increased from 37/50)
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F031 (Ensure archiving doesn't significantly slow down init)
+- Continue with remaining low-priority edge cases and CLI enhancements
+
+---
