@@ -569,7 +569,7 @@
         "Support --json output format",
         "Add to help text"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F041",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 46,
-    "failing": 4,
-    "last_updated": "2025-12-17T00:00:00.000Z"
+    "passing": 47,
+    "failing": 3,
+    "last_updated": "2025-12-17T23:00:00.000Z"
   }
 }
