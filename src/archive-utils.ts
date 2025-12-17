@@ -117,7 +117,17 @@ export function normalizeTimestamp(isoTimestamp: string): string {
 
 /**
  * Returns the current timestamp in normalized format as a fallback
- * @returns Current timestamp in YYYY-MM-DD_HH-MM-SS format
+ *
+ * This function is used when the provided timestamp is invalid, missing, or cannot be parsed.
+ * It generates a timestamp based on the current UTC time to ensure consistency across timezones.
+ *
+ * @returns Current timestamp in YYYY-MM-DD_HH-MM-SS format (UTC)
+ *
+ * @example
+ * ```typescript
+ * // If called at 2025-12-17 14:30:45 UTC, returns:
+ * getFallbackTimestamp()  // Returns: "2025-12-17_14-30-45"
+ * ```
  */
 function getFallbackTimestamp(): string {
   const now = new Date();
