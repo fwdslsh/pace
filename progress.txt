@@ -2616,3 +2616,73 @@ The coding agent should start with critical and high priority features:
 - Continue implementing core archiving features
 
 ---
+
+---
+
+### Session 66 - Error Handling for Archiving
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F009: Handle file system errors during archiving gracefully
+
+**Actions Taken:**
+
+- Enhanced archive error handling in `handleInit()` function (cli.ts:1139-1196):
+  - Added .bak fallback mechanism when archiving to .runs fails
+  - Wrapped moveToArchive calls in try-catch with detailed error logging
+  - Implemented two-tier backup strategy:
+    1. First attempt: Archive to .runs/<timestamp>/ directory
+    2. If fails: Create .bak backup in same directory as original
+    3. If both fail: Log error and continue init (don't abort)
+  - Applied fallback to both feature_list.json and progress.txt
+  - Informative error messages for users at each stage
+- Created comprehensive tests in tests/init-command.test.ts:
+  - Test .bak fallback when archiving to .runs fails (permission errors)
+  - Test init continues even if archiving fails
+  - Test both archiving and fallback failures
+  - Test missing .runs directory creation failure (file instead of directory)
+  - Test original file preservation when all backups fail
+  - All 5 new tests passing (34 pass total in init-command.test.ts)
+
+**Test Results:**
+
+- All tests pass (34 pass, 20 skip, 0 fail in init-command.test.ts)
+- Comprehensive error scenarios tested:
+  - Permission denied on .runs directory
+  - .runs exists as file instead of directory
+  - Both archiving and fallback fail
+  - Original file preserved when all backup attempts fail
+- Build succeeds
+- CLI functionality verified
+
+**Implementation Details:**
+
+- Location: cli.ts:1139-1196
+- Key features:
+  - try-catch blocks around all archive operations
+  - .bak fallback using copyFile when moveToArchive fails
+  - Nested error handling (archive -> fallback -> continue anyway)
+  - User-friendly warning messages at each failure stage
+  - Respects --json flag (no console output in JSON mode)
+- Follows F009 verification steps:
+  1. ✅ Wrapped archive operations in try-catch blocks
+  2. ✅ If archiving fails, log error but don't abort init
+  3. ✅ Created backup with .bak extension as fallback
+  4. ✅ Tested with permission errors
+  5. ✅ Verified init continues even if archiving fails
+
+**Current Status:**
+
+- Features passing: 8/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F007 (Handle case where progress.txt doesn't exist during archiving)
+- Note: This is already partially implemented but needs verification
+- Continue with remaining error-handling and functional features
+
+---
