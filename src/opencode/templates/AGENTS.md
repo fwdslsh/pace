@@ -108,7 +108,7 @@ Feature F00X now passing."
 ## File Locations
 
 - Feature tracking: `feature_list.json`
-- Progress log: `progress.txt`
+- Progress log: `claude-progress.txt`
 - Environment setup: `init.sh`
 - Utility scripts: `scripts/`
 

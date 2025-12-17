@@ -182,7 +182,7 @@ describe.skipIf(!sdkAvailable)('Init Command CLI Integration Tests', () => {
       expect(result.stdout).toContain('Expected outputs:');
       expect(result.stdout).toContain('feature_list.json');
       expect(result.stdout).toContain('init.sh');
-      expect(result.stdout).toContain('progress.txt');
+      expect(result.stdout).toContain('claude-progress.txt');
       expect(result.stdout).toContain('Git repository');
       expect(result.exitCode).toBe(0);
     });
@@ -354,8 +354,8 @@ npm run dev
       expect(content).toContain('npm install');
     });
 
-    it('should validate progress.txt has session entry', async () => {
-      // Create progress.txt as the initializer would
+    it('should validate claude-progress.txt has session entry', async () => {
+      // Create claude-progress.txt as the initializer would
       const progressContent = `# Progress Log
 
 ## Session 1 - Initial Setup
@@ -371,7 +371,7 @@ npm run dev
 ### Files Created
 - feature_list.json
 - init.sh
-- progress.txt
+- claude-progress.txt
 
 ### Technology Stack
 - Framework: React
@@ -383,7 +383,7 @@ npm run dev
 2. Start with F001 (User can create a new todo item)
 `;
 
-      const filePath = join(tempDir, 'progress.txt');
+      const filePath = join(tempDir, 'claude-progress.txt');
       await writeFile(filePath, progressContent);
 
       const content = await readFile(filePath, 'utf-8');
@@ -777,7 +777,7 @@ describe('Init Command Output Formatting', () => {
     const duration = '45.5';
     const toolCalls = 50;
     const featureCount = 75;
-    const filesCreated = ['feature_list.json', 'init.sh', 'progress.txt'];
+    const filesCreated = ['feature_list.json', 'init.sh', 'claude-progress.txt'];
 
     const summary = {
       duration,
@@ -791,6 +791,6 @@ describe('Init Command Output Formatting', () => {
     expect(summary.featureCount).toBe(75);
     expect(summary.filesCreated).toContain('feature_list.json');
     expect(summary.filesCreated).toContain('init.sh');
-    expect(summary.filesCreated).toContain('progress.txt');
+    expect(summary.filesCreated).toContain('claude-progress.txt');
   });
 });
