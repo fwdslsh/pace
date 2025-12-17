@@ -4,6 +4,8 @@ import { join } from 'path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { mkdir, readFile, rm, stat, writeFile, chmod, copyFile } from 'fs/promises';
+
 import { moveToArchive, normalizeTimestamp, resolveUniqueArchivePath } from '../src/archive-utils';
 
 describe('normalizeTimestamp', () => {
@@ -798,6 +800,110 @@ Next steps: Continue with remaining features
       // Verify: Corruption is detectable
       const corruptedHash = crypto.createHash('sha256').update(corruptedContent).digest('hex');
       expect(corruptedHash).not.toBe(originalHash);
+    });
+  });
+
+  describe('file permission preservation', () => {
+    test('preserves file permissions when archiving', async () => {
+      // Setup: Create source file with specific permissions
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'script.sh');
+      await writeFile(sourceFile, '#!/bin/bash\necho "Hello World"\n');
+
+      // Set specific permissions (readable and executable)
+      const targetMode = 0o755; // rwxr-xr-x
+      await chmod(sourceFile, targetMode);
+
+      // Verify source file has the target permissions
+      const sourceStats = await stat(sourceFile);
+      expect(sourceStats.mode & 0o777).toBe(targetMode);
+
+      // Execute: Move file to archive
+      const destPath = await moveToArchive(sourceFile, destDir, 'script.sh', testDir);
+
+      // Verify: Archived file has the same permissions
+      const archivedStats = await stat(destPath);
+      expect(archivedStats.mode & 0o777).toBe(targetMode);
+    });
+
+    test('preserves read-only file permissions', async () => {
+      // Setup: Create source file with read-only permissions
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'readonly.txt');
+      await writeFile(sourceFile, 'Read-only content');
+
+      // Set read-only permissions (user read, everyone read)
+      const targetMode = 0o444; // r--r--r--
+      await chmod(sourceFile, targetMode);
+
+      // Verify source file has the target permissions
+      const sourceStats = await stat(sourceFile);
+      expect(sourceStats.mode & 0o777).toBe(targetMode);
+
+      // Execute: Move file to archive
+      const destPath = await moveToArchive(sourceFile, destDir, 'readonly.txt', testDir);
+
+      // Verify: Archived file has the same permissions
+      const archivedStats = await stat(destPath);
+      expect(archivedStats.mode & 0o777).toBe(targetMode);
+    });
+
+    test('preserves restrictive file permissions (600)', async () => {
+      // Setup: Create source file with restrictive permissions
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'private.json');
+      await writeFile(sourceFile, '{"secret": "data"}');
+
+      // Set restrictive permissions (user read/write only)
+      const targetMode = 0o600; // rw-------
+      await chmod(sourceFile, targetMode);
+
+      // Verify source file has the target permissions
+      const sourceStats = await stat(sourceFile);
+      expect(sourceStats.mode & 0o777).toBe(targetMode);
+
+      // Execute: Move file to archive
+      const destPath = await moveToArchive(sourceFile, destDir, 'private.json', testDir);
+
+      // Verify: Archived file has the same permissions
+      const archivedStats = await stat(destPath);
+      expect(archivedStats.mode & 0o777).toBe(targetMode);
+    });
+
+    test('preserves permissions with cross-device move (copy fallback)', async () => {
+      // Setup: Create source file with specific permissions
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'cross-device.sh');
+      await writeFile(sourceFile, '#!/bin/bash\necho "Cross device test"\n');
+
+      // Set executable permissions
+      const targetMode = 0o755;
+      await chmod(sourceFile, targetMode);
+
+      // Verify source file has the target permissions
+      const sourceStats = await stat(sourceFile);
+      expect(sourceStats.mode & 0o777).toBe(targetMode);
+
+      // Test copy+unlink path by creating a temp file first
+      const tempDir = join(tmpdir(), 'pace-cross-device-test-' + Date.now());
+      await mkdir(tempDir, { recursive: true });
+
+      try {
+        // Copy file manually to simulate cross-device move
+        const tempFile = join(tempDir, 'source.sh');
+        await copyFile(sourceFile, tempFile);
+        await chmod(tempFile, targetMode); // Ensure temp file has same permissions
+
+        // Now move from temp file to archive (this will trigger copy+unlink)
+        const destPath = await moveToArchive(tempFile, destDir, 'cross-device.sh', testDir);
+
+        // Verify: Archived file has the same permissions
+        const archivedStats = await stat(destPath);
+        expect(archivedStats.mode & 0o777).toBe(targetMode);
+      } finally {
+        // Clean up temp directory
+        await rm(tempDir, { recursive: true, force: true });
+      }
     });
   });
 

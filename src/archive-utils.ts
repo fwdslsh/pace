@@ -268,7 +268,7 @@ export async function moveToArchive(
   projectDir?: string,
 ): Promise<string> {
   // Import here to avoid circular dependencies at top level
-  const { mkdir, rename, copyFile, unlink, stat } = await import('fs/promises');
+  const { mkdir, rename, copyFile, unlink, stat, chmod } = await import('fs/promises');
   const { join, basename, resolve } = await import('path');
 
   try {
@@ -320,6 +320,10 @@ export async function moveToArchive(
     // Create destination directory if it doesn't exist (mkdir -p equivalent)
     await mkdir(destDirectory, { recursive: true });
 
+    // Get source file permissions to preserve them
+    const sourceStats = await stat(sourcePath);
+    const sourceMode = sourceStats.mode;
+
     // Try to rename first (faster, atomic operation)
     // If that fails (e.g., cross-device), fall back to copy + delete
     try {
@@ -333,6 +337,15 @@ export async function moveToArchive(
       } else {
         throw error;
       }
+    }
+
+    // Preserve file permissions
+    try {
+      await chmod(destPath, sourceMode);
+    } catch (chmodError) {
+      // If we can't set permissions, log but don't fail the archive operation
+      // This can happen on some filesystems or in containers
+      console.warn(`Warning: Could not preserve file permissions for ${destPath}:`, chmodError);
     }
 
     return destPath;
