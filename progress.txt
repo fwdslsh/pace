@@ -3090,3 +3090,58 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining archiving features
 
 ---
+
+### Session 75 - Display Archiving Console Messages
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F011: Display informative console messages during archiving
+
+**Actions Taken:**
+
+- Reviewed existing archiving code in cli.ts (lines 1096-1215)
+- Confirmed all F011 requirements were already implemented:
+  * Line 1096: "Existing project files found" message
+  * Line 1150: "Archiving to .runs/<timestamp>/" message  
+  * Line 1157: "Archived feature_list.json" confirmation
+  * Line 1187: "Archived progress.txt" confirmation (when applicable)
+  * Consistent emoji formatting (📦, 📁, ✓) throughout
+- Added comprehensive test suite for F011 (3 new tests):
+  1. Test verifying all required messages in dry-run mode
+  2. Test verifying archiving behavior in non-dry-run mode
+  3. Test handling missing progress.txt gracefully
+- Removed unused 'readdir' import from test file
+- Manually verified archiving messages with test scenarios:
+  * With both feature_list.json and progress.txt
+  * With only feature_list.json (no progress.txt)
+- All messages display correctly with proper formatting
+
+**Test Results:**
+
+- All 3 new F011 tests pass
+- `bun test tests/init-command.test.ts -t "F011"` passes (3 pass, 28 skip, 0 fail, 14 expect() calls)
+- `bun test tests/init-command.test.ts` passes (44 pass, 28 skip, 0 fail, 160 expect() calls)
+- `bun test` passes all 257 tests (28 skip, 0 fail, 718 expect() calls)
+- Manual verification confirmed all 5 F011 requirements:
+  1. ✓ "Existing project files found" displayed
+  2. ✓ "Archiving to .runs/<timestamp>/" displayed
+  3. ✓ "Archived feature_list.json" displayed
+  4. ✓ "Archived progress.txt" displayed when applicable
+  5. ✓ Consistent formatting with emoji (📦, 📁)
+
+**Current Status:**
+
+- Features passing: 17/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F013 (Respect --dry-run flag for archiving operations)
+- Or F017 (Test archiving with missing progress.txt)
+- Or F018 (Test archiving with missing metadata.last_updated)
+- Continue with remaining archiving features
+
+---
