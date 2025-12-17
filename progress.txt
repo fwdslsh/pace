@@ -2977,3 +2977,61 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining archiving features
 
 ---
+
+### Session 73 - Test .runs Directory Preservation Across Multiple Inits
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F008: Preserve .runs directory structure across multiple inits
+
+**Actions Taken:**
+
+- Reviewed archiving implementation in cli.ts and archive-utils.ts
+- Confirmed archiving logic already handles multiple consecutive inits correctly:
+  * `moveToArchive()` creates .runs directory if it doesn't exist (mkdir recursive)
+  * Each init uses timestamp-based directory naming (normalized from metadata.last_updated)
+  * Archive paths use unique timestamps to avoid collisions
+- Created comprehensive integration test in tests/init-command.test.ts
+- Test simulates 4 consecutive init operations (creating 3 archives)
+- Verifies all F008 requirements:
+  1. .runs directory is created if it doesn't exist
+  2. Each init creates a new timestamped subdirectory
+  3. Multiple init operations create separate archives
+  4. Old archives are not overwritten (each has unique content)
+  5. Test with 4 consecutive init operations (exceeds 3+ requirement)
+- Fixed existing lint errors in test file:
+  * Changed 'let' to 'const' for variables never reassigned (prefer-const)
+  * Removed unused 'error' variables from catch blocks
+
+**Test Results:**
+
+- New test passes: "should preserve .runs directory structure across multiple consecutive inits (F008)"
+- Test includes 28 expect() calls validating:
+  * .runs directory creation
+  * Three separate archive subdirectories (2025-12-17_10-00-00, 2025-12-17_11-30-00, 2025-12-17_14-45-00)
+  * Each archive contains feature_list.json and progress.txt
+  * Each archive preserves original content (not overwritten)
+  * Current working directory has fourth init files
+  * All timestamps are unique
+- `bun test tests/init-command.test.ts` passes (1 pass for new test)
+- `bun test` passes (248 pass, 28 skip, 0 fail, 668 expect() calls)
+- `bun run lint tests/init-command.test.ts` passes with 0 errors
+- `bun run build` succeeds
+- `./pace status` shows 15/50 passing (30.0%)
+
+**Current Status:**
+
+- Features passing: 15/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F010 (Handle corrupted feature_list.json during archiving)
+- Or F011 (Display informative console messages during archiving)
+- Or F013 (Respect --dry-run flag for archiving operations)
+- Continue with remaining archiving features
+
+---
