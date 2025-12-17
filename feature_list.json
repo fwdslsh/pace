@@ -213,7 +213,7 @@
         "Clean up temp files after tests",
         "Verify all tests pass"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F016",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 9,
-    "failing": 41,
+    "passing": 10,
+    "failing": 40,
     "last_updated": "2025-12-17T00:00:00.000Z"
   }
 }
