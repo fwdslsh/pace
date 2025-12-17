@@ -947,7 +947,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     // Create a session for initialization
     const sessionResult = await client.session.create({
       body: {
-        title: `Pace Init: ${projectDescription.slice(0, 40)}...`,
+        title: `/pace-init ${projectDescription.slice(0, 40)}...`,
       },
     });
 

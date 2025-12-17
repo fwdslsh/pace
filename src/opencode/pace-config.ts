@@ -53,6 +53,9 @@ export interface PaceConfig extends OpencodeConfig {
 // Defaults
 // ============================================================================
 
+/**
+ * Default pace-specific settings
+ */
 const DEFAULT_PACE_SETTINGS: PaceSettings = {
   orchestrator: {
     maxSessions: undefined,
@@ -61,12 +64,124 @@ const DEFAULT_PACE_SETTINGS: PaceSettings = {
   },
 };
 
+/**
+ * Default agent configurations for pace workflow
+ * Note: Prompts are loaded from markdown files at runtime by the plugin
+ */
+const DEFAULT_AGENTS: NonNullable<OpencodeConfig['agent']> = {
+  'pace-coding': {
+    name: 'pace-coding',
+    description:
+      'Implements a single feature following the pace workflow. Use when implementing a specific feature from the feature list.',
+    mode: 'subagent',
+  },
+  'pace-initializer': {
+    name: 'pace-initializer',
+    description:
+      'Sets up a new pace project with feature list, progress tracking, and development scripts.',
+    mode: 'subagent',
+  },
+  'pace-coordinator': {
+    name: 'pace-coordinator',
+    description: 'Orchestrates multiple coding sessions to implement features continuously.',
+    mode: 'subagent',
+  },
+  'pace-code-reviewer': {
+    name: 'pace-code-reviewer',
+    description: 'Reviews code changes for quality, best practices, and potential issues.',
+    mode: 'subagent',
+  },
+  'pace-practices-reviewer': {
+    name: 'pace-practices-reviewer',
+    description: 'Reviews code and captures patterns to improve future sessions.',
+    mode: 'subagent',
+  },
+};
+
+/**
+ * Default command configurations for pace workflow
+ * Note: Templates are loaded from markdown files at runtime by the plugin
+ */
+const DEFAULT_COMMANDS: NonNullable<OpencodeConfig['command']> = {
+  'pace-init': {
+    description: 'Initialize a new pace project with feature list and development scripts',
+    agent: 'pace-initializer',
+  },
+  'pace-next': {
+    description: 'Implement the next highest-priority failing feature',
+    agent: 'pace-coding',
+  },
+  'pace-continue': {
+    description: 'Continue work on the current project',
+    agent: 'pace-coding',
+  },
+  'pace-coordinate': {
+    description: 'Run continuous coding sessions until complete',
+    agent: 'pace-coordinator',
+  },
+  'pace-review': {
+    description: 'Review recent code changes',
+    agent: 'pace-code-reviewer',
+  },
+  'pace-compound': {
+    description: 'Capture learnings and patterns from recent work',
+    agent: 'pace-practices-reviewer',
+  },
+  'pace-status': {
+    description: 'Show project status and progress',
+  },
+  'pace-complete': {
+    description: 'Mark a feature as complete after verification',
+  },
+};
+
+/**
+ * Default pace configuration including opencode settings
+ */
+const DEFAULT_PACE_CONFIG: PaceConfig = {
+  agent: DEFAULT_AGENTS,
+  command: DEFAULT_COMMANDS,
+  pace: DEFAULT_PACE_SETTINGS,
+};
+
 // ============================================================================
 // Loading
 // ============================================================================
 
 /**
+ * Deep merge two objects, with source overwriting target
+ */
+function deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T>): T {
+  const result = { ...target };
+
+  for (const key of Object.keys(source) as Array<keyof T>) {
+    const sourceValue = source[key];
+    const targetValue = target[key];
+
+    if (
+      sourceValue !== undefined &&
+      typeof sourceValue === 'object' &&
+      sourceValue !== null &&
+      !Array.isArray(sourceValue) &&
+      typeof targetValue === 'object' &&
+      targetValue !== null &&
+      !Array.isArray(targetValue)
+    ) {
+      result[key] = deepMerge(
+        targetValue as Record<string, unknown>,
+        sourceValue as Record<string, unknown>,
+      ) as T[keyof T];
+    } else if (sourceValue !== undefined) {
+      result[key] = sourceValue as T[keyof T];
+    }
+  }
+
+  return result;
+}
+
+/**
  * Load pace config from pace.json
+ * Merges with default config to ensure all agents and commands are registered
  */
 export async function loadConfig(directory: string): Promise<PaceConfig> {
   const configPaths = [
@@ -78,13 +193,15 @@ export async function loadConfig(directory: string): Promise<PaceConfig> {
   for (const configPath of configPaths) {
     try {
       const content = await readFile(configPath, 'utf-8');
-      return JSON.parse(content) as PaceConfig;
+      const userConfig = JSON.parse(content) as PaceConfig;
+      // Merge user config with defaults (user config takes precedence)
+      return deepMerge(DEFAULT_PACE_CONFIG, userConfig);
     } catch {
       // File doesn't exist or isn't valid JSON, continue
     }
   }
 
-  return { pace: DEFAULT_PACE_SETTINGS };
+  return { ...DEFAULT_PACE_CONFIG };
 }
 
 /**
