@@ -1085,10 +1085,15 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     process.exit(1);
   }
 
+  // Load pace config to get archive directory setting
+  const paceConfig = await loadConfig(projectDir);
+  const paceSettings = getPaceSettings(paceConfig);
+
   // Check if feature_list.json already exists and archive if needed
   const archiveManager = new ArchiveManager();
   const { archived, archivePath, archivedFiles } = await archiveManager.archive({
     projectDir,
+    archiveDir: paceSettings.archiveDir,
     dryRun: options.dryRun,
     silent: options.json,
     verbose: options.verbose,
@@ -1151,9 +1156,6 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
   const isExternalServer = !!options.url;
 
   try {
-    // Load pace config for agent model overrides
-    const paceConfig = await loadConfig(projectDir);
-
     let client: OpencodeClient;
 
     if (options.url) {

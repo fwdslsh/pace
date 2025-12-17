@@ -56,6 +56,8 @@ export interface PaceOrchestratorConfig {
 export interface PaceSettings {
   /** Orchestrator settings for the CLI */
   orchestrator?: PaceOrchestratorConfig;
+  /** Custom archive directory path (defaults to '.runs') */
+  archiveDir?: string;
 }
 
 /**

@@ -18,6 +18,8 @@ import { moveToArchive, normalizeTimestamp } from './archive-utils';
 export interface ArchiveOptions {
   /** The project directory path */
   projectDir: string;
+  /** Custom archive directory path (defaults to '.runs') */
+  archiveDir?: string;
   /** Whether this is a dry-run (no actual file operations) */
   dryRun?: boolean;
   /** Whether to suppress console output (for JSON mode) */
@@ -63,15 +65,21 @@ export class ArchiveManager {
    * This method:
    * 1. Checks if feature_list.json exists
    * 2. Reads metadata.last_updated timestamp (or uses current time as fallback)
-   * 3. Creates a timestamped archive directory in .runs/
+   * 3. Creates a timestamped archive directory (defaults to .runs/)
    * 4. Moves feature_list.json and progress.txt (if exists) to the archive
    * 5. Falls back to .bak files if archiving fails
    *
-   * @param options - Archive options including project directory and flags
+   * @param options - Archive options including project directory, archive directory, and flags
    * @returns Promise resolving to archive result with archived status, path, and file list
    */
   async archive(options: ArchiveOptions): Promise<ArchiveResult> {
-    const { projectDir, dryRun = false, silent = false, verbose = false } = options;
+    const {
+      projectDir,
+      archiveDir = '.runs',
+      dryRun = false,
+      silent = false,
+      verbose = false,
+    } = options;
 
     const featureListPath = join(projectDir, 'feature_list.json');
     let archivePath: string | null = null;
@@ -96,15 +104,15 @@ export class ArchiveManager {
 
     // Normalize timestamp to directory-safe format
     const normalizedTimestamp = normalizeTimestamp(timestamp);
-    archivePath = join(projectDir, '.runs', normalizedTimestamp);
+    archivePath = join(projectDir, archiveDir, normalizedTimestamp);
 
     if (dryRun) {
       // Dry-run: show what would be archived without actually moving files
-      await this.performDryRun(projectDir, normalizedTimestamp, silent, verbose);
+      await this.performDryRun(projectDir, archiveDir, normalizedTimestamp, silent, verbose);
     } else {
       // Actually perform archiving
       if (!silent) {
-        console.log(`📁 Archiving to: .runs/${normalizedTimestamp}/`);
+        console.log(`📁 Archiving to: ${archiveDir}/${normalizedTimestamp}/`);
       }
 
       // Move feature_list.json to archive
@@ -202,12 +210,14 @@ export class ArchiveManager {
    * Performs a dry-run showing what would be archived
    *
    * @param projectDir - The project directory path
+   * @param archiveDir - The archive directory name
    * @param normalizedTimestamp - The normalized timestamp for the archive directory
    * @param silent - Whether to suppress console output
    * @param verbose - Whether to show verbose output
    */
   private async performDryRun(
     projectDir: string,
+    archiveDir: string,
     normalizedTimestamp: string,
     silent: boolean,
     verbose: boolean,
@@ -216,7 +226,7 @@ export class ArchiveManager {
       return;
     }
 
-    console.log(`📁 [DRY RUN] Would archive to: .runs/${normalizedTimestamp}/`);
+    console.log(`📁 [DRY RUN] Would archive to: ${archiveDir}/${normalizedTimestamp}/`);
     console.log('  • feature_list.json');
 
     const progressPath = join(projectDir, 'progress.txt');
