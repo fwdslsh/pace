@@ -2439,3 +2439,64 @@ The coding agent should start with critical and high priority features:
 - Then F004 (Add function to read metadata.last_updated from feature_list.json)
 - Continue implementing remaining verification and functional features
 
+---
+
+### Session 63 - Feature Existence Check Function
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F003: Add function to check if feature_list.json exists before init
+
+**Actions Taken:**
+
+- Created `checkFeatureListExists()` function in `cli.ts`:
+  - Takes projectDir as parameter
+  - Returns `true` if feature_list.json exists
+  - Returns `false` if file not found (ENOENT error)
+  - Throws error for non-ENOENT errors (permission denied, etc.)
+  - Added comprehensive JSDoc documentation
+- Refactored `handleInit()` to use new function:
+  - Replaced inline `try-catch` with cleaner conditional check
+  - Improved code readability and testability
+  - Maintained all existing archiving functionality
+- Exported function for testing via module exports
+- Added 5 comprehensive test cases to `tests/init-command.test.ts`:
+  1. **File exists test**: Verifies function returns true when feature_list.json exists
+  2. **File doesn't exist test**: Verifies function returns false when file not found
+  3. **Permission error test**: Verifies non-ENOENT errors are thrown (not caught)
+  4. **Nested directory test**: Verifies function works with deeply nested project paths
+  5. **Empty directory test**: Verifies function correctly handles empty directories
+- Fixed test helper functions to use `mkdir()` instead of `writeFile()` for directory creation
+
+**Test Results:**
+
+- New tests added: 5 unit tests for checkFeatureListExists
+- All 21 tests in checkFeatureListExists suite pass
+- All 41 tests in init-command.test.ts pass (21 pass, 20 skip)
+- Full test suite: 234 tests pass, 20 skip, 0 fail (619 expect calls)
+- `bun run lint` passes with no errors
+- `bun run build` succeeds
+- `./pace status` shows 5/50 passing (10.0%)
+
+**Implementation Details:**
+
+- Function signature: `async function checkFeatureListExists(projectDir: string): Promise<boolean>`
+- Error handling pattern: Catches ENOENT specifically, re-throws all other errors
+- Location: cli.ts:979-1001 (before handleInit function)
+- Export added at: cli.ts:1872
+- Tests location: tests/init-command.test.ts:1220-1313
+
+**Current Status:**
+
+- Features passing: 5/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F004 (Add function to read metadata.last_updated from feature_list.json)
+- Then F006 (Use current timestamp as fallback if last_updated is missing)
+- Continue with core archiving functionality features
+
