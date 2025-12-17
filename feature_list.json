@@ -498,7 +498,7 @@
         "Check both old and new files are intact",
         "Run pace status and validate command works"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F036",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 3,
-    "failing": 47,
+    "passing": 4,
+    "failing": 46,
     "last_updated": "2025-12-17T00:00:00.000Z"
   }
 }

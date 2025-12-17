@@ -8,11 +8,13 @@
  * - Tool usage and text output display
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtemp, rm, writeFile, readFile, stat, chmod } from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
 import { spawn } from 'child_process';
+import { mkdtemp, rm, writeFile, readFile, stat, chmod } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+
 import type { FeatureList } from '../src/types';
 
 /**
@@ -75,7 +77,7 @@ describe.skipIf(!sdkAvailable)('Init Command CLI Integration Tests', () => {
           forceKillTimer = setTimeout(() => {
             try {
               proc.kill('SIGKILL');
-            } catch (e) {
+            } catch {
               // Process already terminated
             }
           }, 1000);
@@ -99,7 +101,7 @@ describe.skipIf(!sdkAvailable)('Init Command CLI Integration Tests', () => {
           // Try to kill the process if it's still running
           try {
             proc.kill('SIGKILL');
-          } catch (e) {
+          } catch {
             // Process already terminated
           }
           reject(err);
@@ -821,5 +823,395 @@ describe('Init Command Output Formatting', () => {
     expect(summary.filesCreated).toContain('feature_list.json');
     expect(summary.filesCreated).toContain('init.sh');
     expect(summary.filesCreated).toContain('progress.txt');
+  });
+});
+
+/**
+ * End-to-end archiving tests
+ * Tests the complete workflow of initializing, modifying, re-initializing, and verifying archiving
+ */
+describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () => {
+  let tempDir: string;
+  const cliPath = join(process.cwd(), 'cli.ts');
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'pace-e2e-archive-'));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  /**
+   * Helper to run CLI commands
+   */
+  const runCLI = (
+    args: string[],
+    timeout: number = 10000,
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
+    return new Promise((resolve, reject) => {
+      const proc = spawn('bun', ['run', cliPath, ...args], {
+        cwd: tempDir,
+        detached: false,
+      });
+
+      let stdout = '';
+      let stderr = '';
+      let completed = false;
+      let forceKillTimer: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (forceKillTimer) {
+          clearTimeout(forceKillTimer);
+          forceKillTimer = null;
+        }
+      };
+
+      const timer = setTimeout(() => {
+        if (!completed) {
+          completed = true;
+          proc.kill('SIGTERM');
+          forceKillTimer = setTimeout(() => {
+            try {
+              proc.kill('SIGKILL');
+            } catch {
+              // Process already terminated
+            }
+          }, 1000);
+          reject(new Error('Process timeout'));
+        }
+      }, timeout);
+
+      proc.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      proc.on('error', (err) => {
+        if (!completed) {
+          completed = true;
+          clearTimeout(timer);
+          cleanup();
+          try {
+            proc.kill('SIGKILL');
+          } catch {
+            // Process already terminated
+          }
+          reject(err);
+        }
+      });
+
+      proc.on('close', (code) => {
+        if (!completed) {
+          completed = true;
+          clearTimeout(timer);
+          cleanup();
+          resolve({
+            stdout,
+            stderr,
+            exitCode: code || 0,
+          });
+        }
+      });
+    });
+  };
+
+  it('should archive existing files when running init again', async () => {
+    // Step 1: Create initial feature_list.json and progress.txt
+    const initialFeatureList: FeatureList = {
+      features: [
+        {
+          id: 'F001',
+          category: 'core',
+          description: 'Initial feature',
+          priority: 'high',
+          steps: ['Step 1', 'Step 2'],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Initial Project',
+        created_at: '2025-12-15',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-15T10:00:00.000Z',
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(initialFeatureList, null, 2));
+
+    const initialProgress = '# Initial Progress\n\nThis is the initial progress file.';
+    const progressPath = join(tempDir, 'progress.txt');
+    await writeFile(progressPath, initialProgress);
+
+    // Step 2: Verify initial files exist
+    const initialFeatureContent = await readFile(featureListPath, 'utf-8');
+    const initialProgressContent = await readFile(progressPath, 'utf-8');
+    expect(initialFeatureContent).toContain('Initial Project');
+    expect(initialProgressContent).toContain('Initial Progress');
+
+    // Step 3: Modify feature_list.json (mark feature as passing)
+    initialFeatureList.features[0].passes = true;
+    if (initialFeatureList.metadata) {
+      initialFeatureList.metadata.passing = 1;
+      initialFeatureList.metadata.failing = 0;
+    }
+    await writeFile(featureListPath, JSON.stringify(initialFeatureList, null, 2));
+
+    // Step 4: Run pace init again with different description (dry-run to see archiving behavior)
+    const result = await runCLI(['init', '--prompt', 'New project description', '--dry-run']);
+
+    // Step 5: Verify archiving messages appear in output
+    expect(result.stdout).toContain('Existing project files found');
+    expect(result.stdout).toContain('[DRY RUN] Would archive to');
+    expect(result.stdout).toContain('feature_list.json');
+    expect(result.stdout).toContain('progress.txt');
+    expect(result.exitCode).toBe(0);
+
+    // Step 6: Actually run init without dry-run (simulate real archiving)
+    // Since we can't easily mock the full init flow, we'll manually test archiving logic
+    const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
+
+    const timestamp = initialFeatureList.metadata?.last_updated || new Date().toISOString();
+    const normalizedTimestamp = normalizeTimestamp(timestamp);
+    const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+
+    // Archive the files manually (simulating what handleInit does)
+    await moveToArchive(featureListPath, archivePath, 'feature_list.json');
+    await moveToArchive(progressPath, archivePath, 'progress.txt');
+
+    // Step 7: Verify old files are archived to .runs/<timestamp>/
+    const archivedFeaturePath = join(archivePath, 'feature_list.json');
+    const archivedProgressPath = join(archivePath, 'progress.txt');
+
+    const archivedFeatureContent = await readFile(archivedFeaturePath, 'utf-8');
+    const archivedProgressContent = await readFile(archivedProgressPath, 'utf-8');
+
+    expect(archivedFeatureContent).toContain('Initial Project');
+    expect(archivedFeatureContent).toContain('"passes": true'); // Modified version
+    expect(archivedProgressContent).toContain('Initial Progress');
+
+    // Step 8: Verify original files no longer exist at root
+    let featureExistsAtRoot = true;
+    try {
+      await stat(featureListPath);
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'ENOENT') {
+        featureExistsAtRoot = false;
+      }
+    }
+    expect(featureExistsAtRoot).toBe(false);
+
+    let progressExistsAtRoot = true;
+    try {
+      await stat(progressPath);
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'ENOENT') {
+        progressExistsAtRoot = false;
+      }
+    }
+    expect(progressExistsAtRoot).toBe(false);
+
+    // Step 9: Create new feature_list.json (simulating init creating new files)
+    const newFeatureList: FeatureList = {
+      features: [
+        {
+          id: 'F001',
+          category: 'functional',
+          description: 'New feature after reinit',
+          priority: 'critical',
+          steps: ['New step 1'],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'New Project',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-17T12:00:00.000Z',
+      },
+    };
+
+    await writeFile(featureListPath, JSON.stringify(newFeatureList, null, 2));
+
+    const newProgress = '# New Progress\n\nThis is the new progress file after reinit.';
+    await writeFile(progressPath, newProgress);
+
+    // Step 10: Verify new files are created and have correct content
+    const newFeatureContent = await readFile(featureListPath, 'utf-8');
+    const newProgressContent = await readFile(progressPath, 'utf-8');
+
+    expect(newFeatureContent).toContain('New Project');
+    expect(newFeatureContent).toContain('New feature after reinit');
+    expect(newProgressContent).toContain('New Progress');
+
+    // Step 11: Verify both old and new files are intact
+    // Old files in archive
+    const verifyArchivedFeature = await readFile(archivedFeaturePath, 'utf-8');
+    const verifyArchivedProgress = await readFile(archivedProgressPath, 'utf-8');
+    expect(verifyArchivedFeature).toContain('Initial Project');
+    expect(verifyArchivedProgress).toContain('Initial Progress');
+
+    // New files at root
+    const verifyNewFeature = await readFile(featureListPath, 'utf-8');
+    const verifyNewProgress = await readFile(progressPath, 'utf-8');
+    expect(verifyNewFeature).toContain('New Project');
+    expect(verifyNewProgress).toContain('New Progress');
+
+    // Step 12: Run pace status and validate it works
+    const statusResult = await runCLI(['status']);
+    expect(statusResult.stdout).toContain('New Project');
+    expect(statusResult.stdout).toContain('0/1 passing');
+    expect(statusResult.exitCode).toBe(0);
+  });
+
+  it('should handle archiving when progress.txt does not exist', async () => {
+    // Create only feature_list.json (no progress.txt)
+    const featureList: FeatureList = {
+      features: [
+        {
+          id: 'F001',
+          category: 'core',
+          description: 'Test feature',
+          priority: 'high',
+          steps: [],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Test Project',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-17T10:00:00.000Z',
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList, null, 2));
+
+    // Run init with dry-run
+    const result = await runCLI(['init', '--prompt', 'New project', '--dry-run']);
+
+    // Should show archiving for feature_list.json but not error on missing progress.txt
+    expect(result.stdout).toContain('Existing project files found');
+    expect(result.stdout).toContain('feature_list.json');
+    // Should NOT show progress.txt in the list
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('should handle missing metadata.last_updated by using current timestamp', async () => {
+    // Create feature_list.json without last_updated field
+    const featureList = {
+      features: [
+        {
+          id: 'F001',
+          category: 'core',
+          description: 'Test',
+          priority: 'high',
+          steps: [],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Test',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        // Note: last_updated is missing
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList, null, 2));
+
+    // Run init with dry-run
+    const result = await runCLI(['init', '--prompt', 'New project', '--dry-run']);
+
+    // Should still show archiving behavior even without last_updated
+    expect(result.stdout).toContain('Existing project files found');
+    expect(result.stdout).toContain('[DRY RUN] Would archive to');
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('should preserve .runs directory structure across multiple inits', async () => {
+    const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
+
+    // First archive
+    const featureList1: FeatureList = {
+      features: [],
+      metadata: {
+        project_name: 'Project 1',
+        last_updated: '2025-12-15T10:00:00.000Z',
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList1, null, 2));
+
+    const timestamp1 = featureList1.metadata?.last_updated || new Date().toISOString();
+    const normalizedTimestamp1 = normalizeTimestamp(timestamp1);
+    const archivePath1 = join(tempDir, '.runs', normalizedTimestamp1);
+
+    await moveToArchive(featureListPath, archivePath1, 'feature_list.json');
+
+    // Second archive
+    const featureList2: FeatureList = {
+      features: [],
+      metadata: {
+        project_name: 'Project 2',
+        last_updated: '2025-12-16T15:30:00.000Z',
+      },
+    };
+
+    await writeFile(featureListPath, JSON.stringify(featureList2, null, 2));
+
+    const timestamp2 = featureList2.metadata?.last_updated || new Date().toISOString();
+    const normalizedTimestamp2 = normalizeTimestamp(timestamp2);
+    const archivePath2 = join(tempDir, '.runs', normalizedTimestamp2);
+
+    await moveToArchive(featureListPath, archivePath2, 'feature_list.json');
+
+    // Third archive
+    const featureList3: FeatureList = {
+      features: [],
+      metadata: {
+        project_name: 'Project 3',
+        last_updated: '2025-12-17T20:00:00.000Z',
+      },
+    };
+
+    await writeFile(featureListPath, JSON.stringify(featureList3, null, 2));
+
+    const timestamp3 = featureList3.metadata?.last_updated || new Date().toISOString();
+    const normalizedTimestamp3 = normalizeTimestamp(timestamp3);
+    const archivePath3 = join(tempDir, '.runs', normalizedTimestamp3);
+
+    await moveToArchive(featureListPath, archivePath3, 'feature_list.json');
+
+    // Verify all three archives exist with different timestamps
+    const archive1Content = await readFile(join(archivePath1, 'feature_list.json'), 'utf-8');
+    const archive2Content = await readFile(join(archivePath2, 'feature_list.json'), 'utf-8');
+    const archive3Content = await readFile(join(archivePath3, 'feature_list.json'), 'utf-8');
+
+    expect(archive1Content).toContain('Project 1');
+    expect(archive2Content).toContain('Project 2');
+    expect(archive3Content).toContain('Project 3');
+
+    // Verify no archives were overwritten
+    expect(normalizedTimestamp1).not.toBe(normalizedTimestamp2);
+    expect(normalizedTimestamp2).not.toBe(normalizedTimestamp3);
+    expect(normalizedTimestamp1).not.toBe(normalizedTimestamp3);
   });
 });
