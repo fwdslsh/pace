@@ -1310,3 +1310,180 @@ describe('checkFeatureListExists Function', () => {
     expect(exists).toBe(false);
   });
 });
+
+/**
+ * Unit tests for readLastUpdated function
+ * Tests F004: Add function to read metadata.last_updated from feature_list.json
+ */
+describe('readLastUpdated Function', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'pace-read-last-updated-'));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('should return last_updated timestamp when present', async () => {
+    // Import the function
+    const { readLastUpdated } = await import('../cli.js');
+
+    // Create feature_list.json with last_updated
+    const featureList = {
+      features: [],
+      metadata: {
+        project_name: 'Test Project',
+        created_at: '2025-12-17',
+        total_features: 0,
+        passing: 0,
+        failing: 0,
+        last_updated: '2025-12-17T10:30:00.000Z',
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList));
+
+    // Test
+    const lastUpdated = await readLastUpdated(tempDir);
+    expect(lastUpdated).toBe('2025-12-17T10:30:00.000Z');
+  });
+
+  it('should return undefined when feature_list.json does not exist', async () => {
+    // Import the function
+    const { readLastUpdated } = await import('../cli.js');
+
+    // Don't create feature_list.json
+
+    // Test
+    const lastUpdated = await readLastUpdated(tempDir);
+    expect(lastUpdated).toBeUndefined();
+  });
+
+  it('should return undefined when last_updated is missing from metadata', async () => {
+    // Import the function
+    const { readLastUpdated } = await import('../cli.js');
+
+    // Create feature_list.json without last_updated
+    const featureList = {
+      features: [],
+      metadata: {
+        project_name: 'Test Project',
+        created_at: '2025-12-17',
+        total_features: 0,
+        passing: 0,
+        failing: 0,
+        // Note: last_updated is missing
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList));
+
+    // Test
+    const lastUpdated = await readLastUpdated(tempDir);
+    expect(lastUpdated).toBeUndefined();
+  });
+
+  it('should return undefined when metadata is missing entirely', async () => {
+    // Import the function
+    const { readLastUpdated } = await import('../cli.js');
+
+    // Create feature_list.json without metadata
+    const featureList = {
+      features: [],
+      // Note: metadata is missing
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList));
+
+    // Test
+    const lastUpdated = await readLastUpdated(tempDir);
+    expect(lastUpdated).toBeUndefined();
+  });
+
+  it('should handle malformed JSON gracefully', async () => {
+    // Import the function
+    const { readLastUpdated } = await import('../cli.js');
+
+    // Create malformed JSON
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, '{ invalid json }');
+
+    // Test - should throw error
+    try {
+      await readLastUpdated(tempDir);
+      // If we reach here, the test should fail
+      expect(true).toBe(false);
+    } catch (error) {
+      // Expected behavior - should throw for malformed JSON
+      expect(error).toBeDefined();
+    }
+  });
+
+  it('should handle various timestamp formats', async () => {
+    // Import the function
+    const { readLastUpdated } = await import('../cli.js');
+
+    // Test with different valid ISO timestamps
+    const timestamps = [
+      '2025-12-17T10:30:00.000Z',
+      '2025-01-01T00:00:00Z',
+      '2024-06-15T15:45:30.123Z',
+    ];
+
+    for (const timestamp of timestamps) {
+      const featureList = {
+        features: [],
+        metadata: {
+          last_updated: timestamp,
+        },
+      };
+
+      const featureListPath = join(tempDir, 'feature_list.json');
+      await writeFile(featureListPath, JSON.stringify(featureList));
+
+      const lastUpdated = await readLastUpdated(tempDir);
+      expect(lastUpdated).toBe(timestamp);
+    }
+  });
+
+  it('should handle empty feature_list.json', async () => {
+    // Import the function
+    const { readLastUpdated } = await import('../cli.js');
+
+    // Create empty JSON object
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, '{}');
+
+    // Test
+    const lastUpdated = await readLastUpdated(tempDir);
+    expect(lastUpdated).toBeUndefined();
+  });
+
+  it('should work with nested project directories', async () => {
+    // Import the function
+    const { readLastUpdated } = await import('../cli.js');
+
+    // Create nested directory
+    const nestedDir = join(tempDir, 'deeply', 'nested', 'project');
+    await mkdir(nestedDir, { recursive: true });
+
+    const featureList = {
+      features: [],
+      metadata: {
+        last_updated: '2025-12-17T12:00:00.000Z',
+      },
+    };
+
+    const featureListPath = join(nestedDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList));
+
+    // Test
+    const lastUpdated = await readLastUpdated(nestedDir);
+    expect(lastUpdated).toBe('2025-12-17T12:00:00.000Z');
+  });
+});

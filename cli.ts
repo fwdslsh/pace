@@ -999,6 +999,37 @@ async function checkFeatureListExists(projectDir: string): Promise<boolean> {
   }
 }
 
+/**
+ * Reads the metadata.last_updated timestamp from feature_list.json
+ *
+ * @param projectDir - The project directory path
+ * @returns The last_updated timestamp string, or undefined if not present or file doesn't exist
+ * @throws Error if JSON is malformed or file read fails (non-ENOENT errors)
+ */
+async function readLastUpdated(projectDir: string): Promise<string | undefined> {
+  const featureListPath = join(projectDir, 'feature_list.json');
+
+  try {
+    const content = await readFile(featureListPath, 'utf-8');
+    const data = JSON.parse(content);
+
+    // Check if metadata and last_updated exist
+    if (data?.metadata?.last_updated) {
+      return data.metadata.last_updated;
+    }
+
+    return undefined;
+  } catch (error) {
+    const err = error as { code?: string };
+    if (err.code === 'ENOENT') {
+      // File doesn't exist - return undefined
+      return undefined;
+    }
+    // Re-throw JSON parsing errors or other read errors
+    throw error;
+  }
+}
+
 async function handleInit(options: ParsedArgs['options']): Promise<void> {
   const projectDir = resolve(options.projectDir);
 
@@ -1869,4 +1900,11 @@ if (import.meta.main) {
 }
 
 // Export for testing
-export { Orchestrator, parseArgs, parseModelId, checkFeatureListExists, type ParsedArgs };
+export {
+  Orchestrator,
+  parseArgs,
+  parseModelId,
+  checkFeatureListExists,
+  readLastUpdated,
+  type ParsedArgs,
+};
