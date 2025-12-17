@@ -135,6 +135,49 @@ export interface CleanArchivesResult {
 }
 
 /**
+ * Validation status for an archive
+ */
+export type ArchiveValidationStatus = 'valid' | 'warning' | 'invalid';
+
+/**
+ * Detailed validation result for an archive
+ */
+export interface ArchiveValidationResult {
+  /** Archive directory name */
+  archiveName: string;
+  /** Full path to archive directory */
+  archivePath: string;
+  /** Overall validation status */
+  status: ArchiveValidationStatus;
+  /** List of validation issues found */
+  issues: string[];
+  /** List of expected files that are present */
+  presentFiles: string[];
+  /** List of expected files that are missing */
+  missingFiles: string[];
+  /** List of unexpected files found */
+  unexpectedFiles: string[];
+  /** Whether archive metadata is valid */
+  metadataValid: boolean;
+  /** Whether feature_list.json is valid JSON */
+  featureListValid: boolean;
+  /** Whether archive contains expected core files */
+  hasCoreFiles: boolean;
+}
+
+/**
+ * Options for archive validation
+ */
+export interface ValidateArchiveOptions {
+  /** The project directory path */
+  projectDir: string;
+  /** Custom archive directory path (defaults to '.runs') */
+  archiveDir?: string;
+  /** Whether to show verbose output */
+  verbose?: boolean;
+}
+
+/**
  * ArchiveManager handles the archiving of pace project files
  *
  * When reinitializing a pace project, this class manages the archiving of existing
@@ -1063,6 +1106,216 @@ export class ArchiveManager {
         deletedArchives: [],
         error: `Archive cleaning failed: ${errorMessage}`,
       };
+    }
+  }
+
+  /**
+   * Validates a specific archive directory structure and contents
+   *
+   * This method:
+   * 1. Checks if the archive directory exists and is accessible
+   * 2. Verifies expected files are present (feature_list.json, progress.txt optional)
+   * 3. Validates JSON files are properly formatted
+   * 4. Checks for corruption or incomplete archives
+   * 5. Reports detailed validation results
+   *
+   * @param options - Validation options including project directory and archive name
+   * @returns Promise resolving to detailed validation result
+   */
+  async validateArchive(options: {
+    projectDir: string;
+    archiveName: string;
+    archiveDir?: string;
+    verbose?: boolean;
+  }): Promise<ArchiveValidationResult> {
+    const { projectDir, archiveName, archiveDir = '.runs', verbose = false } = options;
+
+    // Initialize validation result
+    const result: ArchiveValidationResult = {
+      archiveName,
+      archivePath: join(projectDir, archiveDir, archiveName),
+      status: 'valid',
+      issues: [],
+      presentFiles: [],
+      missingFiles: [],
+      unexpectedFiles: [],
+      metadataValid: false,
+      featureListValid: false,
+      hasCoreFiles: false,
+    };
+
+    try {
+      // Check if archive directory exists and is accessible
+      await stat(result.archivePath);
+    } catch (error) {
+      result.status = 'invalid';
+      result.issues.push(`Archive directory not found or not accessible: ${result.archivePath}`);
+      return result;
+    }
+
+    // Expected files in a valid archive
+    const expectedFiles = ['feature_list.json'];
+    const optionalFiles = ['progress.txt', '.archive-info.json'];
+
+    try {
+      // Read archive directory contents
+      const archiveEntries = await readdir(result.archivePath);
+
+      // Categorize files
+      for (const entry of archiveEntries) {
+        if (expectedFiles.includes(entry)) {
+          result.presentFiles.push(entry);
+        } else if (optionalFiles.includes(entry)) {
+          result.presentFiles.push(entry);
+        } else if (entry.startsWith('.')) {
+          // Ignore hidden system files (these are expected)
+        } else {
+          result.unexpectedFiles.push(entry);
+        }
+      }
+
+      // Check for missing expected files
+      for (const expectedFile of expectedFiles) {
+        if (!result.presentFiles.includes(expectedFile)) {
+          result.missingFiles.push(expectedFile);
+        }
+      }
+
+      // Determine if archive has core files
+      result.hasCoreFiles = result.presentFiles.includes('feature_list.json');
+
+      // Validate feature_list.json
+      if (result.presentFiles.includes('feature_list.json')) {
+        try {
+          const featureListPath = join(result.archivePath, 'feature_list.json');
+          const content = await readFile(featureListPath, 'utf-8');
+          const parsed = JSON.parse(content);
+
+          // Basic structure validation
+          if (!parsed.features || !Array.isArray(parsed.features)) {
+            result.featureListValid = false;
+            result.issues.push('feature_list.json: Missing or invalid features array');
+          } else {
+            result.featureListValid = true;
+
+            // Check for feature metadata
+            if (!parsed.metadata) {
+              result.issues.push('feature_list.json: Missing metadata section');
+              result.status = result.status === 'valid' ? 'warning' : result.status;
+            }
+          }
+        } catch (parseError) {
+          result.featureListValid = false;
+          result.issues.push(`feature_list.json: Invalid JSON - ${parseError}`);
+          result.status = 'invalid';
+        }
+      }
+
+      // Validate archive metadata if present
+      if (result.presentFiles.includes('.archive-info.json')) {
+        try {
+          const metadataPath = join(result.archivePath, '.archive-info.json');
+          const content = await readFile(metadataPath, 'utf-8');
+          const parsed = JSON.parse(content);
+
+          // Basic structure validation
+          if (!parsed.archive) {
+            result.metadataValid = false;
+            result.issues.push('.archive-info.json: Missing archive section');
+          } else {
+            result.metadataValid = true;
+          }
+        } catch (parseError) {
+          result.metadataValid = false;
+          result.issues.push(`.archive-info.json: Invalid JSON - ${parseError}`);
+          result.status = result.status === 'valid' ? 'warning' : result.status;
+        }
+      } else {
+        result.metadataValid = true; // No metadata is acceptable for older archives
+      }
+
+      // Assess overall archive health
+      if (result.missingFiles.length > 0) {
+        result.status = 'invalid';
+        result.issues.push(`Missing required files: ${result.missingFiles.join(', ')}`);
+      }
+
+      if (result.unexpectedFiles.length > 0) {
+        result.issues.push(`Unexpected files found: ${result.unexpectedFiles.join(', ')}`);
+        if (result.status === 'valid') {
+          result.status = 'warning';
+        }
+      }
+
+      // Check for empty archive
+      if (result.presentFiles.length === 0) {
+        result.status = 'invalid';
+        result.issues.push('Archive is empty');
+      }
+
+      // Validate archive name format
+      const archiveNamePattern = /^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})(?:-(\d+))?$/;
+      if (!archiveNamePattern.test(archiveName)) {
+        result.issues.push(`Archive name format is invalid: ${archiveName}`);
+        if (result.status === 'valid') {
+          result.status = 'warning';
+        }
+      }
+
+      // Additional verbose checks
+      if (verbose) {
+        // Check file sizes for potential corruption
+        for (const file of result.presentFiles) {
+          try {
+            const filePath = join(result.archivePath, file);
+            const fileStat = await stat(filePath);
+
+            if (fileStat.size === 0) {
+              result.issues.push(`File is empty: ${file}`);
+              if (result.status === 'valid') {
+                result.status = 'warning';
+              }
+            }
+          } catch (fileError) {
+            result.issues.push(`Cannot read file: ${file} - ${fileError}`);
+            result.status = 'invalid';
+          }
+        }
+      }
+    } catch (error) {
+      result.status = 'invalid';
+      result.issues.push(`Failed to validate archive: ${error}`);
+    }
+
+    return result;
+  }
+
+  /**
+   * Validates all archives in the archive directory
+   *
+   * @param options - Validation options including project directory
+   * @returns Promise resolving to array of validation results for all archives
+   */
+  async validateAllArchives(options: ValidateArchiveOptions): Promise<ArchiveValidationResult[]> {
+    const { projectDir, archiveDir = '.runs', verbose = false } = options;
+
+    try {
+      // Get list of all archives
+      const archives = await this.listArchives(projectDir, archiveDir);
+
+      // Validate each archive
+      const validationPromises = archives.map(async (archive) => {
+        return this.validateArchive({
+          projectDir,
+          archiveName: archive.name,
+          archiveDir,
+          verbose,
+        });
+      });
+
+      return await Promise.all(validationPromises);
+    } catch (error) {
+      throw new Error(`Failed to validate archives: ${error}`);
     }
   }
 }

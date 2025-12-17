@@ -88,6 +88,8 @@ interface ParsedArgs {
     // Clean-archives-specific
     olderThan?: number;
     keepLast?: number;
+    // Archives-specific
+    validate?: boolean;
   };
 }
 
@@ -236,6 +238,9 @@ function parseArgs(): ParsedArgs {
         break;
       case '--keep-last':
         options.keepLast = parseInt(args[++i]);
+        break;
+      case '--validate':
+        options.validate = true;
         break;
       default:
         // For update command, parse feature ID and pass/fail
@@ -1807,6 +1812,82 @@ async function handleArchives(options: ParsedArgs['options']): Promise<void> {
   const archiveManager = new ArchiveManager();
 
   try {
+    // If validation is requested, validate all archives first
+    if (options.validate) {
+      const validationResults = await archiveManager.validateAllArchives({
+        projectDir,
+        archiveDir: paceSettings.archiveDir,
+        verbose: options.verbose,
+      });
+
+      if (options.json) {
+        // JSON output for validation
+        console.log(
+          JSON.stringify({
+            validation: true,
+            archives: validationResults.map((result) => ({
+              name: result.archiveName,
+              status: result.status,
+              issues: result.issues,
+              presentFiles: result.presentFiles,
+              missingFiles: result.missingFiles,
+              unexpectedFiles: result.unexpectedFiles,
+              metadataValid: result.metadataValid,
+              featureListValid: result.featureListValid,
+              hasCoreFiles: result.hasCoreFiles,
+            })),
+            summary: {
+              total: validationResults.length,
+              valid: validationResults.filter((r) => r.status === 'valid').length,
+              warning: validationResults.filter((r) => r.status === 'warning').length,
+              invalid: validationResults.filter((r) => r.status === 'invalid').length,
+            },
+          }),
+        );
+      } else {
+        // Human-readable validation output
+        console.log('\n' + '='.repeat(60));
+        console.log(' ARCHIVE VALIDATION RESULTS');
+        console.log('='.repeat(60));
+
+        const valid = validationResults.filter((r) => r.status === 'valid').length;
+        const warning = validationResults.filter((r) => r.status === 'warning').length;
+        const invalid = validationResults.filter((r) => r.status === 'invalid').length;
+
+        console.log(
+          `\nValidation Summary: ${valid} valid, ${warning} warnings, ${invalid} invalid\n`,
+        );
+
+        for (const result of validationResults) {
+          const statusIcon =
+            result.status === 'valid' ? '✅' : result.status === 'warning' ? '⚠️' : '❌';
+          console.log(`${statusIcon} ${result.archiveName} (${result.status.toUpperCase()})`);
+
+          if (result.issues.length > 0) {
+            for (const issue of result.issues) {
+              console.log(`    • ${issue}`);
+            }
+          }
+
+          if (options.verbose) {
+            if (result.presentFiles.length > 0) {
+              console.log(`    Files: ${result.presentFiles.join(', ')}`);
+            }
+            if (result.missingFiles.length > 0) {
+              console.log(`    Missing: ${result.missingFiles.join(', ')}`);
+            }
+            if (result.unexpectedFiles.length > 0) {
+              console.log(`    Unexpected: ${result.unexpectedFiles.join(', ')}`);
+            }
+          }
+          console.log('');
+        }
+
+        console.log('='.repeat(60));
+      }
+      return;
+    }
+
     const archives = await archiveManager.listArchives(projectDir, paceSettings.archiveDir);
 
     if (options.json) {
@@ -2125,6 +2206,7 @@ UPDATE OPTIONS:
     --json                       Output results in JSON format
 
 ARCHIVES OPTIONS:
+    --validate                    Validate archive structure and contents
     --json                       Output results in JSON format
 
 RESTORE OPTIONS:
