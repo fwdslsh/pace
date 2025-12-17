@@ -333,6 +333,312 @@ describe('moveToArchive', () => {
     );
   });
 
+  describe('file integrity verification', () => {
+    test('archived file has same size as original', async () => {
+      // Setup: Create source file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'test.txt');
+      const testContent = 'test content for size verification';
+      await writeFile(sourceFile, testContent);
+
+      // Get original file size
+      const originalStats = await stat(sourceFile);
+      const originalSize = originalStats.size;
+
+      // Execute: Move file to archive
+      const destPath = await moveToArchive(sourceFile, destDir, 'test.txt', testDir);
+
+      // Verify: Archived file has same size
+      const archivedStats = await stat(destPath);
+      expect(archivedStats.size).toBe(originalSize);
+      expect(archivedStats.size).toBe(testContent.length);
+    });
+
+    test('archived file content matches original (checksum verification)', async () => {
+      // Setup: Create source file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'test.txt');
+      const testContent = 'test content for checksum verification';
+      await writeFile(sourceFile, testContent);
+
+      // Calculate original checksum using crypto
+      const crypto = await import('crypto');
+      const originalHash = crypto.createHash('sha256').update(testContent).digest('hex');
+
+      // Execute: Move file to archive
+      const destPath = await moveToArchive(sourceFile, destDir, 'test.txt', testDir);
+
+      // Verify: Archived file has same checksum
+      const archivedContent = await readFile(destPath, 'utf-8');
+      const archivedHash = crypto.createHash('sha256').update(archivedContent).digest('hex');
+      expect(archivedHash).toBe(originalHash);
+    });
+
+    test('archived JSON file is parseable and content matches', async () => {
+      // Setup: Create JSON file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'feature_list.json');
+      const jsonData = {
+        features: [
+          { id: 'F001', passes: true, description: 'Test feature' },
+          { id: 'F002', passes: false, description: 'Another test' },
+        ],
+        metadata: { total: 2, passing: 1, failing: 1 },
+      };
+      const originalContent = JSON.stringify(jsonData, null, 2);
+      await writeFile(sourceFile, originalContent);
+
+      // Execute: Move JSON file
+      const destPath = await moveToArchive(sourceFile, destDir, 'feature_list.json', testDir);
+
+      // Verify: Archived JSON is parseable
+      const archivedContent = await readFile(destPath, 'utf-8');
+      let parsedData;
+      expect(() => {
+        parsedData = JSON.parse(archivedContent);
+      }).not.toThrow();
+
+      // Verify: Content matches original
+      expect(parsedData).toEqual(jsonData);
+
+      // Verify: Checksums match
+      const crypto = await import('crypto');
+      const originalHash = crypto.createHash('sha256').update(originalContent).digest('hex');
+      const archivedHash = crypto.createHash('sha256').update(archivedContent).digest('hex');
+      expect(archivedHash).toBe(originalHash);
+    });
+
+    test('archived file with small size (< 1KB) is complete', async () => {
+      // Setup: Create small file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'small.txt');
+      const smallContent = 'Small file content';
+      await writeFile(sourceFile, smallContent);
+
+      const originalStats = await stat(sourceFile);
+      expect(originalStats.size).toBeLessThan(1024); // Verify it's < 1KB
+
+      // Execute: Move file
+      const destPath = await moveToArchive(sourceFile, destDir, 'small.txt', testDir);
+
+      // Verify: Size and content match
+      const archivedStats = await stat(destPath);
+      expect(archivedStats.size).toBe(originalStats.size);
+
+      const archivedContent = await readFile(destPath, 'utf-8');
+      expect(archivedContent).toBe(smallContent);
+    });
+
+    test('archived file with medium size (1KB - 1MB) is complete', async () => {
+      // Setup: Create medium file (~100KB)
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'medium.txt');
+      const mediumContent = 'x'.repeat(100 * 1024); // 100KB
+      await writeFile(sourceFile, mediumContent);
+
+      const originalStats = await stat(sourceFile);
+      expect(originalStats.size).toBeGreaterThanOrEqual(1024); // >= 1KB
+      expect(originalStats.size).toBeLessThan(1024 * 1024); // < 1MB
+
+      // Calculate original checksum
+      const crypto = await import('crypto');
+      const originalHash = crypto.createHash('sha256').update(mediumContent).digest('hex');
+
+      // Execute: Move file
+      const destPath = await moveToArchive(sourceFile, destDir, 'medium.txt', testDir);
+
+      // Verify: Size matches
+      const archivedStats = await stat(destPath);
+      expect(archivedStats.size).toBe(originalStats.size);
+
+      // Verify: Checksum matches
+      const archivedContent = await readFile(destPath, 'utf-8');
+      const archivedHash = crypto.createHash('sha256').update(archivedContent).digest('hex');
+      expect(archivedHash).toBe(originalHash);
+    });
+
+    test('archived file with large size (> 1MB) is complete', async () => {
+      // Setup: Create large file (~2MB)
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'large.txt');
+      const largeContent = 'y'.repeat(2 * 1024 * 1024); // 2MB
+      await writeFile(sourceFile, largeContent);
+
+      const originalStats = await stat(sourceFile);
+      expect(originalStats.size).toBeGreaterThan(1024 * 1024); // > 1MB
+
+      // Calculate original checksum
+      const crypto = await import('crypto');
+      const originalHash = crypto.createHash('sha256').update(largeContent).digest('hex');
+
+      // Execute: Move file
+      const destPath = await moveToArchive(sourceFile, destDir, 'large.txt', testDir);
+
+      // Verify: Size matches
+      const archivedStats = await stat(destPath);
+      expect(archivedStats.size).toBe(originalStats.size);
+
+      // Verify: Checksum matches
+      const archivedContent = await readFile(destPath, 'utf-8');
+      const archivedHash = crypto.createHash('sha256').update(archivedContent).digest('hex');
+      expect(archivedHash).toBe(originalHash);
+    });
+
+    test('archived JSON with complex structure is parseable', async () => {
+      // Setup: Create complex JSON file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'complex.json');
+      const complexData = {
+        features: Array.from({ length: 50 }, (_, i) => ({
+          id: `F${String(i + 1).padStart(3, '0')}`,
+          category: ['core', 'functional', 'testing'][i % 3],
+          description: `Feature description ${i + 1}`,
+          priority: ['critical', 'high', 'medium', 'low'][i % 4],
+          steps: Array.from({ length: 5 }, (_, j) => `Step ${j + 1} for feature ${i + 1}`),
+          passes: i % 3 === 0,
+        })),
+        metadata: {
+          project_name: 'test-project',
+          created_at: '2025-12-17',
+          total_features: 50,
+          passing: 17,
+          failing: 33,
+          last_updated: '2025-12-17T00:00:00.000Z',
+        },
+      };
+      const originalContent = JSON.stringify(complexData, null, 2);
+      await writeFile(sourceFile, originalContent);
+
+      // Execute: Move JSON file
+      const destPath = await moveToArchive(sourceFile, destDir, 'complex.json', testDir);
+
+      // Verify: JSON is parseable
+      const archivedContent = await readFile(destPath, 'utf-8');
+      let parsedData;
+      expect(() => {
+        parsedData = JSON.parse(archivedContent);
+      }).not.toThrow();
+
+      // Verify: Structure and content match
+      expect(parsedData).toEqual(complexData);
+      expect(parsedData.features).toHaveLength(50);
+      expect(parsedData.metadata.total_features).toBe(50);
+
+      // Verify: File size matches
+      const originalStats = await stat(join(destDir, 'complex.json'));
+      expect(originalStats.size).toBe(originalContent.length);
+    });
+
+    test('archived binary file content is preserved (using MD5)', async () => {
+      // Setup: Create binary-like content
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'binary.dat');
+      // Create buffer with binary data (mix of printable and non-printable chars)
+      const binaryData = Buffer.from([
+        0x00,
+        0x01,
+        0x02,
+        0xff,
+        0xfe,
+        0x7f,
+        0x80,
+        ...Buffer.from('some text'),
+      ]);
+      await writeFile(sourceFile, binaryData);
+
+      // Calculate MD5 hash of original
+      const crypto = await import('crypto');
+      const originalMd5 = crypto.createHash('md5').update(binaryData).digest('hex');
+
+      // Execute: Move file
+      const destPath = await moveToArchive(sourceFile, destDir, 'binary.dat', testDir);
+
+      // Verify: MD5 matches
+      const archivedContent = await readFile(destPath);
+      const archivedMd5 = crypto.createHash('md5').update(archivedContent).digest('hex');
+      expect(archivedMd5).toBe(originalMd5);
+
+      // Verify: Size matches
+      const originalStats = { size: binaryData.length };
+      const archivedStats = await stat(destPath);
+      expect(archivedStats.size).toBe(originalStats.size);
+    });
+
+    test('archived progress.txt with unicode characters is complete', async () => {
+      // Setup: Create progress.txt with unicode
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'progress.txt');
+      const progressContent = `# Session 1: Test Session
+
+## Status
+- Features passing: 5/10 ✓
+- Features failing: 5/10 ✗
+- Progress: 50% █████░░░░░
+
+## Recent Work
+- Implemented feature F001 🚀
+- Fixed bug in F002 ✅
+- Added tests ✓
+
+---
+
+Next steps: Continue with remaining features
+`;
+      await writeFile(sourceFile, progressContent);
+
+      // Calculate original checksum
+      const crypto = await import('crypto');
+      const originalHash = crypto.createHash('sha256').update(progressContent).digest('hex');
+
+      // Execute: Move file
+      const destPath = await moveToArchive(sourceFile, destDir, 'progress.txt', testDir);
+
+      // Verify: Content matches exactly
+      const archivedContent = await readFile(destPath, 'utf-8');
+      expect(archivedContent).toBe(progressContent);
+
+      // Verify: Checksum matches
+      const archivedHash = crypto.createHash('sha256').update(archivedContent).digest('hex');
+      expect(archivedHash).toBe(originalHash);
+
+      // Verify: Unicode characters preserved
+      expect(archivedContent).toContain('✓');
+      expect(archivedContent).toContain('✗');
+      expect(archivedContent).toContain('█');
+      expect(archivedContent).toContain('░');
+      expect(archivedContent).toContain('🚀');
+      expect(archivedContent).toContain('✅');
+    });
+
+    test('detects corruption by comparing checksums', async () => {
+      // Setup: Create source file
+      await mkdir(sourceDir, { recursive: true });
+      const sourceFile = join(sourceDir, 'test.txt');
+      const originalContent = 'Original content for corruption test';
+      await writeFile(sourceFile, originalContent);
+
+      // Calculate original checksum
+      const crypto = await import('crypto');
+      const originalHash = crypto.createHash('sha256').update(originalContent).digest('hex');
+
+      // Execute: Move file
+      const destPath = await moveToArchive(sourceFile, destDir, 'test.txt', testDir);
+
+      // Verify: File is not corrupted (checksums match)
+      const archivedContent = await readFile(destPath, 'utf-8');
+      const archivedHash = crypto.createHash('sha256').update(archivedContent).digest('hex');
+      expect(archivedHash).toBe(originalHash);
+
+      // Simulate corruption by modifying archived file
+      const corruptedContent = archivedContent + ' CORRUPTED';
+      await writeFile(destPath, corruptedContent);
+
+      // Verify: Corruption is detectable
+      const corruptedHash = crypto.createHash('sha256').update(corruptedContent).digest('hex');
+      expect(corruptedHash).not.toBe(originalHash);
+    });
+  });
+
   describe('security: path traversal protection', () => {
     test('rejects path traversal in destination directory', async () => {
       // Setup: Create source file
