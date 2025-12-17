@@ -3958,3 +3958,71 @@ The coding agent should start with critical and high priority features:
 - Recommended next feature: F025 (Make archive directory path configurable)
 - Continue with remaining refactoring and enhancement tasks
 
+---
+
+### Session 92 - Configurable Archive Directory
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F025: Make archive directory path configurable
+
+**Actions Taken:**
+
+- **Added archiveDir configuration to PaceSettings**:
+  - Added optional `archiveDir?: string` field to PaceSettings interface in pace-config.ts
+  - Enhanced JSDoc with detailed description, @default tag, and usage example
+  - Allows users to customize archive directory via pace.json config file
+
+- **Updated ArchiveManager to support custom archive directory**:
+  - Added optional `archiveDir?: string` to ArchiveOptions interface
+  - Modified archive() method to default to '.runs' if not specified
+  - Updated performDryRun() to accept archiveDir parameter
+  - Updated console messages to use configured directory instead of hardcoded '.runs'
+  - Enhanced JSDoc to document archiveDir parameter
+
+- **Integrated config loading in handleInit**:
+  - Moved config loading before archiving (to access archiveDir setting)
+  - Pass paceSettings.archiveDir to ArchiveManager.archive()
+  - Removed duplicate config loading later in the function
+
+- **Added comprehensive test coverage**:
+  - Created F025 test in tests/init-command.test.ts
+  - Test creates pace.json with custom archiveDir: '.archives'
+  - Verifies dry-run output shows custom directory path
+  - Tests actual archiving to custom directory
+  - Validates file content integrity in custom archive location
+
+- **Enhanced documentation**:
+  - Updated README.md with "Customizing Archive Directory" section
+  - Added JSON configuration example showing pace.archiveDir setting
+  - Documented use cases for custom archive directories
+  - Enhanced PaceSettings.archiveDir JSDoc with detailed description and example
+
+**Test Results:**
+
+- All 282 tests pass (34 skip, 0 fail)
+- New F025 test validates custom archive directory configuration
+- `bun run build` succeeds
+- `bun run lint` passes cleanly
+- `./pace status` shows 34/50 passing (68.0%)
+
+**Implementation Details:**
+
+- Default behavior unchanged: archives to '.runs' if not configured
+- Configuration is optional and backward compatible
+- Supports any valid directory name (validated by path traversal checks)
+- Custom directory follows same timestamp subdirectory structure
+
+**Current Status:**
+
+- Features passing: 34/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F027 (Verify git operations are not affected by archiving)
+- Continue with remaining archiving features and enhancements
+
