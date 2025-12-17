@@ -85,7 +85,7 @@
         "Log warning that last_updated was missing",
         "Verify archives are created even with missing metadata"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F007",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 6,
-    "failing": 44,
+    "passing": 7,
+    "failing": 43,
     "last_updated": "2025-12-17T00:00:00.000Z"
   }
 }

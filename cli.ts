@@ -1090,9 +1090,20 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     try {
       const content = await readFile(featureListPath, 'utf-8');
       const data = JSON.parse(content);
-      timestamp = data.metadata?.last_updated || new Date().toISOString();
+
+      if (data.metadata?.last_updated) {
+        timestamp = data.metadata.last_updated;
+      } else {
+        // metadata.last_updated is missing - use current timestamp as fallback
+        timestamp = new Date().toISOString();
+        if (!options.json) {
+          console.log(
+            '⚠️  Warning: metadata.last_updated is missing, using current timestamp as fallback',
+          );
+        }
+      }
     } catch {
-      // If JSON is corrupted or missing metadata, use current timestamp
+      // If JSON is corrupted or read fails, use current timestamp
       timestamp = new Date().toISOString();
       if (!options.json) {
         console.log(
