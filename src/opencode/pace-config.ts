@@ -11,7 +11,6 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
-import type { ServerOptions } from '@opencode-ai/sdk';
 
 // Import agent markdown files
 import codeReviewerMd from './agents/code-reviewer.md' with { type: 'text' };
@@ -19,7 +18,6 @@ import codingAgentMd from './agents/coding-agent.md' with { type: 'text' };
 import coordinatorAgentMd from './agents/coordinator-agent.md' with { type: 'text' };
 import initializerAgentMd from './agents/initializer-agent.md' with { type: 'text' };
 import practicesReviewerMd from './agents/practices-reviewer.md' with { type: 'text' };
-
 // Import command markdown files
 import paceCompleteMd from './commands/pace-complete.md' with { type: 'text' };
 import paceCompoundMd from './commands/pace-compound.md' with { type: 'text' };
@@ -29,6 +27,8 @@ import paceInitMd from './commands/pace-init.md' with { type: 'text' };
 import paceNextMd from './commands/pace-next.md' with { type: 'text' };
 import paceReviewMd from './commands/pace-review.md' with { type: 'text' };
 import paceStatusMd from './commands/pace-status.md' with { type: 'text' };
+
+import type { ServerOptions } from '@opencode-ai/sdk';
 
 // ============================================================================
 // Types

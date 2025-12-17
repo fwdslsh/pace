@@ -21,12 +21,11 @@
  *     pace update F001 pass
  */
 
-import { readFile, stat, mkdir, rename } from 'fs/promises';
+import { readFile, stat } from 'fs/promises';
 import { join, resolve } from 'path';
 
 import { createOpencode, createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk';
 
-import { moveToArchive, normalizeTimestamp } from './src/archive-utils';
 import { FeatureManager } from './src/feature-manager';
 import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
 import paceInitMd from './src/opencode/commands/pace-init.md' with { type: 'text' };
@@ -577,6 +576,31 @@ class Orchestrator {
           continue;
         }
 
+        // Handle permission requests - auto-approve all tools
+        if ((event as any).type === 'permission.ask') {
+          const permission = (event as any).properties?.permission;
+          if (permission?.sessionID === session.id) {
+            if (this.verbose) {
+              const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+              console.log(`[${timestamp}] 🔓 Permission requested for: ${permission.tool}`);
+              console.log(`  Auto-approving...`);
+            }
+            // Auto-approve the permission using /allow command
+            try {
+              await client.session.command({
+                path: { id: session.id },
+                body: {
+                  command: '/allow',
+                  arguments: permission.id,
+                },
+              });
+            } catch (error) {
+              console.error(`Failed to approve permission: ${error}`);
+            }
+          }
+          continue;
+        }
+
         // Message-level events have session ID in part.sessionID
         const props = event.properties as EventPropertiesWithSessionID;
         const eventSessionId = props?.sessionID || props?.part?.sessionID;
@@ -995,17 +1019,88 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     process.exit(1);
   }
 
-  // Check if feature_list.json already exists
+  // Check if feature_list.json already exists and archive if needed
   const featureListPath = join(projectDir, 'feature_list.json');
+  let archivePath: string | null = null;
+
   try {
     await stat(featureListPath);
+
+    // File exists - archive before initializing (unless dry-run)
     if (!options.json) {
-      console.error(`\nWarning: feature_list.json already exists in ${projectDir}`);
-      console.error('The initializer agent may overwrite existing files.');
-      console.error('');
+      console.log('\n📦 Existing project files found');
+    }
+
+    // Read metadata.last_updated from feature_list.json
+    let timestamp: string;
+    try {
+      const content = await readFile(featureListPath, 'utf-8');
+      const data = JSON.parse(content);
+      timestamp = data.metadata?.last_updated || new Date().toISOString();
+    } catch {
+      // If JSON is corrupted or missing metadata, use current timestamp
+      timestamp = new Date().toISOString();
+      if (!options.json) {
+        console.log(
+          '⚠️  Warning: Could not read metadata from feature_list.json, using current timestamp',
+        );
+      }
+    }
+
+    // Normalize timestamp to directory-safe format
+    const { normalizeTimestamp, moveToArchive } = await import('./src/archive-utils.js');
+    const normalizedTimestamp = normalizeTimestamp(timestamp);
+    archivePath = join(projectDir, '.runs', normalizedTimestamp);
+
+    if (options.dryRun) {
+      // Dry-run: show what would be archived without actually moving files
+      if (!options.json) {
+        console.log(`📁 [DRY RUN] Would archive to: .runs/${normalizedTimestamp}/`);
+        console.log('  • feature_list.json');
+        const progressPath = join(projectDir, 'progress.txt');
+        try {
+          await stat(progressPath);
+          console.log('  • progress.txt');
+        } catch {
+          // progress.txt doesn't exist
+        }
+      }
+    } else {
+      // Actually perform archiving
+      if (!options.json) {
+        console.log(`📁 Archiving to: .runs/${normalizedTimestamp}/`);
+      }
+
+      // Move feature_list.json to archive
+      try {
+        await moveToArchive(featureListPath, archivePath, 'feature_list.json');
+        if (!options.json) {
+          console.log('  ✓ Archived feature_list.json');
+        }
+      } catch (error) {
+        if (!options.json) {
+          console.error(`  ✗ Failed to archive feature_list.json: ${error}`);
+        }
+      }
+
+      // Move progress.txt to archive (if it exists)
+      const progressPath = join(projectDir, 'progress.txt');
+      try {
+        await stat(progressPath);
+        await moveToArchive(progressPath, archivePath, 'progress.txt');
+        if (!options.json) {
+          console.log('  ✓ Archived progress.txt');
+        }
+      } catch {
+        // progress.txt doesn't exist or failed to move, that's OK
+      }
+
+      if (!options.json) {
+        console.log('✅ Archiving complete\n');
+      }
     }
   } catch {
-    // File doesn't exist, which is expected for init
+    // File doesn't exist, which is expected for first init
   }
 
   if (options.dryRun) {
@@ -1176,6 +1271,31 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
         if (errorSessionId === session.id) {
           success = false;
           break;
+        }
+        continue;
+      }
+
+      // Handle permission requests - auto-approve all tools
+      if ((event as any).type === 'permission.ask') {
+        const permission = (event as any).properties?.permission;
+        if (permission?.sessionID === session.id) {
+          if (options.verbose && !options.json) {
+            const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+            console.log(`[${timestamp}] 🔓 Permission requested for: ${permission.tool}`);
+            console.log(`  Auto-approving...`);
+          }
+          // Auto-approve the permission using /allow command
+          try {
+            await client.session.command({
+              path: { id: session.id },
+              body: {
+                command: '/allow',
+                arguments: permission.id,
+              },
+            });
+          } catch (error) {
+            console.error(`Failed to approve permission: ${error}`);
+          }
         }
         continue;
       }

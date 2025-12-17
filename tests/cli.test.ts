@@ -568,9 +568,9 @@ describe('CLI Integration Tests', () => {
       expect(result.exitCode).toBe(0);
     });
 
-    it('should warn when feature_list.json already exists', async () => {
+    it('should show archiving message when feature_list.json already exists', async () => {
       await createFeatureList({
-        metadata: { project_name: 'Existing' },
+        metadata: { project_name: 'Existing', last_updated: '2025-12-15T17:00:00.000Z' },
         features: [
           {
             id: 'F001',
@@ -584,7 +584,8 @@ describe('CLI Integration Tests', () => {
       });
 
       const result = await runCLI(['init', '-p', 'New project', '--dry-run']);
-      expect(result.stderr).toContain('feature_list.json already exists');
+      expect(result.stdout).toContain('Existing project files found');
+      expect(result.stdout).toContain('[DRY RUN] Would archive to');
       expect(result.exitCode).toBe(0); // Should still exit 0 in dry-run
     });
 
