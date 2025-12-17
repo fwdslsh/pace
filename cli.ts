@@ -1829,6 +1829,8 @@ INIT OPTIONS:
     --verbose, -v                Show detailed output during initialization
     --json                       Output results in JSON format
 
+    Note: Existing feature_list.json will be archived to .runs/ before initialization.
+
     You can also pass the prompt directly:
         pace init "Build a todo app with authentication"
 
