@@ -13,6 +13,23 @@ import { join } from 'path';
 
 import type { ServerOptions } from '@opencode-ai/sdk';
 
+// Import agent markdown files
+import codeReviewerMd from './agents/code-reviewer.md' with { type: 'text' };
+import codingAgentMd from './agents/coding-agent.md' with { type: 'text' };
+import coordinatorAgentMd from './agents/coordinator-agent.md' with { type: 'text' };
+import initializerAgentMd from './agents/initializer-agent.md' with { type: 'text' };
+import practicesReviewerMd from './agents/practices-reviewer.md' with { type: 'text' };
+
+// Import command markdown files
+import paceCompleteMd from './commands/pace-complete.md' with { type: 'text' };
+import paceCompoundMd from './commands/pace-compound.md' with { type: 'text' };
+import paceContinueMd from './commands/pace-continue.md' with { type: 'text' };
+import paceCoordinateMd from './commands/pace-coordinate.md' with { type: 'text' };
+import paceInitMd from './commands/pace-init.md' with { type: 'text' };
+import paceNextMd from './commands/pace-next.md' with { type: 'text' };
+import paceReviewMd from './commands/pace-review.md' with { type: 'text' };
+import paceStatusMd from './commands/pace-status.md' with { type: 'text' };
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -49,6 +66,109 @@ export interface PaceConfig extends OpencodeConfig {
   pace?: PaceSettings;
 }
 
+/**
+ * Agent frontmatter structure
+ */
+interface AgentFrontmatter {
+  description?: string;
+  mode?: 'primary' | 'subagent' | 'all';
+  model?: string;
+  tools?: Record<string, boolean>;
+}
+
+/**
+ * Command frontmatter structure
+ */
+interface CommandFrontmatter {
+  description?: string;
+  agent?: string;
+  model?: string;
+  subtask?: boolean;
+}
+
+// ============================================================================
+// Markdown Parsing
+// ============================================================================
+
+/**
+ * Parse frontmatter from markdown content
+ */
+function parseFrontmatter<T>(markdown: string): { frontmatter: T; content: string } {
+  const match = markdown.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!match) {
+    return { frontmatter: {} as T, content: markdown };
+  }
+
+  const [, frontmatterStr, content] = match;
+  const frontmatter: Record<string, unknown> = {};
+
+  // Simple YAML-like parsing for frontmatter
+  const lines = frontmatterStr.split('\n');
+  let currentKey = '';
+  let inNestedObject = false;
+  let nestedObject: Record<string, unknown> = {};
+
+  for (const line of lines) {
+    // Check for nested object start (e.g., "tools:")
+    if (line.match(/^(\w+):$/)) {
+      if (inNestedObject && currentKey) {
+        frontmatter[currentKey] = nestedObject;
+      }
+      currentKey = line.slice(0, -1).trim();
+      inNestedObject = true;
+      nestedObject = {};
+      continue;
+    }
+
+    // Check for nested key-value (indented)
+    if (inNestedObject && line.match(/^\s+\w+:/)) {
+      const colonIndex = line.indexOf(':');
+      const key = line.slice(0, colonIndex).trim();
+      let value: unknown = line.slice(colonIndex + 1).trim();
+
+      if (value === 'true') value = true;
+      else if (value === 'false') value = false;
+
+      nestedObject[key] = value;
+      continue;
+    }
+
+    // Regular key-value pair
+    const colonIndex = line.indexOf(':');
+    if (colonIndex > 0) {
+      if (inNestedObject && currentKey) {
+        frontmatter[currentKey] = nestedObject;
+        inNestedObject = false;
+        nestedObject = {};
+      }
+
+      const key = line.slice(0, colonIndex).trim();
+      let value: unknown = line.slice(colonIndex + 1).trim();
+
+      // Handle quoted strings
+      if (
+        (typeof value === 'string' && value.startsWith('"') && value.endsWith('"')) ||
+        (typeof value === 'string' && value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+
+      // Handle booleans
+      if (value === 'true') value = true;
+      else if (value === 'false') value = false;
+
+      frontmatter[key] = value;
+    }
+  }
+
+  // Don't forget the last nested object
+  if (inNestedObject && currentKey) {
+    frontmatter[currentKey] = nestedObject;
+  }
+
+  return { frontmatter: frontmatter as T, content: content.trim() };
+}
+
 // ============================================================================
 // Defaults
 // ============================================================================
@@ -64,74 +184,113 @@ const DEFAULT_PACE_SETTINGS: PaceSettings = {
   },
 };
 
+// Parse agent markdown files
+const codingAgent = parseFrontmatter<AgentFrontmatter>(codingAgentMd);
+const initializerAgent = parseFrontmatter<AgentFrontmatter>(initializerAgentMd);
+const coordinatorAgent = parseFrontmatter<AgentFrontmatter>(coordinatorAgentMd);
+const codeReviewer = parseFrontmatter<AgentFrontmatter>(codeReviewerMd);
+const practicesReviewer = parseFrontmatter<AgentFrontmatter>(practicesReviewerMd);
+
+// Parse command markdown files
+const paceInit = parseFrontmatter<CommandFrontmatter>(paceInitMd);
+const paceNext = parseFrontmatter<CommandFrontmatter>(paceNextMd);
+const paceContinue = parseFrontmatter<CommandFrontmatter>(paceContinueMd);
+const paceCoordinate = parseFrontmatter<CommandFrontmatter>(paceCoordinateMd);
+const paceReview = parseFrontmatter<CommandFrontmatter>(paceReviewMd);
+const paceCompound = parseFrontmatter<CommandFrontmatter>(paceCompoundMd);
+const paceStatus = parseFrontmatter<CommandFrontmatter>(paceStatusMd);
+const paceComplete = parseFrontmatter<CommandFrontmatter>(paceCompleteMd);
+
 /**
  * Default agent configurations for pace workflow
- * Note: Prompts are loaded from markdown files at runtime by the plugin
+ * Prompts and settings are loaded from markdown files
  */
 const DEFAULT_AGENTS: NonNullable<OpencodeConfig['agent']> = {
   'pace-coding': {
     name: 'pace-coding',
-    description:
-      'Implements a single feature following the pace workflow. Use when implementing a specific feature from the feature list.',
-    mode: 'subagent',
+    description: codingAgent.frontmatter.description || 'Implements features following pace workflow',
+    mode: codingAgent.frontmatter.mode || 'subagent',
+    prompt: codingAgent.content,
+    tools: codingAgent.frontmatter.tools,
   },
   'pace-initializer': {
     name: 'pace-initializer',
-    description:
-      'Sets up a new pace project with feature list, progress tracking, and development scripts.',
-    mode: 'subagent',
+    description: initializerAgent.frontmatter.description || 'Sets up pace project structure',
+    mode: initializerAgent.frontmatter.mode || 'subagent',
+    prompt: initializerAgent.content,
+    tools: initializerAgent.frontmatter.tools,
   },
   'pace-coordinator': {
     name: 'pace-coordinator',
-    description: 'Orchestrates multiple coding sessions to implement features continuously.',
-    mode: 'subagent',
+    description: coordinatorAgent.frontmatter.description || 'Orchestrates multiple coding sessions',
+    mode: coordinatorAgent.frontmatter.mode || 'subagent',
+    prompt: coordinatorAgent.content,
+    tools: coordinatorAgent.frontmatter.tools,
   },
   'pace-code-reviewer': {
     name: 'pace-code-reviewer',
-    description: 'Reviews code changes for quality, best practices, and potential issues.',
-    mode: 'subagent',
+    description: codeReviewer.frontmatter.description || 'Reviews code for quality',
+    mode: codeReviewer.frontmatter.mode || 'subagent',
+    prompt: codeReviewer.content,
+    tools: codeReviewer.frontmatter.tools,
   },
   'pace-practices-reviewer': {
     name: 'pace-practices-reviewer',
-    description: 'Reviews code and captures patterns to improve future sessions.',
-    mode: 'subagent',
+    description: practicesReviewer.frontmatter.description || 'Reviews code and captures patterns',
+    mode: practicesReviewer.frontmatter.mode || 'subagent',
+    prompt: practicesReviewer.content,
+    tools: practicesReviewer.frontmatter.tools,
   },
 };
 
 /**
  * Default command configurations for pace workflow
- * Note: Templates are loaded from markdown files at runtime by the plugin
+ * Templates are loaded from markdown files
  */
 const DEFAULT_COMMANDS: NonNullable<OpencodeConfig['command']> = {
   'pace-init': {
-    description: 'Initialize a new pace project with feature list and development scripts',
-    agent: 'pace-initializer',
+    description: paceInit.frontmatter.description || 'Initialize a new pace project',
+    agent: paceInit.frontmatter.agent || 'pace-initializer',
+    template: paceInit.content,
+    subtask: paceInit.frontmatter.subtask,
   },
   'pace-next': {
-    description: 'Implement the next highest-priority failing feature',
-    agent: 'pace-coding',
+    description: paceNext.frontmatter.description || 'Implement next feature',
+    agent: paceNext.frontmatter.agent || 'pace-coding',
+    template: paceNext.content,
+    subtask: paceNext.frontmatter.subtask,
   },
   'pace-continue': {
-    description: 'Continue work on the current project',
-    agent: 'pace-coding',
+    description: paceContinue.frontmatter.description || 'Continue work on project',
+    agent: paceContinue.frontmatter.agent || 'pace-coding',
+    template: paceContinue.content,
+    subtask: paceContinue.frontmatter.subtask,
   },
   'pace-coordinate': {
-    description: 'Run continuous coding sessions until complete',
-    agent: 'pace-coordinator',
+    description: paceCoordinate.frontmatter.description || 'Run continuous sessions',
+    agent: paceCoordinate.frontmatter.agent || 'pace-coordinator',
+    template: paceCoordinate.content,
+    subtask: paceCoordinate.frontmatter.subtask,
   },
   'pace-review': {
-    description: 'Review recent code changes',
-    agent: 'pace-code-reviewer',
+    description: paceReview.frontmatter.description || 'Review code changes',
+    agent: paceReview.frontmatter.agent || 'pace-code-reviewer',
+    template: paceReview.content,
+    subtask: paceReview.frontmatter.subtask,
   },
   'pace-compound': {
-    description: 'Capture learnings and patterns from recent work',
-    agent: 'pace-practices-reviewer',
+    description: paceCompound.frontmatter.description || 'Capture learnings',
+    agent: paceCompound.frontmatter.agent || 'pace-practices-reviewer',
+    template: paceCompound.content,
+    subtask: paceCompound.frontmatter.subtask,
   },
   'pace-status': {
-    description: 'Show project status and progress',
+    description: paceStatus.frontmatter.description || 'Show project status',
+    template: paceStatus.content,
   },
   'pace-complete': {
-    description: 'Mark a feature as complete after verification',
+    description: paceComplete.frontmatter.description || 'Mark feature complete',
+    template: paceComplete.content,
   },
 };
 
