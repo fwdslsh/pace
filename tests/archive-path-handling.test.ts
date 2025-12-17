@@ -356,23 +356,26 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
     });
 
     test('handles . (current directory)', async () => {
-      // Setup: Create project directory and change to it
-      const projectDir = join(baseTestDir, 'current-dir-test');
-      await mkdir(projectDir, { recursive: true });
-
-      // Create feature_list.json
-      const featureList = {
-        features: [],
-        metadata: {
-          last_updated: '2025-12-17T10:00:00.000Z',
-        },
-      };
-      await writeFile(join(projectDir, 'feature_list.json'), JSON.stringify(featureList, null, 2));
-
-      // Save original cwd
+      // Save original cwd before test
       const originalCwd = process.cwd();
 
       try {
+        // Setup: Create project directory and change to it
+        const projectDir = join(baseTestDir, 'current-dir-test');
+        await mkdir(projectDir, { recursive: true });
+
+        // Create feature_list.json
+        const featureList = {
+          features: [],
+          metadata: {
+            last_updated: '2025-12-17T10:00:00.000Z',
+          },
+        };
+        await writeFile(
+          join(projectDir, 'feature_list.json'),
+          JSON.stringify(featureList, null, 2),
+        );
+
         // Change to project directory
         process.chdir(projectDir);
 
@@ -389,11 +392,15 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
 
         // Verify: Archive path is within current directory
         const absoluteArchivePath = resolve(result.archivePath!);
-        const absoluteProjectDir = resolve('.');
+        const absoluteProjectDir = resolve(projectDir); // Use absolute path
         expect(absoluteArchivePath).toContain(absoluteProjectDir);
       } finally {
-        // Restore original cwd
-        process.chdir(originalCwd);
+        // Restore original cwd BEFORE cleanup deletes the directory
+        try {
+          process.chdir(originalCwd);
+        } catch {
+          // Ignore errors if directory was already deleted
+        }
       }
     });
 
