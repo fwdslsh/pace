@@ -2289,3 +2289,53 @@ The coding agent should start with critical and high priority features:
 - Continue implementing core archiving utilities
 
 ---
+### Session 60 - Archive Utility Implementation
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F002: Create utility function to safely move files to archive directory
+
+**Actions Taken:**
+
+- Implemented `moveToArchive()` function in `src/archive-utils.ts`
+- Function accepts source file path, destination directory, and optional filename
+- Creates destination directory recursively using `mkdir -p` equivalent
+- Uses `fs.promises.rename` for efficient atomic moves
+- Falls back to `copyFile + unlink` for cross-device moves (EXDEV error)
+- Comprehensive error handling for file not found, permissions, etc.
+- Added 9 comprehensive unit tests to `tests/archive-utils.test.ts`:
+  - Successful file move with content verification
+  - Nested directory creation (mkdir -p behavior)
+  - Default filename extraction from source path
+  - Custom filename renaming
+  - Error handling for non-existent files
+  - Large file handling (1MB)
+  - JSON file integrity preservation
+  - Text files with Unicode and special characters
+  - Permission error wrapping
+
+**Test Results:**
+
+- All 25 archive-utils tests pass (16 normalizeTimestamp + 9 moveToArchive)
+- Full test suite passes: 219 tests pass, 16 skip, 0 fail
+- Verified files are moved correctly and source is removed
+- Verified destination directories are created automatically
+- Code passes linting with no errors
+- Build succeeds
+
+**Current Status:**
+
+- Features passing: 2/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F003 (Add function to check if feature_list.json exists)
+- Then F004 (Read metadata.last_updated from feature_list.json)
+- These will provide the foundation for F005 (main archiving logic)
+
+---
+
