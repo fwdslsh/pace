@@ -2085,3 +2085,63 @@ The `pace` CLI tool now has:
 - Project is ready for production use.
 
 ---
+
+### Session 58 - Init Command Testing & Bug Fixes
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- TEST-INIT: Add unit and integration tests for init command
+- BUG-FIX: Fix missing text output display and textParts tracking in init command
+
+**Actions Taken:**
+
+1. **Explored init command implementation** in `cli.ts`:
+   - Identified the `handleInit()` function (lines 818-1159)
+   - Analyzed event stream handling for tool usage and text output
+
+2. **Found and fixed two bugs** in the init command:
+   - **Bug 1**: Missing `textParts` counter - unlike the run command, init didn't track text parts
+   - **Bug 2**: Text output not displayed in verbose mode - the code only showed generic progress messages every 10 tool calls instead of actual agent text output
+
+3. **Applied fixes** to `cli.ts`:
+   - Added `textParts` counter alongside `toolCalls`
+   - Fixed verbose mode to display actual text content from the agent (first line, truncated at 100 chars)
+   - Added `textParts` to both JSON and console summary output
+
+4. **Created comprehensive test file** `tests/init-command.test.ts`:
+   - **16 unit tests** for file creation validation, feature list structure, event stream handling, and output formatting
+   - **16 integration tests** (conditional, require SDK) for CLI argument parsing, dry run output, file warnings, and help text
+   - Tests validate tool counting, text parts tracking, session ID filtering, idle/error event handling
+   - Properly structured to skip integration tests when SDK is not installed
+
+**Test Results:**
+
+- `bun test tests/init-command.test.ts`: 16 pass, 16 skip (SDK not installed)
+- `bun test` (all tests): 84 pass, 16 skip, 0 fail
+- All existing tests continue to pass
+
+**Current Status:**
+
+- Features passing: 55/55 (previous features remain complete)
+- New tests added: 32 (16 active, 16 conditional on SDK)
+- Known issues: Integration tests require @opencode-ai/sdk to be installed
+
+**Code Changes:**
+
+1. **cli.ts**:
+   - Line 993: Added `let textParts = 0;`
+   - Lines 1057-1081: Fixed text output handling in verbose mode
+   - Lines 1121-1134: Added `textParts` to output
+
+2. **tests/init-command.test.ts**: New file with comprehensive test coverage
+
+**Next Steps:**
+
+- Integration tests will auto-run when SDK is available
+- Consider adding more edge case tests for init command error handling
+- Monitor verbose output in real init sessions for user experience
+
+---

@@ -990,6 +990,7 @@ Begin now by analyzing the requirements and creating all necessary files.`;
     // Wait for completion
     let success = false;
     let toolCalls = 0;
+    let textParts = 0;
     const startTime = Date.now();
     let currentTool = '';
     let lastProgressUpdate = 0;
@@ -1054,6 +1055,8 @@ Begin now by analyzing the requirements and creating all necessary files.`;
             }
           }
         } else if (part?.type === 'text') {
+          textParts++;
+          const text = part.text || '';
           // Show periodic progress updates in non-verbose mode
           const now = Date.now();
           if (
@@ -1067,10 +1070,13 @@ Begin now by analyzing the requirements and creating all necessary files.`;
             console.log(`  [${toolCalls} tool calls completed...]`);
             lastProgressUpdate = now;
           }
-          if (options.verbose && !options.json) {
-            const text = part.text || '';
-            if (text.length > 0 && toolCalls % 10 === 0) {
-              console.log(`  [Progress: ${toolCalls} tool calls...]`);
+          // Show text output in verbose mode
+          if (options.verbose && !options.json && text.length > 0) {
+            // Show first line of text (truncated if needed)
+            const firstLine = text.split('\n')[0].trim();
+            if (firstLine.length > 0) {
+              const display = firstLine.length > 100 ? firstLine.slice(0, 100) + '...' : firstLine;
+              console.log(`  ${display}`);
             }
           }
         }
@@ -1113,6 +1119,7 @@ Begin now by analyzing the requirements and creating all necessary files.`;
           projectDir,
           duration: `${duration}s`,
           toolCalls,
+          textParts,
           featureCount,
           filesCreated,
           sessionId: session.id,
@@ -1124,6 +1131,7 @@ Begin now by analyzing the requirements and creating all necessary files.`;
       console.log('='.repeat(60));
       console.log(`\nDuration: ${duration}s`);
       console.log(`Tool calls: ${toolCalls}`);
+      console.log(`Text outputs: ${textParts}`);
       console.log(`\nFiles created:`);
       for (const file of filesCreated) {
         console.log(`  - ${file}`);
