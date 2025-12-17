@@ -74,6 +74,24 @@ export interface PaceSettings {
    * ```
    */
   archiveDir?: string;
+  /**
+   * Whether to create archive metadata files (.archive-info.json)
+   *
+   * When enabled, pace creates a metadata file in each archive directory
+   * containing information about the archived files, original metadata,
+   * archive timestamp, and reason for archiving.
+   *
+   * @default true
+   * @example
+   * ```json
+   * {
+   *   "pace": {
+   *     "createArchiveMetadata": false
+   *   }
+   * }
+   * ```
+   */
+  createArchiveMetadata?: boolean;
 }
 
 /**
@@ -199,6 +217,7 @@ const DEFAULT_PACE_SETTINGS: PaceSettings = {
     maxFailures: 3,
     sessionDelay: 3000,
   },
+  createArchiveMetadata: true,
 };
 
 // Parse agent markdown files

@@ -7,7 +7,7 @@
  * a pace project.
  */
 
-import { copyFile, readFile, stat } from 'fs/promises';
+import { copyFile, readFile, stat, writeFile } from 'fs/promises';
 import { join } from 'path';
 
 import { moveToArchive, normalizeTimestamp, resolveUniqueArchivePath } from './archive-utils';
@@ -32,6 +32,10 @@ export interface ArchiveOptions {
   silent?: boolean;
   /** Whether to show verbose output */
   verbose?: boolean;
+  /** Whether to create archive metadata file (.archive-info.json) */
+  createArchiveMetadata?: boolean;
+  /** Reason for archiving (e.g., 'pace init', 'pace init --force') */
+  reason?: string;
 }
 
 /**
@@ -95,12 +99,15 @@ export class ArchiveManager {
       dryRun = false,
       silent = false,
       verbose = false,
+      createArchiveMetadata = true,
+      reason = 'pace init',
     } = options;
 
     const featureListPath = join(projectDir, 'feature_list.json');
     let archivePath: string | null = null;
     let archived = false;
     const archivedFiles: string[] = [];
+    let originalMetadata: any = null;
 
     // Check if feature_list.json exists
     const featureListExists = await this.checkFeatureListExists(projectDir);
@@ -113,6 +120,16 @@ export class ArchiveManager {
     // File exists - archive before initializing (unless dry-run)
     if (!silent) {
       console.log('\n📦 Existing project files found');
+    }
+
+    // Read metadata from feature_list.json before archiving
+    try {
+      const content = await readFile(featureListPath, 'utf-8');
+      const data = JSON.parse(content);
+      originalMetadata = data.metadata || null;
+    } catch {
+      // If we can't read metadata, continue without it
+      originalMetadata = null;
     }
 
     // Read metadata.last_updated from feature_list.json
@@ -147,6 +164,11 @@ export class ArchiveManager {
         archivedFiles.push('progress.txt');
       } catch {
         // progress.txt doesn't exist, don't add to archivedFiles
+      }
+
+      // In dry-run mode, also show that metadata would be created
+      if (createArchiveMetadata && !silent) {
+        console.log('  • .archive-info.json (metadata)');
       }
     } else {
       // Actually perform archiving
@@ -190,6 +212,17 @@ export class ArchiveManager {
         !progressArchived.value
       ) {
         console.log('  ℹ️  progress.txt not found (skipping)');
+      }
+
+      // Create archive metadata file if enabled and files were archived
+      if (createArchiveMetadata && archived && archivePath) {
+        await this.createArchiveMetadata(
+          archivePath,
+          originalMetadata,
+          archivedFiles,
+          reason,
+          silent,
+        );
       }
 
       if (!silent) {
@@ -308,6 +341,52 @@ export class ArchiveManager {
       if (verbose) {
         console.log('  ℹ️  progress.txt not found (skipping)');
       }
+    }
+  }
+
+  /**
+   * Creates a metadata file in the archive directory
+   *
+   * Creates a .archive-info.json file containing:
+   * - Original metadata from feature_list.json
+   * - Archive timestamp
+   * - Reason for archiving
+   * - List of archived files
+   *
+   * @param archivePath - Path to the archive directory
+   * @param featureListMetadata - Original metadata from feature_list.json
+   * @param archivedFiles - List of archived files
+   * @param reason - Reason for archiving
+   * @param silent - Whether to suppress console output
+   */
+  private async createArchiveMetadata(
+    archivePath: string,
+    featureListMetadata: any,
+    archivedFiles: string[],
+    reason: string,
+    silent: boolean,
+  ): Promise<void> {
+    try {
+      const archiveMetadata = {
+        archive: {
+          timestamp: new Date().toISOString(),
+          reason,
+          files: archivedFiles,
+        },
+        originalMetadata: featureListMetadata || null,
+      };
+
+      const metadataPath = join(archivePath, '.archive-info.json');
+      await writeFile(metadataPath, JSON.stringify(archiveMetadata, null, 2), 'utf-8');
+
+      if (!silent) {
+        console.log('  ✓ Created archive metadata');
+      }
+    } catch (error) {
+      if (!silent) {
+        console.warn(`  ⚠️  Failed to create archive metadata: ${error}`);
+      }
+      // Don't fail the archive operation if metadata creation fails
     }
   }
 

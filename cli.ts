@@ -1076,6 +1076,8 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       dryRun: options.dryRun,
       silent: options.json,
       verbose: options.verbose,
+      createArchiveMetadata: paceSettings.createArchiveMetadata ?? true,
+      reason: options.archiveOnly ? 'pace init --archive-only' : 'pace init --archive-only',
     });
 
     if (options.json) {
@@ -1159,6 +1161,8 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       dryRun: options.dryRun,
       silent: options.json,
       verbose: options.verbose,
+      createArchiveMetadata: paceSettings.createArchiveMetadata ?? true,
+      reason: options.force ? 'pace init --force' : 'pace init',
     });
     archived = archiveResult.archived;
     archivePath = archiveResult.archivePath;
