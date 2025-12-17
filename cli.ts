@@ -103,6 +103,16 @@ interface EventPropertiesWithSessionID {
   part?: {
     sessionID?: string;
   };
+  permission?: {
+    sessionID?: string;
+    tool?: string;
+    id?: string;
+  };
+}
+
+interface PermissionEvent {
+  type: string;
+  properties?: EventPropertiesWithSessionID;
 }
 
 // ============================================================================
@@ -577,8 +587,9 @@ class Orchestrator {
         }
 
         // Handle permission requests - auto-approve all tools
-        if ((event as any).type === 'permission.ask') {
-          const permission = (event as any).properties?.permission;
+        const permEvent = event as PermissionEvent;
+        if (permEvent.type === 'permission.ask') {
+          const permission = permEvent.properties?.permission;
           if (permission?.sessionID === session.id) {
             if (this.verbose) {
               const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
@@ -1288,7 +1299,6 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
 
     // Get agent-specific model if configured
     const agentModelId = getAgentModel(paceConfig, PACE_AGENTS.INITIALIZER);
-    const agentModel = agentModelId ? parseModelId(agentModelId) : undefined;
 
     if (!options.json) {
       if (agentModelId) {
@@ -1374,8 +1384,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       }
 
       // Handle permission requests - auto-approve all tools
-      if ((event as any).type === 'permission.ask') {
-        const permission = (event as any).properties?.permission;
+      const permEvent = event as PermissionEvent;
+      if (permEvent.type === 'permission.ask') {
+        const permission = permEvent.properties?.permission;
         if (permission?.sessionID === session.id) {
           if (options.verbose && !options.json) {
             const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);

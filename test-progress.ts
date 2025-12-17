@@ -22,7 +22,7 @@ const testInterval = setInterval(() => {
   const tool = tools[count % tools.length];
   indicator.update({ action: tool, count: count + 1 });
   count++;
-  
+
   if (count >= 15) {
     clearInterval(testInterval);
     setTimeout(() => {

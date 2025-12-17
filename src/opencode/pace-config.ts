@@ -11,7 +11,6 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 
-
 // Import agent markdown files
 import codeReviewerMd from './agents/code-reviewer.md' with { type: 'text' };
 import codingAgentMd from './agents/coding-agent.md' with { type: 'text' };
