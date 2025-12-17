@@ -3780,3 +3780,46 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining documentation tasks
 
 ---
+
+### Session 88 - Init Command Documentation Update
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F021: Update pace init command documentation
+
+**Actions Taken:**
+
+- **Updated src/opencode/commands/pace-init.md**:
+  - Added comprehensive "Archiving Behavior" section at the beginning
+  - Documented .runs directory structure with visual tree example
+  - Explained archive directory naming format (YYYY-MM-DD_HH-MM-SS)
+  - Described how metadata.last_updated is used for archive naming
+  - Listed files that get archived: feature_list.json (always), progress.txt (optional)
+  - Documented error handling: .runs fallback to .bak, graceful degradation
+  - Added security note about path traversal protection
+  - Updated feature_list.json metadata example to include last_updated field
+  - Added "Important Metadata Fields" section explaining last_updated usage
+
+**Test Results:**
+
+- All tests pass: 281 pass, 34 skip, 0 fail
+- Build succeeds without errors
+- CLI help text displays correctly
+- pace status shows 30/50 passing
+- pace validate passes with no errors
+- Documentation is comprehensive and accurate
+
+**Current Status:**
+
+- Features passing: 30/50 (60.0%)
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F022 (Add JSDoc comments to archiving utility functions)
+- Continue with remaining documentation tasks
+
+---
