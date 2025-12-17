@@ -158,3 +158,46 @@
 - Note: Archive permission functionality is now fully tested and verified
 
 ---
+
+### Session 101 - F036 Force Flag Implementation
+
+**Date:** 2025-12-17
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F036: Support --force flag to skip archiving and overwrite files
+
+**Actions Taken:**
+
+- Added --force option to init command parser in parseArgs function
+- Modified handleInit to skip archiving when --force is set
+- Added warning message when files are being overwritten due to --force
+- Updated help text to document --force flag
+- Tested --force flag functionality end-to-end
+
+**Files Modified:**
+
+- cli.ts (added --force parsing and logic)
+- feature_list.json (marked F036 as passing, updated metadata counts)
+
+**Test Results:**
+
+- Help text correctly shows --force flag and description
+- --force flag with dry-run works correctly
+- --force flag shows warning message about overwriting files
+- --force flag correctly skips archiving (no new archive directories created)
+- Normal archiving behavior preserved when --force not used
+- All existing unit tests pass (395 tests, 0 failures)
+
+**Current Status:**
+
+- Features passing: 42/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F037 - Add --archive-only flag to archive without initializing
+- Note: Force flag functionality is fully implemented and tested
+
+---

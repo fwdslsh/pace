@@ -69,6 +69,7 @@ interface ParsedArgs {
     // Init-specific
     prompt?: string;
     file?: string;
+    force?: boolean;
     // Update-specific
     featureId?: string;
     passStatus?: boolean;
@@ -205,6 +206,9 @@ function parseArgs(): ParsedArgs {
         break;
       case '--file':
         options.file = args[++i];
+        break;
+      case '--force':
+        options.force = true;
         break;
       default:
         // For update command, parse feature ID and pass/fail
@@ -1098,15 +1102,32 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
   const paceConfig = await loadConfig(projectDir);
   const paceSettings = getPaceSettings(paceConfig);
 
-  // Check if feature_list.json already exists and archive if needed
-  const archiveManager = new ArchiveManager();
-  const { archived, archivePath, archivedFiles } = await archiveManager.archive({
-    projectDir,
-    archiveDir: paceSettings.archiveDir,
-    dryRun: options.dryRun,
-    silent: options.json,
-    verbose: options.verbose,
-  });
+  // Check if feature_list.json already exists and handle based on --force flag
+  let archived = false;
+  let archivePath: string | null = null;
+  let archivedFiles: string[] = [];
+
+  if (!options.force) {
+    // Normal archiving behavior
+    const archiveManager = new ArchiveManager();
+    const archiveResult = await archiveManager.archive({
+      projectDir,
+      archiveDir: paceSettings.archiveDir,
+      dryRun: options.dryRun,
+      silent: options.json,
+      verbose: options.verbose,
+    });
+    archived = archiveResult.archived;
+    archivePath = archiveResult.archivePath;
+    archivedFiles = archiveResult.archivedFiles;
+  } else {
+    // --force flag: skip archiving and warn about overwriting
+    const featureListExists = await checkFeatureListExists(projectDir);
+    if (featureListExists && !options.dryRun && !options.json) {
+      console.log('\n⚠️  Warning: --force flag specified');
+      console.log('   Existing files will be overwritten without archiving');
+    }
+  }
 
   if (options.dryRun) {
     // Get agent-specific model if configured (CLI --model overrides everything)
@@ -1714,11 +1735,13 @@ INIT OPTIONS:
     --prompt, -p TEXT            Project description prompt
     --file PATH                  Path to file containing project description
     --url, -u URL                Connect to existing OpenCode server (instead of spawning)
+    --force                      Skip archiving and overwrite existing files
     --dry-run                    Show what would be done without executing
     --verbose, -v                Show detailed output during initialization
     --json                       Output results in JSON format
 
     Note: Existing feature_list.json will be archived to .runs/ before initialization.
+          Use --force to skip archiving and overwrite existing files.
 
     You can also pass the prompt directly:
         pace init "Build a todo app with authentication"
