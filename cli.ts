@@ -976,6 +976,29 @@ async function handleRun(options: ParsedArgs['options']): Promise<void> {
   }
 }
 
+/**
+ * Check if feature_list.json exists in the given directory
+ *
+ * @param projectDir - The project directory path
+ * @returns true if feature_list.json exists, false if not found (ENOENT)
+ * @throws Error if a non-ENOENT error occurs (e.g., permission denied)
+ */
+async function checkFeatureListExists(projectDir: string): Promise<boolean> {
+  const featureListPath = join(projectDir, 'feature_list.json');
+
+  try {
+    await stat(featureListPath);
+    return true;
+  } catch (error) {
+    const err = error as { code?: string };
+    if (err.code === 'ENOENT') {
+      return false;
+    }
+    // Re-throw non-ENOENT errors (permission issues, etc.)
+    throw error;
+  }
+}
+
 async function handleInit(options: ParsedArgs['options']): Promise<void> {
   const projectDir = resolve(options.projectDir);
 
@@ -1023,9 +1046,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
   const featureListPath = join(projectDir, 'feature_list.json');
   let archivePath: string | null = null;
 
-  try {
-    await stat(featureListPath);
+  const featureListExists = await checkFeatureListExists(projectDir);
 
+  if (featureListExists) {
     // File exists - archive before initializing (unless dry-run)
     if (!options.json) {
       console.log('\n📦 Existing project files found');
@@ -1099,8 +1122,6 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
         console.log('✅ Archiving complete\n');
       }
     }
-  } catch {
-    // File doesn't exist, which is expected for first init
   }
 
   if (options.dryRun) {
@@ -1848,4 +1869,4 @@ if (import.meta.main) {
 }
 
 // Export for testing
-export { Orchestrator, parseArgs, parseModelId, type ParsedArgs };
+export { Orchestrator, parseArgs, parseModelId, checkFeatureListExists, type ParsedArgs };

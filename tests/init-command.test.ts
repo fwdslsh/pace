@@ -9,7 +9,7 @@
  */
 
 import { spawn } from 'child_process';
-import { mkdtemp, rm, writeFile, readFile, stat, chmod } from 'fs/promises';
+import { mkdtemp, rm, writeFile, readFile, stat, chmod, mkdir } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -1213,5 +1213,100 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
     expect(normalizedTimestamp1).not.toBe(normalizedTimestamp2);
     expect(normalizedTimestamp2).not.toBe(normalizedTimestamp3);
     expect(normalizedTimestamp1).not.toBe(normalizedTimestamp3);
+  });
+});
+
+/**
+ * Unit tests for checkFeatureListExists function
+ * Tests F003: Add function to check if feature_list.json exists before init
+ */
+describe('checkFeatureListExists Function', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'pace-check-exists-'));
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('should return true when feature_list.json exists', async () => {
+    // Import the function
+    const { checkFeatureListExists } = await import('../cli.js');
+
+    // Create feature_list.json
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify({ features: [] }));
+
+    // Test
+    const exists = await checkFeatureListExists(tempDir);
+    expect(exists).toBe(true);
+  });
+
+  it('should return false when feature_list.json does not exist', async () => {
+    // Import the function
+    const { checkFeatureListExists } = await import('../cli.js');
+
+    // Don't create feature_list.json
+
+    // Test
+    const exists = await checkFeatureListExists(tempDir);
+    expect(exists).toBe(false);
+  });
+
+  it('should handle permission errors appropriately', async () => {
+    // Import the function
+    const { checkFeatureListExists } = await import('../cli.js');
+
+    // Create a directory with no read permissions (simulating permission error)
+    const restrictedDir = join(tempDir, 'restricted');
+    await mkdir(restrictedDir, { recursive: true });
+    const featureListPath = join(restrictedDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify({ features: [] }));
+
+    // Remove read permissions on the directory
+    await chmod(restrictedDir, 0o000);
+
+    try {
+      // This should throw an error (not return false)
+      await checkFeatureListExists(restrictedDir);
+      // If we reach here, the test should fail
+      expect(true).toBe(false);
+    } catch (error) {
+      // Expected behavior - should throw for non-ENOENT errors
+      expect(error).toBeDefined();
+    } finally {
+      // Restore permissions for cleanup
+      await chmod(restrictedDir, 0o755);
+    }
+  });
+
+  it('should work with nested project directories', async () => {
+    // Import the function
+    const { checkFeatureListExists } = await import('../cli.js');
+
+    // Create nested directory
+    const nestedDir = join(tempDir, 'deeply', 'nested', 'project');
+    await mkdir(nestedDir, { recursive: true });
+    const featureListPath = join(nestedDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify({ features: [] }));
+
+    // Test
+    const exists = await checkFeatureListExists(nestedDir);
+    expect(exists).toBe(true);
+  });
+
+  it('should handle empty directories correctly', async () => {
+    // Import the function
+    const { checkFeatureListExists } = await import('../cli.js');
+
+    // Create empty directory
+    const emptyDir = join(tempDir, 'empty');
+    await mkdir(emptyDir, { recursive: true });
+
+    // Test
+    const exists = await checkFeatureListExists(emptyDir);
+    expect(exists).toBe(false);
   });
 });

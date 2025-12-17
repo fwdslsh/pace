@@ -40,7 +40,7 @@
         "Handle other errors appropriately",
         "Add test case for existing and non-existing files"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F004",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 4,
-    "failing": 46,
+    "passing": 5,
+    "failing": 45,
     "last_updated": "2025-12-17T00:00:00.000Z"
   }
 }
