@@ -26,6 +26,7 @@ import { join, resolve } from 'path';
 
 import { createOpencode, createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk';
 
+import { moveToArchive, normalizeTimestamp } from './src/archive-utils';
 import { FeatureManager } from './src/feature-manager';
 import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
 import paceInitMd from './src/opencode/commands/pace-init.md' with { type: 'text' };
@@ -35,6 +36,7 @@ import {
   getAgentModel,
   getPaceSettings,
 } from './src/opencode/pace-config';
+import { createProgressIndicator, type ProgressIndicator } from './src/progress-indicator';
 import { StatusReporter } from './src/status-reporter';
 import { PACE_AGENTS, type Feature, type SessionSummary } from './src/types';
 import {
@@ -540,6 +542,18 @@ class Orchestrator {
     let toolCalls = 0;
     let textParts = 0;
 
+    // Progress indicator for non-verbose mode
+    let progressIndicator: ProgressIndicator | null = null;
+    if (!this.json && !this.verbose) {
+      progressIndicator = createProgressIndicator({
+        trackWidth: 20,
+        showEmojis: true,
+        showElapsed: true,
+        showCount: true,
+        countLabel: 'tool calls',
+      });
+    }
+
     try {
       for await (const event of events.stream) {
         // Session-level events have session ID in properties.sessionID
@@ -573,16 +587,99 @@ class Orchestrator {
         if (event.type === 'message.part.updated') {
           const part = event.properties?.part;
           if (part?.type === 'tool') {
-            toolCalls++;
             if (part.state?.status === 'running') {
-              this.log(`  Tool: ${part.tool}...`);
+              toolCalls++;
+              // Update progress indicator
+              if (progressIndicator) {
+                progressIndicator.update({ action: part.tool || '', count: toolCalls });
+              }
+
+              if (this.verbose) {
+                const toolName = part.tool || 'unknown';
+                const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+                console.log(`\n[${timestamp}] 🔧 Tool: ${toolName}`);
+
+                // Show tool parameters if available
+                if (part.state.input && Object.keys(part.state.input).length > 0) {
+                  const inputStr = JSON.stringify(part.state.input, null, 2);
+                  const lines = inputStr.split('\n');
+                  if (lines.length > 10) {
+                    console.log(
+                      `  Input: ${lines.slice(0, 10).join('\n  ')}\n  ... (${lines.length - 10} more lines)`,
+                    );
+                  } else {
+                    console.log(`  Input: ${inputStr}`);
+                  }
+                }
+              } else {
+                this.log(`  Tool: ${part.tool}...`);
+              }
             } else if (part.state?.status === 'completed') {
-              this.log(`  Tool: ${part.tool} - ${part.state.title || 'done'}`);
+              if (this.verbose) {
+                const toolName = part.tool || 'unknown';
+                const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+                const title = part.state.title || 'completed';
+                const duration = part.state.time
+                  ? ((part.state.time.end - part.state.time.start) / 1000).toFixed(2)
+                  : '?';
+                console.log(`[${timestamp}] ✓ Tool: ${toolName} - ${title} (${duration}s)`);
+
+                // Show output/result if available
+                if (part.state.output) {
+                  const outputStr = part.state.output;
+                  const lines = outputStr.split('\n');
+                  if (lines.length > 20) {
+                    console.log(
+                      `  Output (${lines.length} lines):\n  ${lines.slice(0, 20).join('\n  ')}\n  ... (${lines.length - 20} more lines)`,
+                    );
+                  } else if (lines.length > 1) {
+                    console.log(`  Output:\n  ${lines.join('\n  ')}`);
+                  } else if (outputStr.length > 200) {
+                    console.log(
+                      `  Output: ${outputStr.slice(0, 200)}... (${outputStr.length} chars)`,
+                    );
+                  } else {
+                    console.log(`  Output: ${outputStr}`);
+                  }
+                }
+              } else {
+                this.log(`  Tool: ${part.tool} - ${part.state.title || 'done'}`);
+              }
+            } else if (part.state?.status === 'error') {
+              const toolName = part.tool || 'unknown';
+              if (this.verbose) {
+                const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+                console.error(`[${timestamp}] ✗ Tool: ${toolName} - ERROR`);
+                if (part.state.error) {
+                  console.error(`  Error: ${part.state.error}`);
+                }
+              } else {
+                console.error(`  Tool: ${toolName} - ERROR`);
+              }
             }
           } else if (part?.type === 'text') {
             textParts++;
             const text = part.text || '';
-            if (text.length > 0 && textParts % 5 === 0) {
+
+            if (this.verbose && text.length > 0) {
+              // In verbose mode, show all text output with timestamps
+              const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+              const lines = text.split('\n');
+              console.log(`[${timestamp}] 💬 Agent response (${text.length} chars):`);
+
+              // Show more text in verbose mode (up to 500 chars or 20 lines)
+              if (text.length > 500 || lines.length > 20) {
+                const preview = lines.slice(0, 20).join('\n').slice(0, 500);
+                console.log(`  ${preview.split('\n').join('\n  ')}`);
+                if (text.length > 500) {
+                  console.log(`  ... (${text.length - 500} more chars)`);
+                } else {
+                  console.log(`  ... (${lines.length - 20} more lines)`);
+                }
+              } else {
+                console.log(`  ${text.split('\n').join('\n  ')}`);
+              }
+            } else if (!this.verbose && text.length > 0 && textParts % 5 === 0) {
               this.log(`  [Text output ${textParts}...]`);
             }
           }
@@ -591,6 +688,11 @@ class Orchestrator {
     } catch (error) {
       console.error(`Event stream error: ${error}`);
       success = false;
+    } finally {
+      // Clean up progress indicator
+      if (progressIndicator) {
+        progressIndicator.stop();
+      }
     }
 
     const duration = Date.now() - startTime;
@@ -970,7 +1072,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
 
     if (options.url) {
       // Connect to existing OpenCode server
-      externalClient = createOpencodeClient({      
+      externalClient = createOpencodeClient({
         baseUrl: options.url,
       });
       client = externalClient;
@@ -981,7 +1083,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       // Start embedded OpenCode server
       // OpenCode reads its config from .opencode/opencode.jsonc automatically
       console.log('Starting embedded OpenCode server...');
-      opencode = await createOpencode({        
+      opencode = await createOpencode({
         config: paceConfig,
         port: 0,
       });
@@ -1004,9 +1106,8 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
 
     // Create a session for initialization
     const sessionResult = await client.session.create({
-      
       body: {
-        title: `Pace Init: ${projectDescription.slice(0, 40)}...`,      
+        title: `Pace Init: ${projectDescription.slice(0, 40)}...`,
       },
     });
 
@@ -1021,7 +1122,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
 
     // Use the /pace-init slash command to invoke the initializer agent
     const fullPrompt = `${paceInitMd}\n${projectDescription}`;
-    
+
     console.log('--- Sending Prompt to Initializer Agent ---');
     console.log(fullPrompt);
     console.log('--- End of Prompt ---');
@@ -1032,7 +1133,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       body: {
         parts: [{ type: 'text', text: fullPrompt }],
         agent: 'pace-initializer',
-        
+
         //...(agentModel && { model: agentModel }),
       },
     });
@@ -1046,87 +1147,17 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     let toolCalls = 0;
     let textParts = 0;
     const startTime = Date.now();
-    let currentTool = '';
 
-    // Progress indicator for non-verbose mode - turtle walking back and forth
-    const trackWidth = 20;
-    let turtlePosition = 0;
-    let turtleDirection = 1; // 1 = right, -1 = left
-    let animationInterval: ReturnType<typeof setInterval> | null = null;
-    const toolEmojis: string[] = []; // Track emojis for each tool call
-
-    // Map tool names to emojis
-    const getToolEmoji = (toolName: string): string => {
-      const toolMap: Record<string, string> = {
-        write: '📝',
-        write_file: '📝',
-        read: '📖',
-        read_file: '📖',
-        edit: '✏️',
-        bash: '🖥️',
-        shell: '🖥️',
-        glob: '🔍',
-        grep: '🔎',
-        list: '📋',
-        search: '🔍',
-        git: '📦',
-        mkdir: '📁',
-        rm: '🗑️',
-        mv: '📦',
-        cp: '📋',
-      };
-      // Check for partial matches
-      const lowerTool = toolName.toLowerCase();
-      for (const [key, emoji] of Object.entries(toolMap)) {
-        if (lowerTool.includes(key)) return emoji;
-      }
-      return '🔧'; // Default tool emoji
-    };
-
+    // Progress indicator for non-verbose mode
+    let progressIndicator: ProgressIndicator | null = null;
     if (!options.json && !options.verbose) {
-      animationInterval = setInterval(() => {
-        const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-
-        // Build tool emoji row (limited to track width)
-        const maxEmojis = Math.floor(trackWidth / 2); // Each emoji is ~2 chars wide
-        const displayEmojis = toolEmojis.slice(-maxEmojis).join('');
-        const emojiRow = displayEmojis.length > 0 ? `[${displayEmojis}]` : '';
-
-        // ASCII art turtles that face the direction they're walking
-        //   ~}@}o  - tail, shell, head (going right)
-        //   o{@{~  - head, shell, tail (going left)
-        const turtleRight = '~}@}o';
-        const turtleLeft = 'o{@{~';
-        const turtle = turtleDirection > 0 ? turtleRight : turtleLeft;
-        const turtleWidth = turtle.length;
-
-        // Build the track with turtle
-        const leftPad = ' '.repeat(turtlePosition);
-        const rightPad = ' '.repeat(Math.max(0, trackWidth - turtleWidth - turtlePosition));
-        const track = `[${leftPad}${turtle}${rightPad}]`;
-
-        // Clear previous lines and draw new ones
-        const line1 = emojiRow.padEnd(trackWidth + 2);
-        const line2 = `${track} ${elapsed}s elapsed, ${toolCalls} tool calls`;
-
-        // Move cursor up if we have emojis, then redraw
-        if (toolEmojis.length > 0) {
-          process.stdout.write(`\r\x1b[K${line1}\n\r\x1b[K${line2}\x1b[A\r`);
-        } else {
-          process.stdout.write(`\r\x1b[K${line2}`);
-        }
-
-        // Move turtle
-        turtlePosition += turtleDirection;
-        const maxPosition = trackWidth - turtleWidth;
-        if (turtlePosition >= maxPosition) {
-          turtlePosition = maxPosition;
-          turtleDirection = -1;
-        } else if (turtlePosition <= 0) {
-          turtlePosition = 0;
-          turtleDirection = 1;
-        }
-      }, 150);
+      progressIndicator = createProgressIndicator({
+        trackWidth: 20,
+        showEmojis: true,
+        showElapsed: true,
+        showCount: true,
+        countLabel: 'tool calls',
+      });
     }
 
     for await (const event of events.stream) {
@@ -1160,47 +1191,101 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
         const part = event.properties?.part;
         if (part?.type === 'tool') {
           if (part.state?.status === 'running') {
-            currentTool = part.tool || '';
             toolCalls++;
-            // Add emoji for this tool (non-verbose mode)
-            if (!options.json && !options.verbose) {
-              toolEmojis.push(getToolEmoji(currentTool));
+            // Update progress indicator
+            if (progressIndicator) {
+              progressIndicator.update({ action: part.tool || '', count: toolCalls });
+            }
+
+            if (options.verbose && !options.json) {
+              const toolName = part.tool || 'unknown';
+              const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+              console.log(`\n[${timestamp}] 🔧 Tool: ${toolName}`);
+
+              // Show tool parameters if available
+              if (part.state.input && Object.keys(part.state.input).length > 0) {
+                const inputStr = JSON.stringify(part.state.input, null, 2);
+                const lines = inputStr.split('\n');
+                if (lines.length > 10) {
+                  console.log(
+                    `  Input: ${lines.slice(0, 10).join('\n  ')}\n  ... (${lines.length - 10} more lines)`,
+                  );
+                } else {
+                  console.log(`  Input: ${inputStr}`);
+                }
+              }
             }
           } else if (part.state?.status === 'completed') {
-            currentTool = '';
-          }
-          if (options.verbose && !options.json) {
-            if (part.state?.status === 'running') {
-              console.log(`  Tool: ${part.tool}...`);
-            } else if (part.state?.status === 'completed') {
-              console.log(`  Tool: ${part.tool} - done`);
+            if (options.verbose && !options.json) {
+              const toolName = part.tool || 'unknown';
+              const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+              const title = 'done';
+              const duration = part.state.time
+                ? ((part.state.time.end - part.state.time.start) / 1000).toFixed(2)
+                : '?';
+              console.log(`[${timestamp}] ✓ Tool: ${toolName} - ${title} (${duration}s)`);
+
+              // Show output/result if available
+              if (part.state.output) {
+                const outputStr = part.state.output;
+                const lines = outputStr.split('\n');
+                if (lines.length > 20) {
+                  console.log(
+                    `  Output (${lines.length} lines):\n  ${lines.slice(0, 20).join('\n  ')}\n  ... (${lines.length - 20} more lines)`,
+                  );
+                } else if (lines.length > 1) {
+                  console.log(`  Output:\n  ${lines.join('\n  ')}`);
+                } else if (outputStr.length > 200) {
+                  console.log(
+                    `  Output: ${outputStr.slice(0, 200)}... (${outputStr.length} chars)`,
+                  );
+                } else {
+                  console.log(`  Output: ${outputStr}`);
+                }
+              }
+            }
+          } else if (part.state?.status === 'error') {
+            const toolName = part.tool || 'unknown';
+            if (options.verbose && !options.json) {
+              const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+              console.error(`[${timestamp}] ✗ Tool: ${toolName} - ERROR`);
+              if (part.state.error) {
+                console.error(`  Error: ${part.state.error}`);
+              }
+            } else if (!options.json) {
+              console.error(`  Tool: ${toolName} - ERROR`);
             }
           }
         } else if (part?.type === 'text') {
           textParts++;
           const text = part.text || '';
-          // Show text output in verbose mode
+
           if (options.verbose && !options.json && text.length > 0) {
-            // Show first line of text (truncated if needed)
-            const firstLine = text.split('\n')[0].trim();
-            if (firstLine.length > 0) {
-              const display = firstLine.length > 100 ? firstLine.slice(0, 100) + '...' : firstLine;
-              console.log(`  ${display}`);
+            // In verbose mode, show all text output with timestamps
+            const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+            const lines = text.split('\n');
+            console.log(`[${timestamp}] 💬 Agent response (${text.length} chars):`);
+
+            // Show more text in verbose mode (up to 500 chars or 20 lines)
+            if (text.length > 500 || lines.length > 20) {
+              const preview = lines.slice(0, 20).join('\n').slice(0, 500);
+              console.log(`  ${preview.split('\n').join('\n  ')}`);
+              if (text.length > 500) {
+                console.log(`  ... (${text.length - 500} more chars)`);
+              } else {
+                console.log(`  ... (${lines.length - 20} more lines)`);
+              }
+            } else {
+              console.log(`  ${text.split('\n').join('\n  ')}`);
             }
           }
         }
       }
     }
 
-    // Clean up turtle animation
-    if (animationInterval) {
-      clearInterval(animationInterval);
-      // Clear both lines if we had emojis displayed
-      if (toolEmojis.length > 0) {
-        process.stdout.write('\r\x1b[K\n\r\x1b[K\x1b[A\r');
-      } else {
-        process.stdout.write('\r\x1b[K');
-      }
+    // Clean up progress indicator
+    if (progressIndicator) {
+      progressIndicator.stop();
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);

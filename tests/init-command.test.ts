@@ -52,15 +52,33 @@ describe.skipIf(!sdkAvailable)('Init Command CLI Integration Tests', () => {
     return new Promise((resolve, reject) => {
       const proc = spawn('bun', ['run', cliPath, ...args], {
         cwd: tempDir,
+        detached: false, // Keep as part of this process group for easier cleanup
       });
 
       let stdout = '';
       let stderr = '';
       let completed = false;
+      let forceKillTimer: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (forceKillTimer) {
+          clearTimeout(forceKillTimer);
+          forceKillTimer = null;
+        }
+      };
 
       const timer = setTimeout(() => {
         if (!completed) {
-          proc.kill();
+          completed = true;
+          proc.kill('SIGTERM');
+          // Force kill after 1 second if still running
+          forceKillTimer = setTimeout(() => {
+            try {
+              proc.kill('SIGKILL');
+            } catch (e) {
+              // Process already terminated
+            }
+          }, 1000);
           reject(new Error('Process timeout'));
         }
       }, timeout);
@@ -73,14 +91,32 @@ describe.skipIf(!sdkAvailable)('Init Command CLI Integration Tests', () => {
         stderr += data.toString();
       });
 
+      proc.on('error', (err) => {
+        if (!completed) {
+          completed = true;
+          clearTimeout(timer);
+          cleanup();
+          // Try to kill the process if it's still running
+          try {
+            proc.kill('SIGKILL');
+          } catch (e) {
+            // Process already terminated
+          }
+          reject(err);
+        }
+      });
+
       proc.on('close', (code) => {
-        completed = true;
-        clearTimeout(timer);
-        resolve({
-          stdout,
-          stderr,
-          exitCode: code || 0,
-        });
+        if (!completed) {
+          completed = true;
+          clearTimeout(timer);
+          cleanup();
+          resolve({
+            stdout,
+            stderr,
+            exitCode: code || 0,
+          });
+        }
       });
     });
   };
@@ -123,14 +159,7 @@ describe.skipIf(!sdkAvailable)('Init Command CLI Integration Tests', () => {
     });
 
     it('should concatenate multiple positional arguments as prompt', async () => {
-      const result = await runCLI([
-        'init',
-        '--dry-run',
-        'Build',
-        'a',
-        'multi-word',
-        'application',
-      ]);
+      const result = await runCLI(['init', '--dry-run', 'Build', 'a', 'multi-word', 'application']);
       expect(result.stdout).toContain('Build a multi-word application');
       expect(result.exitCode).toBe(0);
     });
