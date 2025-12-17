@@ -709,7 +709,7 @@
         "Include in both verbose and normal modes",
         "Format consistently with other CLI output"
       ],
-      "passes": false
+      "passes": true
     }
   ],
   "metadata": {

@@ -1584,6 +1584,31 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       if (featureCount > 0) {
         console.log(`\nFeatures defined: ${featureCount}`);
       }
+
+      // Show archive location if files were archived
+      if (archived && archivePath) {
+        console.log(`\nPrevious run archived to: ${archivePath}`);
+      }
+      console.log('\nNext steps:');
+      console.log('  1. Review feature_list.json to verify features');
+      console.log('  2. Run: pace status');
+      console.log('  3. Run: pace run --max-sessions 5');
+      console.log('='.repeat(60) + '\n');
+
+      if (featureCount > 0) {
+        console.log(`\nFeatures defined: ${featureCount}`);
+      }
+
+      // Show archive location if files were archived
+      // Debug: Always show the values in verbose mode
+      if (!options.json && options.verbose) {
+        console.log(
+          `\n[DEBUG] Archive check - archived: ${archived}, archivePath: "${archivePath}"`,
+        );
+      }
+      if (archived && archivePath) {
+        console.log(`\nPrevious run archived to: ${archivePath}`);
+      }
       console.log('\nNext steps:');
       console.log('  1. Review feature_list.json to verify features');
       console.log('  2. Run: pace status');
@@ -1641,9 +1666,28 @@ async function handleValidate(options: ParsedArgs['options']): Promise<void> {
         );
       } else {
         console.log('\n' + '='.repeat(60));
-        console.log(' Feature List Validation Report');
+        console.log(' INITIALIZATION COMPLETE');
+        console.log('='.repeat(60));
+        console.log(`\nDuration: ${duration}s`);
+        console.log(`Tool calls: ${toolCalls}`);
+        console.log(`Text outputs: ${textParts}`);
+        console.log(`\nFiles created:`);
+        for (const file of filesCreated) {
+          console.log(`  - ${file}`);
+        }
+        if (featureCount > 0) {
+          console.log(`\nFeatures defined: ${featureCount}`);
+        }
+
+        // Show archive location if files were archived
+        if (archived && archivePath) {
+          console.log(`\nPrevious run archived to: ${archivePath}`);
+        }
+        console.log('\nNext steps:');
+        console.log('  1. Review feature_list.json to verify features');
+        console.log('  2. Run: pace status');
+        console.log('  3. Run: pace run --max-sessions 5');
         console.log('='.repeat(60) + '\n');
-        console.log('INVALID - No features found in feature_list.json\n');
       }
       process.exit(1);
     }
