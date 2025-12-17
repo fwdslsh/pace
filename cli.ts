@@ -993,27 +993,67 @@ Begin now by analyzing the requirements and creating all necessary files.`;
     let textParts = 0;
     const startTime = Date.now();
     let currentTool = '';
-    let lastProgressUpdate = 0;
 
     // Progress indicator for non-verbose mode - turtle walking back and forth
     const trackWidth = 20;
     let turtlePosition = 0;
     let turtleDirection = 1; // 1 = right, -1 = left
     let animationInterval: ReturnType<typeof setInterval> | null = null;
+    const toolEmojis: string[] = []; // Track emojis for each tool call
+
+    // Map tool names to emojis
+    const getToolEmoji = (toolName: string): string => {
+      const toolMap: Record<string, string> = {
+        write: '📝',
+        write_file: '📝',
+        read: '📖',
+        read_file: '📖',
+        edit: '✏️',
+        bash: '🖥️',
+        shell: '🖥️',
+        glob: '🔍',
+        grep: '🔎',
+        list: '📋',
+        search: '🔍',
+        git: '📦',
+        mkdir: '📁',
+        rm: '🗑️',
+        mv: '📦',
+        cp: '📋',
+      };
+      // Check for partial matches
+      const lowerTool = toolName.toLowerCase();
+      for (const [key, emoji] of Object.entries(toolMap)) {
+        if (lowerTool.includes(key)) return emoji;
+      }
+      return '🔧'; // Default tool emoji
+    };
 
     if (!options.json && !options.verbose) {
       animationInterval = setInterval(() => {
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-        const toolInfo = currentTool ? ` ${currentTool}` : '';
 
-        // Build the track with turtle
+        // Build tool emoji row (limited to track width)
+        const maxEmojis = Math.floor(trackWidth / 2); // Each emoji is ~2 chars wide
+        const displayEmojis = toolEmojis.slice(-maxEmojis).join('');
+        const emojiRow = displayEmojis.length > 0 ? `[${displayEmojis}]` : '';
+
+        // Build the track with turtle (flips based on direction)
         const leftPad = ' '.repeat(turtlePosition);
         const rightPad = ' '.repeat(trackWidth - turtlePosition);
-        const turtle = turtleDirection > 0 ? '🐢' : '🐢';
+        const turtle = turtleDirection > 0 ? '🐢' : '🐢\u200D↩️'.slice(0, 2); // Use mirror trick
         const track = `[${leftPad}${turtle}${rightPad}]`;
 
-        const statusLine = `${track} ${elapsed}s elapsed, ${toolCalls} tool calls${toolInfo}`;
-        process.stdout.write(`\r${statusLine.padEnd(80)}`);
+        // Clear previous lines and draw new ones
+        const line1 = emojiRow.padEnd(trackWidth + 2);
+        const line2 = `${track} ${elapsed}s elapsed, ${toolCalls} tool calls`;
+
+        // Move cursor up if we have emojis, then redraw
+        if (toolEmojis.length > 0) {
+          process.stdout.write(`\r\x1b[K${line1}\n\r\x1b[K${line2}\x1b[A\r`);
+        } else {
+          process.stdout.write(`\r\x1b[K${line2}`);
+        }
 
         // Move turtle
         turtlePosition += turtleDirection;
@@ -1060,6 +1100,10 @@ Begin now by analyzing the requirements and creating all necessary files.`;
           if (part.state?.status === 'running') {
             currentTool = part.tool || '';
             toolCalls++;
+            // Add emoji for this tool (non-verbose mode)
+            if (!options.json && !options.verbose) {
+              toolEmojis.push(getToolEmoji(currentTool));
+            }
           } else if (part.state?.status === 'completed') {
             currentTool = '';
           }
@@ -1073,19 +1117,6 @@ Begin now by analyzing the requirements and creating all necessary files.`;
         } else if (part?.type === 'text') {
           textParts++;
           const text = part.text || '';
-          // Show periodic progress updates in non-verbose mode
-          const now = Date.now();
-          if (
-            !options.json &&
-            !options.verbose &&
-            now - lastProgressUpdate > 10000 &&
-            toolCalls > 0
-          ) {
-            // Clear spinner line and show milestone
-            process.stdout.write('\r' + ' '.repeat(80) + '\r');
-            console.log(`  [${toolCalls} tool calls completed...]`);
-            lastProgressUpdate = now;
-          }
           // Show text output in verbose mode
           if (options.verbose && !options.json && text.length > 0) {
             // Show first line of text (truncated if needed)
@@ -1102,7 +1133,12 @@ Begin now by analyzing the requirements and creating all necessary files.`;
     // Clean up turtle animation
     if (animationInterval) {
       clearInterval(animationInterval);
-      process.stdout.write('\r' + ' '.repeat(80) + '\r');
+      // Clear both lines if we had emojis displayed
+      if (toolEmojis.length > 0) {
+        process.stdout.write('\r\x1b[K\n\r\x1b[K\x1b[A\r');
+      } else {
+        process.stdout.write('\r\x1b[K');
+      }
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
