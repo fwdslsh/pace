@@ -11,7 +11,7 @@ Execute these steps EXACTLY in every session to make consistent, incremental pro
 pwd
 
 # 2. Read progress file to understand recent work
-cat claude-progress.txt
+cat progress.txt
 
 # 3. Check recent git history
 git log --oneline -20
@@ -172,7 +172,7 @@ Use conventional commit format:
 
 ### Step 9: Update Progress File
 
-Append a new session entry to `claude-progress.txt`:
+Append a new session entry to `progress.txt`:
 
 ```markdown
 ---
@@ -207,7 +207,7 @@ Append a new session entry to `claude-progress.txt`:
 ### Step 10: Final Commit
 
 ```bash
-git add claude-progress.txt
+git add progress.txt
 git commit -m "docs: update progress log for session N"
 ```
 
@@ -246,7 +246,7 @@ Before ending any session, verify:
 - [ ] Feature implemented and tested end-to-end
 - [ ] `feature_list.json` updated (only `passes` field changed)
 - [ ] Git commits made with descriptive messages
-- [ ] `claude-progress.txt` updated with session details
+- [ ] `progress.txt` updated with session details
 - [ ] No uncommitted changes (`git status` is clean)
 - [ ] Development server can still start
 - [ ] Basic functionality still works (no regressions)

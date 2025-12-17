@@ -79,7 +79,7 @@ An executable bash script that sets up and starts the development environment.
 - Clear output showing server URL
 - Error handling
 
-### 3. claude-progress.txt
+### 3. progress.txt
 
 A progress log documenting what has been done and what comes next.
 

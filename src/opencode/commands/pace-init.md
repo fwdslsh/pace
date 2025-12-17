@@ -97,7 +97,7 @@ echo "Press Ctrl+C to stop"
 
 ## Step 4: Initialize Progress File
 
-Create `claude-progress.txt`:
+Create `progress.txt`:
 
 ```markdown
 # Project Progress Log
@@ -148,7 +148,7 @@ git commit -m "chore: initialize project with long-running agent harness
 
 - Add feature_list.json with N features (all failing)
 - Add init.sh for development environment setup
-- Add claude-progress.txt for session tracking
+- Add progress.txt for session tracking
 - Set up initial project structure"
 ```
 
@@ -159,7 +159,7 @@ Before ending the session:
 1. Run `init.sh` to verify it works
 2. Confirm `feature_list.json` is valid JSON
 3. Verify git commit was successful
-4. Review `claude-progress.txt` for completeness
+4. Review `progress.txt` for completeness
 
 ## Output Checklist
 
@@ -167,7 +167,7 @@ At session end, confirm these files exist and are committed:
 
 - [ ] `feature_list.json` - All features listed, all `passes: false`
 - [ ] `init.sh` - Executable, starts dev environment
-- [ ] `claude-progress.txt` - Session 1 documented
+- [ ] `progress.txt` - Session 1 documented
 - [ ] Initial git commit made with descriptive message
 
 ## Handoff to Coding Agent

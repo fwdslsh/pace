@@ -41,7 +41,7 @@
 ```
 project-root/
 ├── feature_list.json
-├── claude-progress.txt
+├── progress.txt
 ├── init.sh
 └── [other initial files]
 ```
