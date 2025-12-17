@@ -1201,6 +1201,11 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     archived = archiveResult.archived;
     archivePath = archiveResult.archivePath;
     archivedFiles = archiveResult.archivedFiles;
+
+    // Provide feedback when no files need archiving
+    if (!archived && !options.dryRun && !options.json) {
+      console.log('No existing files to archive');
+    }
   } else {
     // --force flag: skip archiving and warn about overwriting
     const featureListExists = await checkFeatureListExists(projectDir);

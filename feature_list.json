@@ -695,7 +695,7 @@
         "Don't create empty archive directories",
         "Test UX with fresh projects"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F050",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 49,
-    "failing": 1,
+    "passing": 50,
+    "failing": 0,
     "last_updated": "2025-12-17T23:00:00.000Z"
   }
 }
