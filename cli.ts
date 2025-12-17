@@ -1081,9 +1081,11 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     if (options.json) {
       console.log(
         JSON.stringify({
-          archived: archiveResult.archived,
-          archivePath: archiveResult.archivePath,
-          archivedFiles: archiveResult.archivedFiles,
+          archive: {
+            archived: archiveResult.archived,
+            archivePath: archiveResult.archivePath,
+            archivedFiles: archiveResult.archivedFiles,
+          },
           dryRun: options.dryRun,
         }),
       );
@@ -1513,9 +1515,11 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
           featureCount,
           filesCreated,
           sessionId: session.id,
-          archived,
-          archivePath,
-          archivedFiles,
+          archive: {
+            archived,
+            archivePath,
+            archivedFiles,
+          },
         }),
       );
     } else {
