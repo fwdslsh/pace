@@ -751,4 +751,187 @@ Next steps: Continue with remaining features
       expect(destPath).toBe(join(destDir, safeFilename));
     });
   });
+
+  describe('git integration', () => {
+    test('.runs directory is properly ignored by git when in .gitignore', async () => {
+      // Setup: Create a git repository
+      await mkdir(testDir, { recursive: true });
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      // Initialize git repo
+      await execAsync('git init', { cwd: testDir });
+
+      // Create .gitignore with .runs/
+      const gitignorePath = join(testDir, '.gitignore');
+      await writeFile(gitignorePath, '.runs/\n');
+      await execAsync('git add .gitignore', { cwd: testDir });
+      await execAsync('git commit -m "add gitignore"', { cwd: testDir });
+
+      // Create .runs directory with archived files
+      const archiveDir = join(testDir, '.runs', '2025-12-17_10-00-00');
+      await mkdir(archiveDir, { recursive: true });
+      await writeFile(join(archiveDir, 'feature_list.json'), '{"test": true}');
+      await writeFile(join(archiveDir, 'progress.txt'), 'Session 1\n');
+
+      // Check git status
+      const { stdout } = await execAsync('git status --short', { cwd: testDir });
+
+      // Verify: .runs directory is not shown in git status (ignored)
+      expect(stdout).not.toContain('.runs');
+      expect(stdout).not.toContain('feature_list.json');
+      expect(stdout).not.toContain('progress.txt');
+    });
+
+    test('archived files can be committed if .runs is not in .gitignore', async () => {
+      // Setup: Create a git repository
+      await mkdir(testDir, { recursive: true });
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      // Initialize git repo (no .gitignore for .runs)
+      await execAsync('git init', { cwd: testDir });
+
+      // Create initial commit
+      await writeFile(join(testDir, 'README.md'), '# Test\n');
+      await execAsync('git add README.md', { cwd: testDir });
+      await execAsync('git commit -m "initial"', { cwd: testDir });
+
+      // Create .runs directory with archived files
+      const archiveDir = join(testDir, '.runs', '2025-12-17_10-00-00');
+      await mkdir(archiveDir, { recursive: true });
+      const featureContent = '{"features": [], "metadata": {"total": 0}}';
+      await writeFile(join(archiveDir, 'feature_list.json'), featureContent);
+
+      // Add and commit archived files
+      await execAsync('git add .runs/', { cwd: testDir });
+      const { stdout } = await execAsync('git status --short', { cwd: testDir });
+
+      // Verify: Archived files appear in git status (can be committed)
+      expect(stdout).toContain('A  .runs/2025-12-17_10-00-00/feature_list.json');
+
+      // Commit the files
+      await execAsync('git commit -m "archive committed"', { cwd: testDir });
+
+      // Verify: Files are in git history
+      const { stdout: logOutput } = await execAsync('git log --oneline', { cwd: testDir });
+      expect(logOutput).toContain('archive committed');
+
+      // Verify: Archived file is in the git tree
+      const { stdout: lsOutput } = await execAsync('git ls-files', { cwd: testDir });
+      expect(lsOutput).toContain('.runs/2025-12-17_10-00-00/feature_list.json');
+    });
+
+    test('git log functionality works with .runs directory present', async () => {
+      // Setup: Create a git repository
+      await mkdir(testDir, { recursive: true });
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      // Initialize git repo
+      await execAsync('git init', { cwd: testDir });
+
+      // Create .gitignore with .runs/
+      const gitignorePath = join(testDir, '.gitignore');
+      await writeFile(gitignorePath, '.runs/\n');
+      await execAsync('git add .gitignore', { cwd: testDir });
+      await execAsync('git commit -m "add gitignore"', { cwd: testDir });
+
+      // Create some commits
+      await writeFile(join(testDir, 'file1.txt'), 'content 1');
+      await execAsync('git add file1.txt', { cwd: testDir });
+      await execAsync('git commit -m "commit 1"', { cwd: testDir });
+
+      await writeFile(join(testDir, 'file2.txt'), 'content 2');
+      await execAsync('git add file2.txt', { cwd: testDir });
+      await execAsync('git commit -m "commit 2"', { cwd: testDir });
+
+      // Create .runs directory with archived files
+      const archiveDir = join(testDir, '.runs', '2025-12-17_10-00-00');
+      await mkdir(archiveDir, { recursive: true });
+      await writeFile(join(archiveDir, 'feature_list.json'), '{"test": true}');
+
+      // Run git log (similar to StatusReporter.getGitLog)
+      const { stdout, stderr } = await execAsync('git log --oneline -10', { cwd: testDir });
+
+      // Verify: git log works without errors
+      expect(stderr).toBe('');
+      expect(stdout).toContain('commit 2');
+      expect(stdout).toContain('commit 1');
+      expect(stdout).toContain('add gitignore');
+
+      // Verify: git log doesn't include .runs files (they're ignored)
+      expect(stdout).not.toContain('.runs');
+    });
+
+    test('no unexpected git behavior after archiving operations', async () => {
+      // Setup: Create a git repository with existing files
+      await mkdir(testDir, { recursive: true });
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+
+      // Initialize git repo
+      await execAsync('git init', { cwd: testDir });
+
+      // Create .gitignore with .runs/
+      const gitignorePath = join(testDir, '.gitignore');
+      await writeFile(gitignorePath, '.runs/\nnode_modules/\n');
+      await execAsync('git add .gitignore', { cwd: testDir });
+      await execAsync('git commit -m "initial"', { cwd: testDir });
+
+      // Create feature_list.json and progress.txt (tracked files)
+      await writeFile(join(testDir, 'feature_list.json'), '{"test": true}');
+      await writeFile(join(testDir, 'progress.txt'), 'Session 1\n');
+      await execAsync('git add feature_list.json progress.txt', { cwd: testDir });
+      await execAsync('git commit -m "add files"', { cwd: testDir });
+
+      // Simulate archiving: move files to .runs directory
+      const archiveDir = join(testDir, '.runs', '2025-12-17_10-00-00');
+      await mkdir(archiveDir, { recursive: true });
+      const sourceDir = testDir;
+      const sourceFile1 = join(sourceDir, 'feature_list.json');
+      const sourceFile2 = join(sourceDir, 'progress.txt');
+      await moveToArchive(sourceFile1, archiveDir, 'feature_list.json', testDir);
+      await moveToArchive(sourceFile2, archiveDir, 'progress.txt', testDir);
+
+      // Check git status
+      const { stdout: statusOutput } = await execAsync('git status --short', { cwd: testDir });
+
+      // Verify: Git shows the tracked files as deleted (expected behavior)
+      expect(statusOutput).toContain(' D feature_list.json');
+      expect(statusOutput).toContain(' D progress.txt');
+
+      // Verify: .runs directory is not shown (ignored)
+      expect(statusOutput).not.toContain('.runs');
+
+      // Create new feature_list.json and progress.txt
+      await writeFile(join(testDir, 'feature_list.json'), '{"new": true}');
+      await writeFile(join(testDir, 'progress.txt'), 'Session 2\n');
+
+      // Check git status again
+      const { stdout: statusOutput2 } = await execAsync('git status --short', { cwd: testDir });
+
+      // Verify: Git shows modified files (can be added and committed)
+      expect(statusOutput2).toContain(' M feature_list.json');
+      expect(statusOutput2).toContain(' M progress.txt');
+
+      // Add and commit new files
+      await execAsync('git add feature_list.json progress.txt', { cwd: testDir });
+      await execAsync('git commit -m "new files after archive"', { cwd: testDir });
+
+      // Verify: Git log works correctly
+      const { stdout: logOutput } = await execAsync('git log --oneline -5', { cwd: testDir });
+      expect(logOutput).toContain('new files after archive');
+      expect(logOutput).toContain('add files');
+      expect(logOutput).toContain('initial');
+
+      // Verify: No unexpected untracked files
+      const { stdout: statusOutput3 } = await execAsync('git status --short', { cwd: testDir });
+      expect(statusOutput3).toBe(''); // Clean working tree
+    });
+  });
 });
