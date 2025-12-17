@@ -2500,3 +2500,62 @@ The coding agent should start with critical and high priority features:
 - Then F006 (Use current timestamp as fallback if last_updated is missing)
 - Continue with core archiving functionality features
 
+
+---
+
+### Session 64 - Read Last Updated Function
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F004: Add function to read metadata.last_updated from feature_list.json
+
+**Actions Taken:**
+
+- Created `readLastUpdated()` function in `cli.ts`:
+  - Takes projectDir as parameter
+  - Reads feature_list.json and parses JSON content
+  - Extracts metadata.last_updated property
+  - Returns timestamp string if present
+  - Returns undefined if file doesn't exist (ENOENT)
+  - Returns undefined if metadata or last_updated is missing
+  - Throws error for malformed JSON or other read errors
+  - Added comprehensive JSDoc documentation
+- Exported function for use in archiving logic (cli.ts exports)
+- Added 8 comprehensive unit tests to `tests/init-command.test.ts`:
+  1. **Returns timestamp when present**: Verifies function returns correct timestamp
+  2. **Returns undefined when file doesn't exist**: Handles ENOENT gracefully
+  3. **Returns undefined when last_updated is missing**: Handles partial metadata
+  4. **Returns undefined when metadata is missing**: Handles no metadata object
+  5. **Handles malformed JSON**: Throws error for invalid JSON
+  6. **Handles various timestamp formats**: Tests different ISO formats
+  7. **Handles empty feature_list.json**: Works with empty object
+  8. **Works with nested directories**: Handles deep directory structures
+
+**Test Results:**
+
+- All 8 unit tests pass
+- `bun test tests/init-command.test.ts` passes (29 pass, 20 skip)
+- Total test count: 49 tests (71 expect() calls)
+
+**Implementation Details:**
+
+- Function signature: `async function readLastUpdated(projectDir: string): Promise<string | undefined>`
+- Error handling: Returns undefined for ENOENT, throws for JSON parse errors
+- Location: cli.ts:1002-1024 (after checkFeatureListExists function)
+- Export added at: cli.ts:1905
+- Tests location: tests/init-command.test.ts:1315-1470
+
+**Current Status:**
+
+- Features passing: 6/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F006 (Use current timestamp as fallback if last_updated is missing)
+- Will be used in archiving workflow to determine archive directory name
+- Continue building core archiving functionality
+
