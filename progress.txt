@@ -2739,3 +2739,58 @@ The coding agent should start with critical and high priority features:
 - Consider marking F015 as passing if tests are comprehensive
 
 ---
+
+### Session 68 - Unit Tests for File Moving Utility
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F015: Add unit tests for file moving utility
+
+**Actions Taken:**
+
+- Verified existing comprehensive test suite in tests/archive-utils.test.ts
+- Confirmed moveToArchive() tests exist (lines 123-282) covering:
+  1. Successfully moves a file to archive directory
+  2. Creates nested destination directories if they don't exist
+  3. Uses source filename when destination filename is not provided
+  4. Renames file when destination filename is different
+  5. Throws error when source file does not exist
+  6. Handles moving large files correctly (1MB test file)
+  7. Handles JSON files correctly (preserves structure)
+  8. Handles text files with various content types (unicode, markdown)
+  9. Handles permission errors gracefully
+- Tests use tmpdir() for temporary test directories
+- Tests use afterEach cleanup to remove test files after each test
+- All verification steps for F015 are met:
+  1. ✅ Create temp directory for testing (uses tmpdir() + unique directory)
+  2. ✅ Test successful file move (covered)
+  3. ✅ Test moving non-existent file (throws error with "Source file not found")
+  4. ✅ Test creating nested directories (3-level nesting test)
+  5. ✅ Clean up temp files after tests (afterEach with rm -rf)
+  6. ✅ Verify all tests pass (25/25 pass)
+
+**Test Results:**
+
+- 25 tests pass in archive-utils.test.ts
+- moveToArchive() function coverage:
+  - File movement (rename or copy+unlink fallback)
+  - Directory creation (recursive mkdir)
+  - Error handling (ENOENT, permission errors)
+  - Large files (1MB)
+  - JSON and text files with special characters
+  - Filename preservation and renaming
+
+**Current Status:**
+
+- Features passing: 10/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F016 (Add integration test for full init archiving flow)
+- Continue with testing features (F016-F019)
+
+---
