@@ -28,7 +28,6 @@ import { createOpencode } from '@opencode-ai/sdk';
 
 import { FeatureManager } from './src/feature-manager';
 import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
-import initializerAgentMd from './src/opencode/agents/initializer-agent.md' with { type: 'text' };
 import {
   loadConfig,
   type PaceConfig,
@@ -960,19 +959,8 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     // Subscribe to events BEFORE sending prompt to avoid missing events
     const events = await client.event.subscribe();
 
-    // Get the initializer agent prompt
-    const { content: agentPrompt } = parseFrontmatter(initializerAgentMd);
-
-    // Build the full prompt
-    const fullPrompt = `${agentPrompt}
-
-## Project to Initialize
-
-${projectDescription}
-
----
-
-Begin now by analyzing the requirements and creating all necessary files.`;
+    // Use the /pace-init slash command to invoke the initializer agent
+    const fullPrompt = `/pace-init ${projectDescription}`;
 
     // Send the prompt (use promptAsync for event streaming)
     const promptResult = await client.session.promptAsync({
