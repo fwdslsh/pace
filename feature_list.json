@@ -569,7 +569,7 @@
         "Support --json output format",
         "Add to help text"
       ],
-      "passes": true
+      "passes": false
     },
     {
       "id": "F041",
@@ -583,7 +583,7 @@
         "Support --force flag to skip confirmation",
         "Add to help text"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F042",

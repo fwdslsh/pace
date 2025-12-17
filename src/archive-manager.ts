@@ -69,6 +69,38 @@ export interface ArchiveInfo {
 }
 
 /**
+ * Options for restore operation
+ */
+export interface RestoreOptions {
+  /** The project directory path */
+  projectDir: string;
+  /** The timestamp of the archive to restore */
+  timestamp: string;
+  /** Custom archive directory path (defaults to '.runs') */
+  archiveDir?: string;
+  /** Whether to skip confirmation prompts */
+  force?: boolean;
+  /** Whether to suppress console output (for JSON mode) */
+  silent?: boolean;
+  /** Whether to show verbose output */
+  verbose?: boolean;
+}
+
+/**
+ * Result of a restore operation
+ */
+export interface RestoreResult {
+  /** Whether restore was successful */
+  success: boolean;
+  /** Path to archive that was restored */
+  archivePath: string | null;
+  /** List of files that were restored */
+  restoredFiles: string[];
+  /** Error message if restore failed */
+  error?: string;
+}
+
+/**
  * ArchiveManager handles the archiving of pace project files
  *
  * When reinitializing a pace project, this class manages the archiving of existing
@@ -541,6 +573,231 @@ export class ArchiveManager {
         }
         return false;
       }
+    }
+  }
+
+  /**
+   * Restores files from an archive directory back to project root
+   *
+   * This method:
+   * 1. Finds the archive directory with the given timestamp
+   * 2. Lists all files in the archive (excluding metadata)
+   * 3. Prompts for confirmation before overwriting (unless force=true)
+   * 4. Copies files from archive back to project root
+   *
+   * @param options - Restore options including project directory, timestamp, and flags
+   * @returns Promise resolving to restore result with success status, path, and file list
+   */
+  async restoreArchive(options: RestoreOptions): Promise<RestoreResult> {
+    const {
+      projectDir,
+      timestamp,
+      archiveDir = '.runs',
+      force = false,
+      silent = false,
+      verbose = false,
+    } = options;
+
+    const archiveBasePath = join(projectDir, archiveDir);
+    let archivePath: string | null = null;
+    const restoredFiles: string[] = [];
+
+    try {
+      // Check if archive directory exists
+      await stat(archiveBasePath);
+
+      // Find the archive directory with the given timestamp
+      const entries = await readdir(archiveBasePath);
+
+      // Look for exact match or partial match with timestamp
+      const matchingEntry = entries.find(
+        (entry) => entry === timestamp || entry.startsWith(timestamp),
+      );
+
+      if (!matchingEntry) {
+        return {
+          success: false,
+          archivePath: null,
+          restoredFiles: [],
+          error: `Archive with timestamp '${timestamp}' not found. Use 'pace archives' to list available archives.`,
+        };
+      }
+
+      archivePath = join(archiveBasePath, matchingEntry);
+
+      // Verify it's a directory
+      const archiveStat = await stat(archivePath);
+      if (!archiveStat.isDirectory()) {
+        return {
+          success: false,
+          archivePath: null,
+          restoredFiles: [],
+          error: `'${matchingEntry}' is not a valid archive directory.`,
+        };
+      }
+
+      // Read archive contents
+      const archiveEntries = await readdir(archivePath);
+
+      // Filter out metadata file and system files
+      const filesToRestore = archiveEntries.filter(
+        (entry) => entry !== '.archive-info.json' && !entry.startsWith('.'),
+      );
+
+      if (filesToRestore.length === 0) {
+        return {
+          success: false,
+          archivePath,
+          restoredFiles: [],
+          error: 'No restorable files found in archive.',
+        };
+      }
+
+      // Try to read archive metadata
+      let archiveMetadata: any = null;
+      try {
+        const metadataPath = join(archivePath, '.archive-info.json');
+        const metadataContent = await readFile(metadataPath, 'utf-8');
+        archiveMetadata = JSON.parse(metadataContent);
+      } catch {
+        // No metadata available, that's okay
+      }
+
+      if (!silent) {
+        console.log('\n' + '='.repeat(60));
+        console.log(' RESTORE ARCHIVE');
+        console.log('='.repeat(60));
+        console.log(`\nArchive: ${matchingEntry}`);
+        console.log(`Path: ${archivePath}`);
+
+        if (archiveMetadata?.archive?.reason) {
+          console.log(`Reason: ${archiveMetadata.archive.reason}`);
+        }
+
+        console.log(`\nFiles to restore (${filesToRestore.length}):`);
+        for (const file of filesToRestore) {
+          console.log(`  • ${file}`);
+        }
+
+        console.log('\nFiles will be copied to project root:');
+        console.log(`  • ${projectDir}/`);
+      }
+
+      // Check for existing files that would be overwritten
+      const existingFiles: string[] = [];
+      for (const file of filesToRestore) {
+        const targetPath = join(projectDir, file);
+        try {
+          await stat(targetPath);
+          existingFiles.push(file);
+        } catch {
+          // File doesn't exist, no conflict
+        }
+      }
+
+      if (existingFiles.length > 0 && !force) {
+        console.log('\n⚠️  Warning: The following files will be overwritten:');
+        for (const file of existingFiles) {
+          console.log(`  • ${file}`);
+        }
+        console.log('\nUse --force to overwrite without confirmation.');
+        return {
+          success: false,
+          archivePath,
+          restoredFiles: [],
+          error: 'Restore cancelled due to existing files. Use --force to overwrite.',
+        };
+      }
+
+      // Confirmation prompt (unless force or silent)
+      if (!force && !silent) {
+        const readline = await import('readline');
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+
+        const answer = await new Promise<string>((resolve) => {
+          rl.question('\nDo you want to proceed with restoring these files? [y/N] ', resolve);
+        });
+
+        rl.close();
+
+        if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
+          return {
+            success: false,
+            archivePath,
+            restoredFiles: [],
+            error: 'Restore cancelled by user.',
+          };
+        }
+      }
+
+      // Perform the restore
+      if (!silent && !force) {
+        console.log('\n🔄 Restoring files...');
+      }
+
+      for (const file of filesToRestore) {
+        const sourcePath = join(archivePath, file);
+        const targetPath = join(projectDir, file);
+
+        try {
+          await copyFile(sourcePath, targetPath);
+          restoredFiles.push(file);
+
+          if (!silent) {
+            if (verbose) {
+              console.log(`  ✓ Restored ${file} -> ${targetPath}`);
+            } else {
+              console.log(`  ✓ Restored ${file}`);
+            }
+          }
+        } catch (error) {
+          if (!silent) {
+            console.error(`  ✗ Failed to restore ${file}: ${error}`);
+          }
+
+          // Continue with other files even if one fails
+        }
+      }
+
+      if (!silent) {
+        console.log('\n' + '-'.repeat(60));
+        console.log(
+          `Successfully restored ${restoredFiles.length}/${filesToRestore.length} files.`,
+        );
+
+        if (restoredFiles.length < filesToRestore.length) {
+          console.log(`⚠️  Some files failed to restore. Check output above.`);
+        }
+
+        console.log('='.repeat(60) + '\n');
+      }
+
+      return {
+        success: restoredFiles.length > 0,
+        archivePath,
+        restoredFiles,
+      };
+    } catch (error) {
+      const errorMessage = String(error);
+
+      if (errorMessage.includes('ENOENT')) {
+        return {
+          success: false,
+          archivePath: null,
+          restoredFiles: [],
+          error: `Archive directory not found. Use 'pace archives' to list available archives.`,
+        };
+      }
+
+      return {
+        success: false,
+        archivePath,
+        restoredFiles,
+        error: `Restore failed: ${errorMessage}`,
+      };
     }
   }
 }

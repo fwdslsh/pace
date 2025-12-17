@@ -52,7 +52,7 @@ import {
 // ============================================================================
 
 interface ParsedArgs {
-  command: 'run' | 'init' | 'status' | 'validate' | 'update' | 'archives' | 'help';
+  command: 'run' | 'init' | 'status' | 'validate' | 'update' | 'archives' | 'restore' | 'help';
   options: {
     projectDir: string;
     port?: number;
@@ -74,6 +74,8 @@ interface ParsedArgs {
     // Update-specific
     featureId?: string;
     passStatus?: boolean;
+    // Restore-specific
+    timestamp?: string;
   };
 }
 
@@ -138,6 +140,7 @@ function parseArgs(): ParsedArgs {
       cmd === 'validate' ||
       cmd === 'update' ||
       cmd === 'archives' ||
+      cmd === 'restore' ||
       cmd === 'help'
     ) {
       command = cmd;
@@ -235,6 +238,12 @@ function parseArgs(): ParsedArgs {
             options.prompt += ' ' + arg;
           } else {
             options.prompt = arg;
+          }
+        }
+        // For restore command, treat non-flag args as timestamp
+        else if (command === 'restore' && !arg.startsWith('-')) {
+          if (!options.timestamp) {
+            options.timestamp = arg;
           }
         }
     }
@@ -1871,6 +1880,104 @@ async function handleArchives(options: ParsedArgs['options']): Promise<void> {
   }
 }
 
+async function handleRestore(options: ParsedArgs['options']): Promise<void> {
+  if (!options.timestamp) {
+    console.error('Error: Archive timestamp required');
+    console.error('Usage: pace restore <timestamp> [--force]');
+    console.error('');
+    console.error('Available archives:');
+
+    // Show available archives
+    const projectDir = resolve(options.projectDir);
+    const paceConfig = await loadConfig(projectDir);
+    const paceSettings = getPaceSettings(paceConfig);
+    const archiveManager = new ArchiveManager();
+
+    try {
+      const archives = await archiveManager.listArchives(projectDir, paceSettings.archiveDir);
+
+      if (archives.length === 0) {
+        console.error('  No archives found.');
+      } else {
+        for (const archive of archives.slice(0, 10)) {
+          // Show first 10
+          console.error(`  • ${archive.name}`);
+
+          if (archive.metadata?.reason) {
+            console.error(`    Reason: ${archive.metadata.reason}`);
+          }
+
+          if (archive.metadata?.files && archive.metadata.files.length > 0) {
+            console.error(`    Files: ${archive.metadata.files.join(', ')}`);
+          }
+        }
+
+        if (archives.length > 10) {
+          console.error(`  ... and ${archives.length - 10} more`);
+        }
+      }
+    } catch (error) {
+      console.error(`  Error listing archives: ${error}`);
+    }
+
+    console.error('');
+    console.error('Examples:');
+    console.error('  pace restore 2025-12-17_00-00-00');
+    console.error('  pace restore 2025-12-17_00-00-00 --force');
+    process.exit(1);
+  }
+
+  const projectDir = resolve(options.projectDir);
+
+  // Load pace config to get archive directory setting
+  const paceConfig = await loadConfig(projectDir);
+  const paceSettings = getPaceSettings(paceConfig);
+
+  const archiveManager = new ArchiveManager();
+
+  try {
+    const result = await archiveManager.restoreArchive({
+      projectDir,
+      timestamp: options.timestamp,
+      archiveDir: paceSettings.archiveDir,
+      force: options.force,
+      silent: options.json,
+      verbose: options.verbose,
+    });
+
+    if (options.json) {
+      console.log(
+        JSON.stringify({
+          success: result.success,
+          archivePath: result.archivePath,
+          restoredFiles: result.restoredFiles,
+          error: result.error,
+        }),
+      );
+    } else {
+      // Success/error messages are handled by restoreArchive method
+      if (!result.success) {
+        console.error(`\nError: ${result.error}`);
+        process.exit(1);
+      }
+    }
+
+    process.exit(result.success ? 0 : 1);
+  } catch (error) {
+    if (options.json) {
+      console.log(
+        JSON.stringify({
+          success: false,
+          error: String(error),
+        }),
+      );
+    } else {
+      console.error(`Error restoring archive: ${error}`);
+    }
+    process.exit(1);
+  }
+}
+
 function printHelp(): void {
   console.log(`
 pace - Pragmatic Agent for Compounding Engineering
@@ -1887,6 +1994,7 @@ COMMANDS:
     validate     Validate feature_list.json
     update       Update feature status
     archives     List archived runs
+    restore      Restore archived run
     help         Show this help message
 
 INIT OPTIONS:
@@ -1928,6 +2036,10 @@ UPDATE OPTIONS:
     --json                       Output results in JSON format
 
 ARCHIVES OPTIONS:
+    --json                       Output results in JSON format
+
+RESTORE OPTIONS:
+    --force                      Skip confirmation before overwriting files
     --json                       Output results in JSON format
 
 GLOBAL OPTIONS:
@@ -1996,6 +2108,10 @@ EXAMPLES:
     pace archives
     pace archives --json
 
+    # Restore archived run
+    pace restore 2025-12-17_00-00-00
+    pace restore 2025-12-17_00-00-00 --force
+
 OPENCODE PLUGIN:
     For interactive use within OpenCode TUI, install the pace plugin:
     
@@ -2036,6 +2152,9 @@ async function main(): Promise<void> {
       break;
     case 'archives':
       await handleArchives(options);
+      break;
+    case 'restore':
+      await handleRestore(options);
       break;
   }
 }

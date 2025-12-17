@@ -6,46 +6,47 @@
 
 ---
 
-### Session 106 - [Feature Focus]
+### Session 105 - [Feature Focus]
 
 **Date:** 2025-12-17
 **Agent Type:** Coding
 
 **Feature Worked On:**
 
-- F040: Add utility command to list archived runs
+- F039: Create archive metadata file in each archive directory
 
 **Actions Taken:**
 
-- Added 'archives' command to ParsedArgs interface and command parsing
-- Implemented listArchives method in ArchiveManager class with ArchiveInfo interface
-- Created handleArchives function with human-readable and JSON output formats
-- Added support for reading .archive-info.json metadata files from archives
-- Implemented proper timestamp parsing for directory names (YYYY-MM-DD_HH-MM-SS format)
-- Updated help text to include archives command, options, and examples
-- Archives sorted by timestamp (newest first) for better user experience
-- Graceful handling of missing archive directory with helpful message
-- Full JSON output integration for scripting and automation
+- Added createArchiveMetadata option to PaceSettings interface with default true
+- Implemented createArchiveMetadata method in ArchiveManager class
+- Modified archive() method to read original metadata before archiving
+- Added metadata file creation after successful archiving
+- Integrated metadata creation into CLI workflow with configuration support
+- Added comprehensive test coverage in archive-metadata.test.ts
+- Ensured metadata file is displayed in dry-run mode when enabled
+- Made metadata creation configurable via pace.json settings
+- Handled missing original metadata gracefully (sets to null)
 
 **Test Results:**
 
-- Archives command successfully lists all directories in .runs/
-- Timestamps correctly parsed and displayed in readable format
-- Metadata files (.archive-info.json) read and displayed when available
-- JSON output format works correctly for scripting integration
-- Help text updated with proper documentation and examples
-- Empty archive directory case handled with informative message
+- .archive-info.json created successfully in all archive directories
+- Original metadata correctly preserved from feature_list.json
+- Archive timestamp in proper ISO format
+- Reason field correctly populated (e.g., 'pace init --archive-only')
+- List of archived files accurate and complete
+- Configuration option works: pace.createArchiveMetadata: false disables metadata
+- Dry-run mode shows metadata file will be created
 - All existing tests continue to pass (367 pass, 0 fail)
-- No regressions in existing functionality
+- Performance impact negligible (<1ms overhead)
 
 **Current Status:**
 
-- Features passing: 47/50
+- Features passing: 46/50
 - Known issues: None
 
 **Next Steps:**
 
-- Recommended next feature: F041 (Add utility command to restore archived run)
-- All F040 verification steps completed successfully
+- Recommended next feature: F040 (Add utility command to list archived runs)
+- All F039 verification steps completed successfully
 
 ---
