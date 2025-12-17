@@ -1110,6 +1110,135 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
     expect(result.exitCode).toBe(0);
   });
 
+  /**
+   * F013: Respect --dry-run flag for archiving operations
+   * Verifies that --dry-run shows what WOULD be archived without actually moving files
+   */
+  it('should respect --dry-run flag and not archive files (F013)', async () => {
+    // Create feature_list.json and progress.txt
+    const featureList: FeatureList = {
+      features: [
+        {
+          id: 'F001',
+          category: 'core',
+          description: 'Test feature',
+          priority: 'high',
+          steps: [],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Test Project',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-17T10:00:00.000Z',
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    const progressPath = join(tempDir, 'progress.txt');
+    const progressContent = '# Progress Log\n\nTest progress content.';
+
+    await writeFile(featureListPath, JSON.stringify(featureList, null, 2));
+    await writeFile(progressPath, progressContent);
+
+    // Run init with dry-run
+    const result = await runCLI(['init', '--prompt', 'New project', '--dry-run']);
+
+    // Step 1: Check if options.dryRun is true (verified by CLI parsing)
+    // Step 2: Should log what WOULD be archived
+    expect(result.stdout).toContain('Existing project files found');
+    // Step 3: Should print dry-run message with archive path
+    expect(result.stdout).toContain('[DRY RUN] Would archive to');
+    expect(result.stdout).toContain('.runs/2025-12-17_10-00-00');
+    expect(result.stdout).toContain('feature_list.json');
+    expect(result.stdout).toContain('progress.txt');
+    expect(result.exitCode).toBe(0);
+
+    // Step 4: Don't create directories or move files in dry-run mode
+    // Verify .runs directory was NOT created
+    const runsPath = join(tempDir, '.runs');
+    let runsExists = false;
+    try {
+      await stat(runsPath);
+      runsExists = true;
+    } catch {
+      runsExists = false;
+    }
+    expect(runsExists).toBe(false);
+
+    // Verify original files still exist at root (not moved)
+    const featureStillExists = await stat(featureListPath);
+    expect(featureStillExists.isFile()).toBe(true);
+
+    const progressStillExists = await stat(progressPath);
+    expect(progressStillExists.isFile()).toBe(true);
+
+    // Verify file contents unchanged
+    const featureContent = await readFile(featureListPath, 'utf-8');
+    expect(featureContent).toContain('Test Project');
+
+    const progressContentAfter = await readFile(progressPath, 'utf-8');
+    expect(progressContentAfter).toBe(progressContent);
+
+    // Step 5: Verify --dry-run shows archive plan without executing
+    // This is verified by the output checks above and file existence checks
+  });
+
+  it('should respect --dry-run flag when progress.txt is missing (F013)', async () => {
+    // Create only feature_list.json (no progress.txt)
+    const featureList: FeatureList = {
+      features: [
+        {
+          id: 'F001',
+          category: 'core',
+          description: 'Test feature',
+          priority: 'high',
+          steps: [],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Test Project',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-17T10:00:00.000Z',
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList, null, 2));
+
+    // Run init with dry-run and verbose
+    const result = await runCLI(['init', '--prompt', 'New project', '--dry-run', '--verbose']);
+
+    // Should show dry-run message
+    expect(result.stdout).toContain('[DRY RUN] Would archive to');
+    expect(result.stdout).toContain('feature_list.json');
+    // With verbose, should mention progress.txt not found
+    expect(result.stdout).toContain('progress.txt not found');
+    expect(result.exitCode).toBe(0);
+
+    // Verify .runs was NOT created
+    const runsPath = join(tempDir, '.runs');
+    let runsExists = false;
+    try {
+      await stat(runsPath);
+      runsExists = true;
+    } catch {
+      runsExists = false;
+    }
+    expect(runsExists).toBe(false);
+
+    // Verify original file still exists
+    const featureStillExists = await stat(featureListPath);
+    expect(featureStillExists.isFile()).toBe(true);
+  });
+
   it('should handle missing metadata.last_updated by using current timestamp', async () => {
     // Create feature_list.json without last_updated field
     const featureList = {
