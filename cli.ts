@@ -1139,6 +1139,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
           console.log('  • progress.txt');
         } catch {
           // progress.txt doesn't exist
+          if (options.verbose) {
+            console.log('  ℹ️  progress.txt not found (skipping)');
+          }
         }
       }
     } else {
@@ -1204,6 +1207,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
         }
       } catch {
         // progress.txt doesn't exist, that's OK
+        if (!options.json && options.verbose) {
+          console.log('  ℹ️  progress.txt not found (skipping)');
+        }
       }
 
       if (!options.json) {
