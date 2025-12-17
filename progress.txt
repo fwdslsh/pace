@@ -84,39 +84,44 @@
 
 ---
 
-### Session 107 - [Feature Focus]
+### Session 110 - [Feature Focus]
 
 **Date:** 2025-12-17
 **Agent Type:** Coding
 
 **Feature Worked On:**
 
-- F041: Add utility command to restore archived runs
+- F042: Add utility command to delete old archives
 
 **Actions Taken:**
 
-- Added 'restore' command to ParsedArgs interface and command parsing logic
-- Added timestamp parameter handling for restore command in argument parser
-- Added --force flag support for restore command to skip confirmation
-- Implemented restoreArchive method in ArchiveManager class with full error handling
-- Implemented handleRestore function with confirmation prompt and available archives listing
-- Added restore command to help text with examples and options
+- Added 'clean-archives' command to ParsedArgs interface and command parsing logic
+- Added --older-than and --keep-last option parsing for clean-archives command
+- Implemented cleanArchives method in ArchiveManager class with full deletion logic
+- Added CleanArchivesOptions and CleanArchivesResult interfaces for type safety
+- Implemented handleCleanArchives function with validation, confirmation, and error handling
+- Added clean-archives command to help text with examples and options
+- Support both --older-than <days> and --keep-last <n> filtering options
+- Added user confirmation prompt with clear list of archives to be deleted
 - Support both human-readable and JSON output formats
-- Added comprehensive error handling for invalid timestamps and missing archives
-- Created RestoreOptions and RestoreResult interfaces for type safety
-- Implemented file existence checking and conflict detection before restore
-- Added user confirmation prompt with clear warning about overwriting files
-- Verified end-to-end functionality with existing archives
+- Added comprehensive input validation for conflicting options and invalid values
+- Implemented recursive directory deletion with proper error handling
+- Added age calculation for archives based on creation timestamp
+- Implemented archive sorting logic (newest first) for keep-last functionality
+- Added verbose output showing detailed archive information before deletion
+- Verified end-to-end functionality with actual archive deletion
 
 **Test Results:**
 
-- Restore command correctly shows available archives when no timestamp provided
-- Invalid timestamp handling works with helpful error message
-- Valid timestamp restore lists files to be restored with metadata display
+- clean-archives command correctly validates input parameters and shows usage errors
+- --older-than option correctly identifies archives older than specified days
+- --keep-last option correctly keeps newest N archives and deletes older ones
+- Conflicting options (--older-than and --keep-last together) properly rejected with error
 - Confirmation prompt works correctly and can be cancelled
-- --force flag successfully skips confirmation and overwrites existing files
-- File verification confirms successful restoration of both feature_list.json and progress.txt
+- User cancellation shows appropriate error message in both human and JSON formats
+- Successful deletion removes archives from filesystem and updates remaining count
 - JSON output mode works correctly for both success and error cases
+- Verbose mode shows detailed archive information including creation dates and reasons
 - All existing tests continue to pass (367 pass, 0 fail)
 - No regressions in existing CLI functionality
 
@@ -127,7 +132,7 @@
 
 **Next Steps:**
 
-- Recommended next feature: F042 (Add utility command to delete old archives) or F048 (Validate archive directory structure)
-- All F041 verification steps completed successfully
+- Recommended next feature: F048 (Validate archive directory structure) or F049 (Provide clear feedback when no files need archiving)
+- All F042 verification steps completed successfully
 
 ---

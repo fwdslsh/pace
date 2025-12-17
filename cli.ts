@@ -52,7 +52,16 @@ import {
 // ============================================================================
 
 interface ParsedArgs {
-  command: 'run' | 'init' | 'status' | 'validate' | 'update' | 'archives' | 'restore' | 'help';
+  command:
+    | 'run'
+    | 'init'
+    | 'status'
+    | 'validate'
+    | 'update'
+    | 'archives'
+    | 'restore'
+    | 'clean-archives'
+    | 'help';
   options: {
     projectDir: string;
     port?: number;
@@ -76,6 +85,9 @@ interface ParsedArgs {
     passStatus?: boolean;
     // Restore-specific
     timestamp?: string;
+    // Clean-archives-specific
+    olderThan?: number;
+    keepLast?: number;
   };
 }
 
@@ -141,6 +153,7 @@ function parseArgs(): ParsedArgs {
       cmd === 'update' ||
       cmd === 'archives' ||
       cmd === 'restore' ||
+      cmd === 'clean-archives' ||
       cmd === 'help'
     ) {
       command = cmd;
@@ -217,6 +230,12 @@ function parseArgs(): ParsedArgs {
         break;
       case '--archive-only':
         options.archiveOnly = true;
+        break;
+      case '--older-than':
+        options.olderThan = parseInt(args[++i]);
+        break;
+      case '--keep-last':
+        options.keepLast = parseInt(args[++i]);
         break;
       default:
         // For update command, parse feature ID and pass/fail
@@ -1978,6 +1997,75 @@ async function handleRestore(options: ParsedArgs['options']): Promise<void> {
   }
 }
 
+async function handleCleanArchives(options: ParsedArgs['options']): Promise<void> {
+  // Validate arguments
+  if (options.olderThan !== undefined && options.keepLast !== undefined) {
+    console.error('Error: Cannot specify both --older-than and --keep-last options together');
+    console.error('Usage: pace clean-archives [--older-than <days> | --keep-last <n>]');
+    process.exit(1);
+  }
+
+  if (options.olderThan !== undefined && options.olderThan < 1) {
+    console.error('Error: --older-than must be at least 1 day');
+    process.exit(1);
+  }
+
+  if (options.keepLast !== undefined && options.keepLast < 1) {
+    console.error('Error: --keep-last must be at least 1');
+    process.exit(1);
+  }
+
+  const projectDir = resolve(options.projectDir);
+
+  // Load pace config to get archive directory setting
+  const paceConfig = await loadConfig(projectDir);
+  const paceSettings = getPaceSettings(paceConfig);
+
+  const archiveManager = new ArchiveManager();
+
+  try {
+    const result = await archiveManager.cleanArchives({
+      projectDir,
+      archiveDir: paceSettings.archiveDir,
+      olderThan: options.olderThan,
+      keepLast: options.keepLast,
+      silent: options.json,
+      verbose: options.verbose,
+    });
+
+    if (options.json) {
+      console.log(
+        JSON.stringify({
+          success: result.success,
+          deletedArchives: result.deletedArchives,
+          deletedCount: result.deletedArchives.length,
+          error: result.error,
+        }),
+      );
+    } else {
+      // Success/error messages are handled by cleanArchives method
+      if (!result.success) {
+        console.error(`\nError: ${result.error}`);
+        process.exit(1);
+      }
+    }
+
+    process.exit(result.success ? 0 : 1);
+  } catch (error) {
+    if (options.json) {
+      console.log(
+        JSON.stringify({
+          success: false,
+          error: String(error),
+        }),
+      );
+    } else {
+      console.error(`Error cleaning archives: ${error}`);
+    }
+    process.exit(1);
+  }
+}
+
 function printHelp(): void {
   console.log(`
 pace - Pragmatic Agent for Compounding Engineering
@@ -1995,6 +2083,7 @@ COMMANDS:
     update       Update feature status
     archives     List archived runs
     restore      Restore archived run
+    clean-archives  Delete old archives
     help         Show this help message
 
 INIT OPTIONS:
@@ -2040,6 +2129,11 @@ ARCHIVES OPTIONS:
 
 RESTORE OPTIONS:
     --force                      Skip confirmation before overwriting files
+    --json                       Output results in JSON format
+
+CLEAN-ARCHIVES OPTIONS:
+    --older-than <days>          Delete archives older than specified days
+    --keep-last <n>              Keep the last N archives (newest)
     --json                       Output results in JSON format
 
 GLOBAL OPTIONS:
@@ -2112,6 +2206,10 @@ EXAMPLES:
     pace restore 2025-12-17_00-00-00
     pace restore 2025-12-17_00-00-00 --force
 
+    # Clean old archives
+    pace clean-archives --older-than 30
+    pace clean-archives --keep-last 5
+
 OPENCODE PLUGIN:
     For interactive use within OpenCode TUI, install the pace plugin:
     
@@ -2155,6 +2253,9 @@ async function main(): Promise<void> {
       break;
     case 'restore':
       await handleRestore(options);
+      break;
+    case 'clean-archives':
+      await handleCleanArchives(options);
       break;
   }
 }

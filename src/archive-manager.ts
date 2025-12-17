@@ -101,6 +101,40 @@ export interface RestoreResult {
 }
 
 /**
+ * Options for clean archives operation
+ */
+export interface CleanArchivesOptions {
+  /** The project directory path */
+  projectDir: string;
+  /** Custom archive directory path (defaults to '.runs') */
+  archiveDir?: string;
+  /** Delete archives older than specified days */
+  olderThan?: number;
+  /** Keep last N archives (newest) */
+  keepLast?: number;
+  /** Whether to suppress console output (for JSON mode) */
+  silent?: boolean;
+  /** Whether to show verbose output */
+  verbose?: boolean;
+}
+
+/**
+ * Result of a clean archives operation
+ */
+export interface CleanArchivesResult {
+  /** Whether cleaning was successful */
+  success: boolean;
+  /** List of archives that were deleted */
+  deletedArchives: Array<{
+    name: string;
+    path: string;
+    timestamp: string;
+  }>;
+  /** Error message if cleaning failed */
+  error?: string;
+}
+
+/**
  * ArchiveManager handles the archiving of pace project files
  *
  * When reinitializing a pace project, this class manages the archiving of existing
@@ -797,6 +831,237 @@ export class ArchiveManager {
         archivePath,
         restoredFiles,
         error: `Restore failed: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
+   * Deletes old archive directories based on age or count criteria
+   *
+   * This method:
+   * 1. Lists all archive directories
+   * 2. Filters archives based on --older-than or --keep-last criteria
+   * 3. Prompts for confirmation before deleting
+   * 4. Deletes the selected archive directories
+   *
+   * @param options - Clean archives options including project directory and criteria
+   * @returns Promise resolving to clean result with success status and deleted archives list
+   */
+  async cleanArchives(options: CleanArchivesOptions): Promise<CleanArchivesResult> {
+    const {
+      projectDir,
+      archiveDir = '.runs',
+      olderThan,
+      keepLast,
+      silent = false,
+      verbose = false,
+    } = options;
+
+    // Validate arguments
+    if (!olderThan && !keepLast) {
+      return {
+        success: false,
+        deletedArchives: [],
+        error: 'Either --older-than or --keep-last option must be specified',
+      };
+    }
+
+    if (olderThan && keepLast) {
+      return {
+        success: false,
+        deletedArchives: [],
+        error: 'Cannot specify both --older-than and --keep-last options together',
+      };
+    }
+
+    const archiveBasePath = join(projectDir, archiveDir);
+
+    try {
+      // Get all archives
+      const archives = await this.listArchives(projectDir, archiveDir);
+
+      if (archives.length === 0) {
+        if (!silent) {
+          console.log('\nNo archives found.');
+          console.log('Archives are created when you reinitialize a pace project.');
+          console.log('Use "pace init" with an existing project to create archives.');
+        }
+        return { success: true, deletedArchives: [] };
+      }
+
+      let archivesToDelete: typeof archives = [];
+
+      if (olderThan) {
+        // Filter archives older than specified days
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - olderThan);
+
+        archivesToDelete = archives.filter((archive) => {
+          try {
+            const archiveDate = new Date(archive.timestamp);
+            return archiveDate.getTime() < cutoffDate.getTime();
+          } catch {
+            // If we can't parse the timestamp, include it for deletion
+            return true;
+          }
+        });
+      } else if (keepLast) {
+        // Keep the last N archives (newest ones), delete the rest
+        archivesToDelete = archives.slice(keepLast);
+      }
+
+      if (archivesToDelete.length === 0) {
+        if (!silent) {
+          if (olderThan) {
+            console.log(`\nNo archives found older than ${olderThan} days.`);
+          } else if (keepLast) {
+            console.log(`\nNo archives to delete. Keeping last ${keepLast} archives.`);
+          }
+          console.log(`Total archives: ${archives.length}`);
+        }
+        return { success: true, deletedArchives: [] };
+      }
+
+      if (!silent) {
+        console.log('\n' + '='.repeat(60));
+        console.log(' CLEAN ARCHIVES');
+        console.log('='.repeat(60));
+        console.log(`\nFound ${archives.length} archive${archives.length === 1 ? '' : 's'} total`);
+
+        if (olderThan) {
+          console.log(
+            `Archives to delete (older than ${olderThan} days): ${archivesToDelete.length}`,
+          );
+        } else if (keepLast) {
+          console.log(`Archives to delete (keeping last ${keepLast}): ${archivesToDelete.length}`);
+        }
+
+        console.log('\nArchives that will be deleted:');
+        for (const archive of archivesToDelete) {
+          let date: Date;
+          try {
+            date = new Date(archive.timestamp);
+            if (isNaN(date.getTime())) {
+              date = new Date();
+            }
+          } catch {
+            date = new Date();
+          }
+
+          const formattedDate = date.toLocaleDateString();
+          const formattedTime = date.toLocaleTimeString();
+          const ageDays = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+
+          console.log(`  🗑️  ${archive.name}`);
+          console.log(`     Created: ${formattedDate} ${formattedTime} (${ageDays} days ago)`);
+
+          if (archive.metadata?.reason) {
+            console.log(`     Reason: ${archive.metadata.reason}`);
+          }
+
+          if (verbose && archive.metadata?.files) {
+            console.log(`     Files: ${archive.metadata.files.join(', ')}`);
+          }
+
+          console.log('');
+        }
+      }
+
+      // Confirmation prompt
+      if (!silent) {
+        const readline = await import('readline');
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+
+        const answer = await new Promise<string>((resolve) => {
+          rl.question(
+            `\nAre you sure you want to delete ${archivesToDelete.length} archive${archivesToDelete.length === 1 ? '' : 's'}? This cannot be undone. [y/N] `,
+            resolve,
+          );
+        });
+
+        rl.close();
+
+        if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
+          return {
+            success: false,
+            deletedArchives: [],
+            error: 'Archive deletion cancelled by user.',
+          };
+        }
+      }
+
+      // Delete the archives
+      const deletedArchives: CleanArchivesResult['deletedArchives'] = [];
+      let success = true;
+
+      if (!silent) {
+        console.log('\n🗑️  Deleting archives...');
+      }
+
+      for (const archive of archivesToDelete) {
+        try {
+          // Use rimraf or similar to recursively delete directory
+          const { rm } = await import('fs/promises');
+          await rm(archive.path, { recursive: true, force: true });
+
+          deletedArchives.push({
+            name: archive.name,
+            path: archive.path,
+            timestamp: archive.timestamp,
+          });
+
+          if (!silent) {
+            if (verbose) {
+              console.log(`  ✓ Deleted ${archive.name} (${archive.path})`);
+            } else {
+              console.log(`  ✓ Deleted ${archive.name}`);
+            }
+          }
+        } catch (error) {
+          success = false;
+          if (!silent) {
+            console.error(`  ✗ Failed to delete ${archive.name}: ${error}`);
+          }
+        }
+      }
+
+      if (!silent) {
+        console.log('\n' + '-'.repeat(60));
+        console.log(
+          `Successfully deleted ${deletedArchives.length}/${archivesToDelete.length} archives.`,
+        );
+
+        if (deletedArchives.length < archivesToDelete.length) {
+          console.log('⚠️  Some archives failed to delete. Check output above.');
+        }
+
+        const remainingCount = archives.length - deletedArchives.length;
+        console.log(`Archives remaining: ${remainingCount}`);
+        console.log('='.repeat(60) + '\n');
+      }
+
+      return {
+        success: deletedArchives.length > 0,
+        deletedArchives,
+      };
+    } catch (error) {
+      const errorMessage = String(error);
+
+      if (errorMessage.includes('ENOENT')) {
+        return {
+          success: false,
+          deletedArchives: [],
+          error: `Archive directory not found. Use 'pace archives' to list available archives.`,
+        };
+      }
+
+      return {
+        success: false,
+        deletedArchives: [],
+        error: `Archive cleaning failed: ${errorMessage}`,
       };
     }
   }

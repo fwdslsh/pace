@@ -597,7 +597,7 @@
         "Prompt for confirmation before deleting",
         "Add to help text"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F043",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 47,
-    "failing": 3,
+    "passing": 48,
+    "failing": 2,
     "last_updated": "2025-12-17T23:00:00.000Z"
   }
 }
