@@ -3740,3 +3740,43 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining documentation and cleanup tasks
 
 ---
+
+### Session 87 - CLI Help Text Documentation
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F020: Update CLI help text to mention archiving behavior
+
+**Actions Taken:**
+
+- **Updated printHelp() Function**:
+  - Added informative note under INIT OPTIONS section at cli.ts:1832
+  - Message: "Note: Existing feature_list.json will be archived to .runs/ before initialization."
+  - Placed between option descriptions and usage example for optimal visibility
+  - Clear and concise message improves user understanding of init behavior
+
+**Test Results:**
+
+- Verified help text display:
+  - `./pace --help` shows archiving note in INIT OPTIONS section
+  - `./pace help` displays the same information
+  - `./pace init --help` includes archiving note
+- All tests pass: 281 pass, 0 fail
+- Build succeeds without errors
+- CLI commands function correctly (status, validate, help)
+- Feature validation passes with no errors
+
+**Current Status:**
+
+- Features passing: 29/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F021 (Update pace init command documentation)
+- Continue with remaining documentation tasks
+
+---
