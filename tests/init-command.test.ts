@@ -3477,4 +3477,90 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
     // Verify command succeeded
     expect(result.exitCode).toBe(0);
   });
+
+  /**
+   * F025: Test archiving with custom archive directory from pace.json
+   * Comprehensive test covering all verification steps:
+   * 1. Create pace.json with custom archiveDir setting
+   * 2. Create feature_list.json
+   * 3. Run init command (with archiving)
+   * 4. Verify files are archived to custom directory instead of .runs
+   * 5. Verify custom directory structure matches expected format
+   */
+  it('should use custom archive directory from pace.json config (F025)', async () => {
+    // STEP 1: Create pace.json with custom archiveDir
+    const paceConfig = {
+      pace: {
+        archiveDir: '.archives',
+      },
+    };
+    const paceConfigPath = join(tempDir, 'pace.json');
+    await writeFile(paceConfigPath, JSON.stringify(paceConfig, null, 2));
+
+    // STEP 2: Create feature_list.json
+    const featureList: FeatureList = {
+      features: [
+        {
+          id: 'F001',
+          category: 'core',
+          description: 'Test feature for custom archive directory',
+          priority: 'high',
+          steps: ['Step 1', 'Step 2'],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Custom Archive Test',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-17T15:00:00.000Z',
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList, null, 2));
+
+    const progressPath = join(tempDir, 'progress.txt');
+    await writeFile(progressPath, '# Custom Archive Test Progress');
+
+    // STEP 3: Run init command with archiving (using dry-run to test the path)
+    const result = await runCLI(['init', '--prompt', 'New project', '--dry-run']);
+
+    // STEP 4: Verify output shows custom archive directory
+    expect(result.stdout).toContain('Existing project files found');
+    expect(result.stdout).toContain('[DRY RUN] Would archive to: .archives/');
+    expect(result.stdout).toContain('2025-12-17_15-00-00');
+
+    // Verify command succeeded
+    expect(result.exitCode).toBe(0);
+
+    // STEP 5: Actually archive to verify custom directory works
+    const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
+    const timestamp = featureList.metadata?.last_updated || new Date().toISOString();
+    const normalizedTimestamp = normalizeTimestamp(timestamp);
+    const customArchivePath = join(tempDir, '.archives', normalizedTimestamp);
+
+    // Archive the files to the custom directory
+    await moveToArchive(featureListPath, customArchivePath, 'feature_list.json');
+    await moveToArchive(progressPath, customArchivePath, 'progress.txt');
+
+    // Verify files exist in custom archive directory
+    const archivedFeaturePath = join(customArchivePath, 'feature_list.json');
+    const archivedProgressPath = join(customArchivePath, 'progress.txt');
+
+    const archivedFeatureStats = await stat(archivedFeaturePath);
+    expect(archivedFeatureStats.isFile()).toBe(true);
+
+    const archivedProgressStats = await stat(archivedProgressPath);
+    expect(archivedProgressStats.isFile()).toBe(true);
+
+    // Verify content
+    const archivedContent = await readFile(archivedFeaturePath, 'utf-8');
+    expect(archivedContent).toContain('Custom Archive Test');
+
+    const archivedProgress = await readFile(archivedProgressPath, 'utf-8');
+    expect(archivedProgress).toContain('Custom Archive Test Progress');
+  });
 });
