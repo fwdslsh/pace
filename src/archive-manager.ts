@@ -125,6 +125,7 @@ export class ArchiveManager {
         featureListPath,
         archivePath,
         'feature_list.json',
+        projectDir,
         silent,
       );
       if (featureListArchived) {
@@ -138,6 +139,7 @@ export class ArchiveManager {
         progressPath,
         archivePath,
         'progress.txt',
+        projectDir,
         silent,
         true, // optional file
       );
@@ -250,6 +252,7 @@ export class ArchiveManager {
    * @param filePath - Path to the file to archive
    * @param archivePath - Path to the archive directory
    * @param filename - Filename to use in the archive
+   * @param projectDir - The project root directory for path validation
    * @param silent - Whether to suppress console output
    * @param optional - Whether the file is optional (don't fail if it doesn't exist)
    * @returns Promise resolving to true if file was archived, false otherwise
@@ -258,6 +261,7 @@ export class ArchiveManager {
     filePath: string,
     archivePath: string,
     filename: string,
+    projectDir: string,
     silent: boolean,
     optional = false,
   ): Promise<boolean> {
@@ -272,8 +276,8 @@ export class ArchiveManager {
         }
       }
 
-      // Move file to archive
-      await moveToArchive(filePath, archivePath, filename);
+      // Move file to archive (pass projectDir for path validation)
+      await moveToArchive(filePath, archivePath, filename, projectDir);
       if (!silent) {
         console.log(`  ✓ Archived ${filename}`);
       }
