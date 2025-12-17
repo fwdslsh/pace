@@ -28,6 +28,7 @@ import { createOpencode, createOpencodeClient, type OpencodeClient } from '@open
 
 import { FeatureManager } from './src/feature-manager';
 import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
+import paceInitMd from './src/opencode/commands/pace-init.md' with { type: 'text' };
 import {
   loadConfig,
   type PaceConfig,
@@ -969,7 +970,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
 
     if (options.url) {
       // Connect to existing OpenCode server
-      externalClient = createOpencodeClient({
+      externalClient = createOpencodeClient({      
         baseUrl: options.url,
       });
       client = externalClient;
@@ -979,7 +980,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     } else {
       // Start embedded OpenCode server
       // OpenCode reads its config from .opencode/opencode.jsonc automatically
-      opencode = await createOpencode({
+      console.log('Starting embedded OpenCode server...');
+      opencode = await createOpencode({        
+        config: paceConfig,
         port: 0,
       });
       client = opencode.client;
@@ -1001,8 +1004,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
 
     // Create a session for initialization
     const sessionResult = await client.session.create({
+      
       body: {
-        title: `/pace-init ${projectDescription.slice(0, 40)}...`,
+        title: `Pace Init: ${projectDescription.slice(0, 40)}...`,      
       },
     });
 
@@ -1016,14 +1020,20 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     const events = await client.event.subscribe();
 
     // Use the /pace-init slash command to invoke the initializer agent
-    const fullPrompt = `/pace-init ${projectDescription}`;
+    const fullPrompt = `${paceInitMd}\n${projectDescription}`;
+    
+    console.log('--- Sending Prompt to Initializer Agent ---');
+    console.log(fullPrompt);
+    console.log('--- End of Prompt ---');
 
     // Send the prompt (use promptAsync for event streaming)
     const promptResult = await client.session.promptAsync({
       path: { id: session.id },
       body: {
         parts: [{ type: 'text', text: fullPrompt }],
-        ...(agentModel && { model: agentModel }),
+        agent: 'pace-initializer',
+        
+        //...(agentModel && { model: agentModel }),
       },
     });
 

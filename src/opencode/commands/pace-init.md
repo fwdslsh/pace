@@ -1,4 +1,3 @@
-# Initializer Agent Instructions
 
 Execute these steps EXACTLY when starting a new long-running project. This is the foundation that enables all future coding sessions to work effectively.
 
@@ -178,3 +177,7 @@ The coding agent will now be able to:
 2. Run `init.sh` to start the environment
 3. Select a feature from `feature_list.json` to implement
 4. Make incremental progress with proper tracking
+**VERY IMPORTANT** DO NOT IMPLEMENT FEATURES YOURSELF. ONLY DO THE STEPS LISTED ABOVE FOR THE REQUESTED FEATURE BELOW
+
+## Requested Feature
+

@@ -2145,3 +2145,107 @@ The `pace` CLI tool now has:
 - Monitor verbose output in real init sessions for user experience
 
 ---
+
+### Session 57 - Feature Initialization: Init Command Archiving
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Initializer
+
+**Project Overview:**
+
+Add functionality to the `pace init` command to archive existing `feature_list.json` and `progress.txt` files before creating new ones. When a user runs `pace init` in a directory that already contains these files, they should be automatically moved to `.runs/<normalized-timestamp>/` where the timestamp is derived from the `metadata.last_updated` property of the feature_list.json file.
+
+**Feature Scope:**
+
+This feature will:
+- Check for existing feature_list.json before initialization
+- Read metadata.last_updated timestamp
+- Normalize timestamp to directory-safe format (YYYY-MM-DD_HH-MM-SS)
+- Create .runs/<timestamp>/ directory
+- Move both feature_list.json and progress.txt to archive directory
+- Handle edge cases (missing files, missing metadata, errors)
+- Provide clear user feedback
+- Support --dry-run and --json modes
+
+**Actions Taken:**
+
+1. Created comprehensive feature_list.json with 50 features covering:
+   - Core archiving functionality (F001-F005)
+   - Functional requirements (F006-F008)
+   - Error handling (F009-F010)
+   - UI/UX improvements (F011-F013)
+   - Testing strategy (F014-F019)
+   - Documentation (F020-F023)
+   - Code quality (F024-F025, F046-F047)
+   - Integration and edge cases (F026-F034)
+   - CLI enhancements (F036-F038)
+   - Logging and utilities (F039-F042)
+   - Git integration (F043)
+   - Backwards compatibility (F044)
+   - CI/CD (F045)
+   - Validation and UX (F048-F050)
+
+2. Verified init.sh is appropriate for this project (uses Bun for build and test)
+
+3. Updated progress.txt with this session entry
+
+**Environment Setup:**
+
+- Framework: TypeScript with Bun runtime
+- Development server: N/A (CLI tool)
+- Key dependencies: @opencode-ai/sdk, eslint, prettier
+- Test framework: Bun's built-in test runner
+- Build tool: Bun
+
+**File Structure Created:**
+
+```
+/home/founder3/code/github/fwdslsh/pace/
+├── feature_list.json          # 50 features for archiving functionality
+├── init.sh                    # Existing build script (verified)
+└── progress.txt               # Updated with this session
+```
+
+**Feature Categorization:**
+
+- Critical priority: 5 features (F001-F002, F005, F035, F046)
+- High priority: 8 features (F003-F004, F006, F009, F014-F016, F044)
+- Medium priority: 18 features (F007-F008, F010, F013, F017-F019, F026, F032, F034, F043, F045, F047)
+- Low priority: 19 features (F012, F020-F025, F027-F031, F033, F036-F042, F048-F050)
+
+**Next Steps:**
+
+The coding agent should start with critical and high priority features:
+
+1. **F001**: Create timestamp normalization utility function
+   - This is the foundation for directory naming
+   - Must handle ISO timestamps safely
+   
+2. **F002**: Create file moving utility function
+   - Core archiving mechanism
+   - Must handle errors gracefully
+   
+3. **F005**: Implement archiving logic in handleInit
+   - Integrate utilities into the init command flow
+   - This is the main feature implementation
+   
+4. **F035**: End-to-end integration test
+   - Verify complete workflow works as expected
+   - Critical validation before marking feature complete
+
+**Current Status:**
+
+- Project initialized for archiving feature development
+- 0/50 features passing
+- All features marked as failing (as required)
+- Environment ready for coding agent
+
+**Notes:**
+
+- The .runs/ directory already exists in the project
+- Existing pace codebase uses consistent error handling patterns
+- CLI output uses emojis and clear messaging - maintain this style
+- All code must pass linting (ESLINT_USE_FLAT_CONFIG=false eslint)
+- Tests must pass (bun test) before marking features complete
+
+---

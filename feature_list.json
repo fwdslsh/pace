@@ -1,484 +1,723 @@
 {
   "features": [
     {
-      "id": "INF-001",
-      "category": "infrastructure",
-      "description": "Install ESLint and TypeScript plugin dependencies",
+      "id": "F001",
+      "category": "core",
+      "description": "Create utility function to normalize ISO timestamp to directory-safe format",
       "priority": "critical",
       "steps": [
-        "Run 'bun add -d eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin'",
-        "Verify dependencies appear in package.json"
+        "Create a new utility function that takes an ISO timestamp string",
+        "Parse the timestamp and convert to format: YYYY-MM-DD_HH-MM-SS",
+        "Handle invalid timestamps gracefully (return fallback format)",
+        "Add unit tests for various timestamp formats",
+        "Verify function works with example: 2025-12-15T17:00:00.000Z -> 2025-12-15_17-00-00"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "INF-002",
-      "category": "infrastructure",
-      "description": "Create .eslintrc.json configuration file",
+      "id": "F002",
+      "category": "core",
+      "description": "Create utility function to safely move files to archive directory",
       "priority": "critical",
       "steps": [
-        "Create .eslintrc.json file",
-        "Configure parser and plugins",
-        "Run eslint manually to verify config validity"
+        "Create function that accepts source file path, destination directory, and filename",
+        "Create destination directory if it doesn't exist (mkdir -p)",
+        "Use fs.promises.rename or fs.promises.copyFile + fs.promises.unlink",
+        "Handle errors gracefully (file not found, permission denied, etc.)",
+        "Add unit tests for successful move and error cases",
+        "Verify files are moved correctly and source is removed"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "INF-003",
-      "category": "infrastructure",
-      "description": "Install Prettier dependencies",
+      "id": "F003",
+      "category": "core",
+      "description": "Add function to check if feature_list.json exists before init",
       "priority": "high",
       "steps": [
-        "Run 'bun add -d prettier eslint-config-prettier eslint-plugin-prettier'",
-        "Verify dependencies in package.json"
+        "In handleInit function, check if feature_list.json exists using fs.promises.stat",
+        "If file exists, return true; if ENOENT error, return false",
+        "Handle other errors appropriately",
+        "Add test case for existing and non-existing files"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "INF-004",
-      "category": "infrastructure",
-      "description": "Create .prettierrc configuration file",
+      "id": "F004",
+      "category": "core",
+      "description": "Add function to read metadata.last_updated from feature_list.json",
       "priority": "high",
       "steps": [
-        "Create .prettierrc file with standard rules",
-        "Run prettier check to verify config"
+        "Create function to read feature_list.json",
+        "Parse JSON and extract metadata.last_updated property",
+        "Return the timestamp string or undefined if not present",
+        "Handle malformed JSON gracefully",
+        "Add unit tests with valid and invalid JSON"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "INF-005",
-      "category": "infrastructure",
-      "description": "Create .eslintignore and .prettierignore files",
-      "priority": "medium",
+      "id": "F005",
+      "category": "core",
+      "description": "Implement archive logic in handleInit before running initializer agent",
+      "priority": "critical",
       "steps": [
-        "Create .eslintignore excluding node_modules, dist, etc.",
-        "Create .prettierignore excluding generated files"
+        "Before creating new feature_list.json, check if one already exists",
+        "If exists, read metadata.last_updated timestamp",
+        "Normalize timestamp to directory name format",
+        "Create .runs/<normalized-timestamp>/ directory",
+        "Move feature_list.json to archive directory",
+        "Move progress.txt to archive directory (if exists)",
+        "Log archiving actions to console",
+        "Continue with normal init flow"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "INF-006",
-      "category": "infrastructure",
-      "description": "Add lint script to package.json",
-      "priority": "high",
-      "steps": ["Add 'lint': 'eslint src/**/*.ts' to scripts", "Run 'bun run lint' to verify"],
-      "passes": true
-    },
-    {
-      "id": "INF-007",
-      "category": "infrastructure",
-      "description": "Add format script to package.json",
-      "priority": "high",
-      "steps": [
-        "Add 'format': 'prettier --write src/**/*.ts' to scripts",
-        "Run 'bun run format' to verify"
-      ],
-      "passes": true
-    },
-    {
-      "id": "LINT-001",
-      "category": "linting",
-      "description": "Enable and enforce no-unused-vars rule",
+      "id": "F006",
+      "category": "functional",
+      "description": "Use current timestamp as fallback if last_updated is missing",
       "priority": "high",
       "steps": [
-        "Update .eslintrc.json to error on unused vars",
-        "Run lint and identify violations"
+        "When reading metadata.last_updated, check if it's undefined/null",
+        "If missing, generate current timestamp using new Date().toISOString()",
+        "Use this fallback timestamp for directory naming",
+        "Log warning that last_updated was missing",
+        "Verify archives are created even with missing metadata"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "LINT-002",
-      "category": "linting",
-      "description": "Enable and enforce no-explicit-any rule",
+      "id": "F007",
+      "category": "functional",
+      "description": "Handle case where progress.txt doesn't exist during archiving",
       "priority": "medium",
-      "steps": ["Update .eslintrc.json", "Run lint and identify violations"],
-      "passes": true
+      "steps": [
+        "When archiving, check if progress.txt exists",
+        "If it doesn't exist, skip moving it (don't throw error)",
+        "Only move feature_list.json in this case",
+        "Log that progress.txt was not found (optional)",
+        "Verify init works when only feature_list.json exists"
+      ],
+      "passes": false
     },
     {
-      "id": "LINT-003",
-      "category": "linting",
-      "description": "Enable and enforce no-console rule (allow warn/error)",
+      "id": "F008",
+      "category": "functional",
+      "description": "Preserve .runs directory structure across multiple inits",
       "priority": "medium",
-      "steps": ["Update .eslintrc.json", "Run lint to find console.log usages"],
-      "passes": true
+      "steps": [
+        "Ensure .runs directory is created if it doesn't exist",
+        "Each init creates a new timestamped subdirectory",
+        "Verify multiple init operations create separate archives",
+        "Check that old archives are not overwritten",
+        "Test with 3+ consecutive init operations"
+      ],
+      "passes": false
     },
     {
-      "id": "CLEAN-001",
-      "category": "cleanup",
-      "description": "Fix linting errors in src/cli.ts",
+      "id": "F009",
+      "category": "error-handling",
+      "description": "Handle file system errors during archiving gracefully",
       "priority": "high",
-      "steps": ["Run lint on src/cli.ts", "Fix all reported errors", "Verify clean lint output"],
-      "passes": true
+      "steps": [
+        "Wrap archive operations in try-catch blocks",
+        "If archiving fails, log error but don't abort init",
+        "Consider creating backup with .bak extension as fallback",
+        "Test with permission errors, disk full scenarios",
+        "Verify init continues even if archiving fails"
+      ],
+      "passes": false
     },
     {
-      "id": "CLEAN-002",
-      "category": "cleanup",
-      "description": "Fix linting errors in src/pace-plugin.ts",
+      "id": "F010",
+      "category": "error-handling",
+      "description": "Handle corrupted feature_list.json during archiving",
       "priority": "medium",
-      "steps": ["Run lint on src/pace-plugin.ts", "Fix all reported errors"],
-      "passes": true
+      "steps": [
+        "If JSON parsing fails, still archive the file",
+        "Use fallback timestamp (current time) for directory name",
+        "Log warning about corrupted JSON",
+        "Verify corrupted files are archived safely",
+        "Init should still proceed successfully"
+      ],
+      "passes": false
     },
     {
-      "id": "CLEAN-003",
-      "category": "cleanup",
-      "description": "Fix linting errors in src/feature-manager.ts",
-      "priority": "high",
-      "steps": ["Run lint on src/feature-manager.ts", "Fix all reported errors"],
-      "passes": true
-    },
-    {
-      "id": "CLEAN-004",
-      "category": "cleanup",
-      "description": "Fix linting errors in src/status-reporter.ts",
+      "id": "F011",
+      "category": "ui",
+      "description": "Display informative console messages during archiving",
       "priority": "medium",
-      "steps": ["Run lint on src/status-reporter.ts", "Fix all reported errors"],
-      "passes": true
+      "steps": [
+        "Print message: 'Existing project files found'",
+        "Print message: 'Archiving to .runs/<timestamp>/'",
+        "Print confirmation: 'Archived feature_list.json'",
+        "Print confirmation: 'Archived progress.txt' (if applicable)",
+        "Use consistent formatting with existing CLI output"
+      ],
+      "passes": false
     },
     {
-      "id": "CLEAN-005",
-      "category": "cleanup",
-      "description": "Fix linting errors in src/types.ts",
-      "priority": "medium",
-      "steps": ["Run lint on src/types.ts", "Fix all reported errors"],
-      "passes": true
-    },
-    {
-      "id": "CLEAN-006",
-      "category": "cleanup",
-      "description": "Fix linting errors in src/validators.ts",
-      "priority": "medium",
-      "steps": ["Run lint on src/validators.ts", "Fix all reported errors"],
-      "passes": true
-    },
-    {
-      "id": "CLEAN-007",
-      "category": "cleanup",
-      "description": "Fix linting errors in src/opencode/pace-config.ts",
-      "priority": "medium",
-      "steps": ["Run lint on src/opencode/pace-config.ts", "Fix all reported errors"],
-      "passes": true
-    },
-    {
-      "id": "DEAD-001",
-      "category": "dead-code",
-      "description": "Identify and remove unused imports in cli.ts",
-      "priority": "medium",
-      "steps": ["Analyze imports", "Remove unused", "Verify build"],
-      "passes": true
-    },
-    {
-      "id": "DEAD-003",
-      "category": "dead-code",
-      "description": "Identify and remove unused imports in src/status-reporter.ts",
-      "priority": "medium",
-      "steps": ["Analyze imports", "Remove unused", "Verify build"],
-      "passes": true
-    },
-    {
-      "id": "DEAD-002",
-      "category": "dead-code",
-      "description": "Identify and remove unused imports in src/feature-manager.ts",
-      "priority": "medium",
-      "steps": ["Remove unused imports", "Verify build passes"],
-      "passes": true
-    },
-    {
-      "id": "DEAD-004",
-      "category": "dead-code",
-      "description": "Identify and remove unused imports in src/types.ts",
-      "priority": "medium",
-      "steps": ["Remove unused imports", "Verify build passes"],
-      "passes": true
-    },
-    {
-      "id": "DEAD-005",
-      "category": "dead-code",
-      "description": "Identify and remove unused imports in src/validators.ts",
-      "priority": "medium",
-      "steps": ["Remove unused imports", "Verify build passes"],
-      "passes": true
-    },
-    {
-      "id": "DEAD-006",
-      "category": "dead-code",
-      "description": "Identify and remove unused imports in src/opencode/pace-config.ts",
-      "priority": "medium",
-      "steps": ["Remove unused imports", "Verify build passes"],
-      "passes": true
-    },
-    {
-      "id": "LOG-001",
-      "category": "cleanup",
-      "description": "Remove development console.logs from src/cli.ts",
+      "id": "F012",
+      "category": "ui",
+      "description": "Respect --json flag when displaying archive messages",
       "priority": "low",
-      "steps": ["Find console.log statements", "Remove or replace with proper output mechanism"],
-      "passes": true
+      "steps": [
+        "Check if options.json is true",
+        "If true, suppress console.log archiving messages",
+        "Include archive info in final JSON output instead",
+        "Add 'archived' boolean and 'archivePath' fields to JSON output",
+        "Test both --json and normal output modes"
+      ],
+      "passes": false
     },
     {
-      "id": "LOG-002",
-      "category": "cleanup",
-      "description": "Remove development console.logs from src/feature-manager.ts",
-      "priority": "low",
-      "steps": ["Find console.log statements", "Remove or replace with proper output mechanism"],
-      "passes": true
-    },
-    {
-      "id": "LOG-003",
-      "category": "cleanup",
-      "description": "Remove development console.logs from src/status-reporter.ts",
-      "priority": "low",
-      "steps": ["Find console.log statements", "Remove or replace with proper output mechanism"],
-      "passes": true
-    },
-    {
-      "id": "TEST-001",
-      "category": "testing",
-      "description": "Ensure cli.test.ts passes linting and runs successfully",
-      "priority": "high",
-      "steps": ["Run lint on test file", "Run bun test tests/cli.test.ts"],
-      "passes": true
-    },
-    {
-      "id": "TEST-002",
-      "category": "testing",
-      "description": "Ensure feature-manager.test.ts passes linting and runs successfully",
-      "priority": "high",
-      "steps": ["Run lint on test file", "Run bun test tests/feature-manager.test.ts"],
-      "passes": true
-    },
-    {
-      "id": "TEST-003",
-      "category": "testing",
-      "description": "Ensure pace-config.test.ts passes linting and runs successfully",
-      "priority": "high",
-      "steps": ["Run lint on test file", "Run bun test tests/pace-config.test.ts"],
-      "passes": true
-    },
-    {
-      "id": "TEST-004",
-      "category": "testing",
-      "description": "Ensure status-reporter.test.ts passes linting and runs successfully",
-      "priority": "high",
-      "steps": ["Run lint on test file", "Run bun test tests/status-reporter.test.ts"],
-      "passes": true
-    },
-    {
-      "id": "TEST-005",
-      "category": "testing",
-      "description": "Ensure validators.test.ts passes linting and runs successfully",
-      "priority": "high",
-      "steps": ["Run lint on test file", "Run bun test tests/validators.test.ts"],
-      "passes": true
-    },
-    {
-      "id": "FMT-001",
-      "category": "formatting",
-      "description": "Apply Prettier formatting to all source files",
+      "id": "F013",
+      "category": "ui",
+      "description": "Respect --dry-run flag for archiving operations",
       "priority": "medium",
-      "steps": ["Run bun run format", "Verify no files change in subsequent run"],
-      "passes": true
+      "steps": [
+        "Check if options.dryRun is true",
+        "If true, log what WOULD be archived without moving files",
+        "Print dry-run message: '[DRY RUN] Would archive to .runs/<timestamp>/'",
+        "Don't create directories or move files in dry-run mode",
+        "Verify --dry-run shows archive plan without executing"
+      ],
+      "passes": false
     },
     {
-      "id": "FMT-002",
-      "category": "formatting",
-      "description": "Apply Prettier formatting to test files",
+      "id": "F014",
+      "category": "testing",
+      "description": "Add unit tests for timestamp normalization function",
+      "priority": "high",
+      "steps": [
+        "Create test file for archive utilities",
+        "Test valid ISO timestamps",
+        "Test timestamps with different timezones",
+        "Test invalid/malformed timestamps",
+        "Test edge cases (null, undefined, empty string)",
+        "Verify all tests pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F015",
+      "category": "testing",
+      "description": "Add unit tests for file moving utility",
+      "priority": "high",
+      "steps": [
+        "Create temp directory for testing",
+        "Test successful file move",
+        "Test moving non-existent file (should handle gracefully)",
+        "Test creating nested directories",
+        "Clean up temp files after tests",
+        "Verify all tests pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F016",
+      "category": "testing",
+      "description": "Add integration test for full init archiving flow",
+      "priority": "high",
+      "steps": [
+        "Create test that runs init twice in same directory",
+        "Verify first init creates feature_list.json and progress.txt",
+        "Verify second init archives first files",
+        "Check .runs/<timestamp>/ directory was created",
+        "Verify archived files match original content",
+        "Clean up test files"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F017",
+      "category": "testing",
+      "description": "Test archiving with missing progress.txt",
       "priority": "medium",
-      "steps": ["Run prettier on tests/", "Verify changes"],
-      "passes": true
+      "steps": [
+        "Create feature_list.json without progress.txt",
+        "Run init command",
+        "Verify feature_list.json is archived",
+        "Verify no error occurs due to missing progress.txt",
+        "Check archive directory contains only feature_list.json"
+      ],
+      "passes": false
     },
     {
-      "id": "DOC-001",
+      "id": "F018",
+      "category": "testing",
+      "description": "Test archiving with missing metadata.last_updated",
+      "priority": "medium",
+      "steps": [
+        "Create feature_list.json without last_updated field",
+        "Run init command",
+        "Verify archiving uses current timestamp as fallback",
+        "Verify archive directory name is in correct format",
+        "Verify files are archived successfully"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F019",
+      "category": "testing",
+      "description": "Test multiple consecutive init operations",
+      "priority": "medium",
+      "steps": [
+        "Run init command 3 times in sequence",
+        "Verify 2 archive directories are created (2nd and 3rd init)",
+        "Verify each archive has unique timestamp",
+        "Verify no files are overwritten",
+        "Check final state has current feature_list.json"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F020",
       "category": "documentation",
-      "description": "Update README.md with development/linting instructions",
+      "description": "Update CLI help text to mention archiving behavior",
       "priority": "low",
       "steps": [
-        "Add 'Linting' section to README",
-        "Document 'bun run lint' and 'bun run format' commands"
+        "Add note in printHelp() function under init command",
+        "Mention: 'Existing feature_list.json will be archived to .runs/'",
+        "Update examples section if needed",
+        "Verify help text is clear and concise"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "DEP-001",
-      "category": "dependencies",
-      "description": "Audit package.json for unused dependencies",
+      "id": "F021",
+      "category": "documentation",
+      "description": "Update pace init command documentation",
       "priority": "low",
-      "steps": ["Review dependencies list", "Remove any not imported in the codebase"],
-      "passes": true
-    },
-    {
-      "id": "REFAC-001",
-      "category": "refactoring",
-      "description": "Identify code duplication in feature-manager.ts",
-      "priority": "low",
-      "steps": ["Analyze file for repeated patterns", "Extract common logic if found"],
-      "passes": true
-    },
-    {
-      "id": "REFAC-002",
-      "category": "refactoring",
-      "description": "Identify code duplication in status-reporter.ts",
-      "priority": "low",
-      "steps": ["Analyze file for repeated patterns", "Extract common logic if found"],
-      "passes": true
-    },
-    {
-      "id": "TYPE-001",
-      "category": "types",
-      "description": "Review 'any' usages in types.ts",
-      "priority": "medium",
-      "steps": ["Search for 'any' in types.ts", "Replace with specific types where possible"],
-      "passes": true
-    },
-    {
-      "id": "TYPE-002",
-      "category": "types",
-      "description": "Review 'any' usages in cli.ts",
-      "priority": "medium",
-      "steps": ["Search for 'any' in cli.ts", "Replace with specific types where possible"],
-      "passes": true
-    },
-    {
-      "id": "SEC-001",
-      "category": "security",
-      "description": "Scan for hardcoded credentials",
-      "priority": "critical",
       "steps": [
-        "Search codebase for potential API keys or secrets",
-        "Move to environment variables if found"
+        "Update src/opencode/commands/pace-init.md",
+        "Document archiving behavior",
+        "Explain .runs directory structure",
+        "Add example of archive directory naming",
+        "Mention metadata.last_updated usage"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "DEAD-007",
-      "category": "dead-code",
-      "description": "Check for unused template files in src/assets/templates",
+      "id": "F022",
+      "category": "documentation",
+      "description": "Add JSDoc comments to archiving utility functions",
       "priority": "low",
-      "steps": ["Verify which templates are loaded by the code", "Remove any that are obsolete"],
-      "passes": true
+      "steps": [
+        "Add JSDoc to timestamp normalization function",
+        "Document parameters and return values",
+        "Add JSDoc to file moving function",
+        "Include examples in JSDoc comments",
+        "Follow existing code documentation style"
+      ],
+      "passes": false
     },
     {
-      "id": "DEAD-008",
-      "category": "dead-code",
-      "description": "Remove commented out code in src/cli.ts",
+      "id": "F023",
+      "category": "documentation",
+      "description": "Update README.md with archiving feature",
       "priority": "low",
-      "steps": ["Scan for large blocks of commented code", "Remove them"],
-      "passes": true
+      "steps": [
+        "Add section about project archiving",
+        "Explain when archiving occurs",
+        "Document .runs directory structure",
+        "Add example scenario",
+        "Update features list to include archiving"
+      ],
+      "passes": false
     },
     {
-      "id": "DEAD-009",
-      "category": "dead-code",
-      "description": "Remove commented out code in src/feature-manager.ts",
+      "id": "F024",
+      "category": "refactoring",
+      "description": "Extract archiving logic into separate module",
       "priority": "low",
-      "steps": ["Scan for large blocks of commented code", "Remove them"],
-      "passes": true
+      "steps": [
+        "Create src/archive-manager.ts module",
+        "Move timestamp normalization function to module",
+        "Move file moving function to module",
+        "Create ArchiveManager class with archive() method",
+        "Import and use in handleInit",
+        "Verify tests still pass"
+      ],
+      "passes": false
     },
     {
-      "id": "VER-001",
-      "category": "verification",
-      "description": "Verify build succeeds after all cleanups",
-      "priority": "critical",
-      "steps": ["Run 'bun run build'", "Ensure exit code 0"],
-      "passes": true
-    },
-    {
-      "id": "VER-002",
-      "category": "verification",
-      "description": "Verify all tests pass after cleanup",
-      "priority": "critical",
-      "steps": ["Run 'bun test'", "Ensure all tests pass"],
-      "passes": true
-    },
-    {
-      "id": "VER-003",
-      "category": "verification",
-      "description": "Verify binary execution",
-      "priority": "high",
-      "steps": ["Run ./pace --help", "Ensure it prints help text"],
-      "passes": true
-    },
-    {
-      "id": "CI-001",
-      "category": "ci",
-      "description": "Create a pre-commit hook (husky) for linting",
+      "id": "F025",
+      "category": "refactoring",
+      "description": "Make archive directory path configurable",
       "priority": "low",
-      "steps": ["Install husky", "Add pre-commit hook running 'bun run lint'"],
-      "passes": true
+      "steps": [
+        "Add optional archiveDir parameter to archive function",
+        "Default to '.runs' if not specified",
+        "Allow configuration via pace.json config file",
+        "Update tests to use custom archive directory",
+        "Document configuration option"
+      ],
+      "passes": false
     },
     {
-      "id": "CI-002",
-      "category": "ci",
-      "description": "Setup linting in CI workflow (if github actions exist)",
+      "id": "F026",
+      "category": "integration",
+      "description": "Ensure archiving works with existing FeatureManager",
       "priority": "medium",
-      "steps": ["Check .github/workflows", "Add lint step to release.yml or create pr-check.yml"],
-      "passes": true
+      "steps": [
+        "Test that FeatureManager.load() works after archiving",
+        "Verify archived files don't interfere with new files",
+        "Check that feature stats are calculated correctly",
+        "Test update operations after archiving",
+        "Run full orchestrator flow after init with archiving"
+      ],
+      "passes": false
     },
     {
-      "id": "ACC-001",
-      "category": "accessibility",
-      "description": "Ensure CLI output is readable (color contrast)",
+      "id": "F027",
+      "category": "integration",
+      "description": "Verify git operations are not affected by archiving",
       "priority": "low",
-      "steps": ["Review color usage in CLI output", "Ensure it works on dark and light terminals"],
-      "passes": true
+      "steps": [
+        "Check that .runs is in .gitignore (or should be)",
+        "Test git status after archiving",
+        "Verify archived files can be committed if desired",
+        "Check git log functionality in StatusReporter",
+        "Ensure no unexpected git behavior"
+      ],
+      "passes": false
     },
     {
-      "id": "PERF-001",
+      "id": "F028",
+      "category": "edge-case",
+      "description": "Handle case where .runs already contains conflicting directory",
+      "priority": "low",
+      "steps": [
+        "Create .runs/<timestamp> directory manually",
+        "Run init with same timestamp (unlikely but possible)",
+        "Verify archiving handles conflict gracefully",
+        "Consider appending -1, -2, etc. for conflicts",
+        "Test conflict resolution logic"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F029",
+      "category": "edge-case",
+      "description": "Handle very long or invalid project directory paths",
+      "priority": "low",
+      "steps": [
+        "Test with deeply nested project directory",
+        "Test with directory names containing special characters",
+        "Verify .runs directory is created in correct location",
+        "Test with relative paths (e.g., ../project)",
+        "Ensure path resolution is consistent"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F030",
+      "category": "edge-case",
+      "description": "Handle timezone differences in timestamp normalization",
+      "priority": "low",
+      "steps": [
+        "Test timestamps from different timezones",
+        "Verify directory names are consistent",
+        "Consider normalizing to UTC for consistency",
+        "Document timezone handling in JSDoc",
+        "Add tests for various timezone formats"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F031",
       "category": "performance",
-      "description": "Review import costs in cli.ts",
-      "priority": "low",
-      "steps": ["Check for heavy imports that delay startup", "Use dynamic imports if necessary"],
-      "passes": true
-    },
-    {
-      "id": "STRUCT-001",
-      "category": "structure",
-      "description": "Organize imports in all files",
-      "priority": "low",
-      "steps": ["Run import sorter (via eslint or plugin)", "Standardize import order"],
-      "passes": true
-    },
-    {
-      "id": "CODE-001",
-      "category": "cleanup",
-      "description": "Audit codebase for TODO and FIXME comments",
+      "description": "Ensure archiving doesn't significantly slow down init",
       "priority": "low",
       "steps": [
-        "Search for TODO and FIXME",
-        "Convert actionable ones to issues or features",
-        "Remove obsolete ones"
+        "Measure init time before adding archiving",
+        "Measure init time after adding archiving",
+        "Verify archiving adds less than 100ms overhead",
+        "Use asynchronous file operations",
+        "Consider parallel operations if possible"
       ],
-      "passes": true
+      "passes": false
     },
     {
-      "id": "CODE-002",
+      "id": "F032",
+      "category": "security",
+      "description": "Validate directory paths to prevent path traversal",
+      "priority": "medium",
+      "steps": [
+        "Ensure normalized timestamp cannot contain '..' or absolute paths",
+        "Validate that archive directory is created within project dir",
+        "Sanitize any user-provided paths",
+        "Add security tests for malicious timestamps",
+        "Document security considerations"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F033",
+      "category": "verification",
+      "description": "Verify archived files retain correct permissions",
+      "priority": "low",
+      "steps": [
+        "Check file permissions before archiving",
+        "Check file permissions after archiving",
+        "Verify permissions are preserved",
+        "Test with executable files if applicable",
+        "Test on different platforms (Linux, macOS)"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F034",
+      "category": "verification",
+      "description": "Verify archived files are complete and not corrupted",
+      "priority": "medium",
+      "steps": [
+        "Compare file sizes before and after archiving",
+        "Compare checksums (MD5 or SHA256) of original and archived files",
+        "Verify JSON files can be parsed after archiving",
+        "Test with various file sizes",
+        "Add corruption detection to tests"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F035",
+      "category": "verification",
+      "description": "End-to-end test: Full init workflow with archiving",
+      "priority": "critical",
+      "steps": [
+        "Start with fresh project directory",
+        "Run pace init with project description",
+        "Verify feature_list.json and progress.txt are created",
+        "Modify feature_list.json (mark some features as passing)",
+        "Run pace init again with different description",
+        "Verify old files are archived to .runs/<timestamp>/",
+        "Verify new files are created",
+        "Check both old and new files are intact",
+        "Run pace status and validate command works"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F036",
+      "category": "cli",
+      "description": "Support --force flag to skip archiving and overwrite files",
+      "priority": "low",
+      "steps": [
+        "Add --force option to init command parser",
+        "When --force is set, skip archiving logic",
+        "Directly overwrite existing feature_list.json",
+        "Log warning that files are being overwritten",
+        "Update help text to document --force flag"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F037",
+      "category": "cli",
+      "description": "Add --archive-only flag to archive without initializing",
+      "priority": "low",
+      "steps": [
+        "Add --archive-only option to init command parser",
+        "When set, run archiving logic but skip agent initialization",
+        "Useful for cleaning up before manual init",
+        "Exit after archiving is complete",
+        "Document flag in help text"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F038",
+      "category": "accessibility",
+      "description": "Ensure archive messages are accessible in --json mode",
+      "priority": "low",
+      "steps": [
+        "Add 'archive' object to JSON output",
+        "Include 'archived' boolean field",
+        "Include 'archivePath' string field",
+        "Include 'archivedFiles' array",
+        "Test JSON output parsing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F039",
+      "category": "logging",
+      "description": "Create archive metadata file in each archive directory",
+      "priority": "low",
+      "steps": [
+        "Create .archive-info.json in each .runs/<timestamp>/ directory",
+        "Include original metadata from feature_list.json",
+        "Add archive timestamp",
+        "Add reason (e.g., 'pace init')",
+        "Include list of archived files",
+        "Make this optional/configurable"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F040",
       "category": "cleanup",
-      "description": "Check for magic numbers in validators.ts",
+      "description": "Add utility command to list archived runs",
       "priority": "low",
-      "steps": ["Identify unnamed numeric constants", "Extract them to named constants"],
-      "passes": true
+      "steps": [
+        "Create 'pace archives' or 'pace list-archives' command",
+        "List all directories in .runs/",
+        "Show timestamp and basic metadata for each",
+        "Support --json output format",
+        "Add to help text"
+      ],
+      "passes": false
     },
     {
-      "id": "DOC-002",
-      "category": "documentation",
-      "description": "Add JSDoc to public functions in feature-manager.ts",
+      "id": "F041",
+      "category": "cleanup",
+      "description": "Add utility command to restore archived run",
       "priority": "low",
-      "steps": ["Identify public methods", "Add JSDoc describing params and return values"],
-      "passes": true
+      "steps": [
+        "Create 'pace restore <timestamp>' command",
+        "Copy files from .runs/<timestamp>/ back to project root",
+        "Prompt for confirmation before overwriting",
+        "Support --force flag to skip confirmation",
+        "Add to help text"
+      ],
+      "passes": false
     },
     {
-      "id": "DOC-003",
-      "category": "documentation",
-      "description": "Add JSDoc to public functions in status-reporter.ts",
+      "id": "F042",
+      "category": "cleanup",
+      "description": "Add utility command to delete old archives",
       "priority": "low",
-      "steps": ["Identify public methods", "Add JSDoc describing params and return values"],
-      "passes": true
+      "steps": [
+        "Create 'pace clean-archives' command",
+        "Support --older-than <days> option",
+        "Support --keep-last <n> option",
+        "Prompt for confirmation before deleting",
+        "Add to help text"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F043",
+      "category": "gitignore",
+      "description": "Ensure .runs directory is properly git-ignored",
+      "priority": "medium",
+      "steps": [
+        "Check if .gitignore includes .runs/",
+        "Add .runs/ to .gitignore if not present",
+        "Consider making this configurable (some may want to commit archives)",
+        "Document git ignore behavior",
+        "Test that archived files don't appear in git status"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F044",
+      "category": "backwards-compatibility",
+      "description": "Ensure new archiving doesn't break existing pace installations",
+      "priority": "high",
+      "steps": [
+        "Test with projects initialized before this feature",
+        "Verify first init after upgrade handles missing .runs gracefully",
+        "Ensure metadata fields are optional",
+        "Test migration path from old to new behavior",
+        "Add upgrade notes to release"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F045",
+      "category": "ci",
+      "description": "Add CI tests for archiving functionality",
+      "priority": "medium",
+      "steps": [
+        "Add archiving tests to GitHub Actions workflow",
+        "Test on multiple OS (Linux, macOS, Windows if supported)",
+        "Verify tests pass in CI environment",
+        "Add to pr-check.yml workflow",
+        "Ensure coverage for all archiving code paths"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F046",
+      "category": "code-quality",
+      "description": "Ensure archiving code passes linting",
+      "priority": "high",
+      "steps": [
+        "Run eslint on new archiving code",
+        "Fix any linting errors",
+        "Ensure no console.log in non-CLI code",
+        "Verify imports are properly organized",
+        "Run prettier to format code"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F047",
+      "category": "code-quality",
+      "description": "Add type safety for archive-related functions",
+      "priority": "medium",
+      "steps": [
+        "Define types for archive options",
+        "Define types for archive results",
+        "Avoid 'any' types in archiving code",
+        "Use proper error types",
+        "Export types for external use if needed"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F048",
+      "category": "validation",
+      "description": "Validate archive directory structure",
+      "priority": "low",
+      "steps": [
+        "Create function to check if .runs/<dir> is a valid archive",
+        "Verify it contains expected files",
+        "Check for corruption or incomplete archives",
+        "Report validation results",
+        "Use in archive listing command"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F049",
+      "category": "user-experience",
+      "description": "Provide clear feedback when no files need archiving",
+      "priority": "low",
+      "steps": [
+        "Detect when init is run in empty directory",
+        "Display message: 'No existing files to archive'",
+        "Proceed directly to initialization",
+        "Don't create empty archive directories",
+        "Test UX with fresh projects"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F050",
+      "category": "user-experience",
+      "description": "Show archive location in init success message",
+      "priority": "low",
+      "steps": [
+        "After successful archiving, include archive path in output",
+        "Example: 'Previous run archived to: .runs/2025-12-15_17-00-00/'",
+        "Make message prominent but not intrusive",
+        "Include in both verbose and normal modes",
+        "Format consistently with other CLI output"
+      ],
+      "passes": false
     }
   ],
   "metadata": {
-    "project_name": "pace-cleanup",
-    "created_at": "2025-12-15",
-    "total_features": 55,
-    "passing": 55,
-    "failing": 0,
-    "last_updated": "2025-12-15T17:00:00.000Z"
+    "project_name": "pace-init-archiving",
+    "created_at": "2025-12-17",
+    "total_features": 50,
+    "passing": 0,
+    "failing": 50,
+    "last_updated": "2025-12-17T00:00:00.000Z"
   }
 }
