@@ -3904,3 +3904,57 @@ The coding agent should start with critical and high priority features:
 - Continue with refactoring and remaining low-priority tasks
 
 ---
+---
+
+### Session 91 - Archive Refactoring
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F024: Extract archiving logic into separate module
+
+**Actions Taken:**
+
+- **Created src/archive-manager.ts module**:
+  - Implemented ArchiveManager class with archive() method
+  - Added ArchiveOptions and ArchiveResult interfaces for type safety
+  - Encapsulated file archiving workflow in a reusable class
+  - Moved inline archiving logic from handleInit into the class
+  - Implemented private helper methods:
+    - checkFeatureListExists() - checks if feature_list.json exists
+    - getTimestamp() - reads metadata.last_updated from feature_list.json
+    - performDryRun() - shows what would be archived in dry-run mode
+    - archiveFile() - archives a single file with .bak fallback
+  - Added eslint-disable for no-console (legitimate CLI output)
+  
+- **Refactored handleInit in cli.ts**:
+  - Replaced 137 lines of inline archiving logic with 7 lines
+  - Imported ArchiveManager from src/archive-manager
+  - Instantiated ArchiveManager and called archive() method
+  - Maintained backward compatibility with all existing options
+  - Preserved all error handling and fallback behavior
+
+- **Verified functionality**:
+  - All tests pass: 281 pass, 34 skip, 0 fail
+  - Linting passes with no errors
+  - Build succeeds without errors
+  - Checked that checkFeatureListExists is still exported for tests
+
+**Test Results:**
+
+- All 281 tests pass
+- Build successful
+- Lint passes cleanly
+
+**Current Status:**
+
+- Features passing: 33/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F025 (Make archive directory path configurable)
+- Continue with remaining refactoring and enhancement tasks
+
