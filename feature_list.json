@@ -127,7 +127,7 @@
         "Test with permission errors, disk full scenarios",
         "Verify init continues even if archiving fails"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F010",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 7,
-    "failing": 43,
+    "passing": 8,
+    "failing": 42,
     "last_updated": "2025-12-17T00:00:00.000Z"
   }
 }
