@@ -70,6 +70,7 @@ interface ParsedArgs {
     prompt?: string;
     file?: string;
     force?: boolean;
+    archiveOnly?: boolean;
     // Update-specific
     featureId?: string;
     passStatus?: boolean;
@@ -209,6 +210,9 @@ function parseArgs(): ParsedArgs {
         break;
       case '--force':
         options.force = true;
+        break;
+      case '--archive-only':
+        options.archiveOnly = true;
         break;
       default:
         // For update command, parse feature ID and pass/fail
@@ -1058,6 +1062,43 @@ async function readLastUpdated(projectDir: string): Promise<string | undefined> 
 async function handleInit(options: ParsedArgs['options']): Promise<void> {
   const projectDir = resolve(options.projectDir);
 
+  // Handle --archive-only flag: archive without initialization
+  if (options.archiveOnly) {
+    // Load pace config to get archive directory setting
+    const paceConfig = await loadConfig(projectDir);
+    const paceSettings = getPaceSettings(paceConfig);
+
+    // Perform archiving only
+    const archiveManager = new ArchiveManager();
+    const archiveResult = await archiveManager.archive({
+      projectDir,
+      archiveDir: paceSettings.archiveDir,
+      dryRun: options.dryRun,
+      silent: options.json,
+      verbose: options.verbose,
+    });
+
+    if (options.json) {
+      console.log(
+        JSON.stringify({
+          archived: archiveResult.archived,
+          archivePath: archiveResult.archivePath,
+          archivedFiles: archiveResult.archivedFiles,
+          dryRun: options.dryRun,
+        }),
+      );
+    } else {
+      if (archiveResult.archived) {
+        console.log(`\nArchived existing files to: ${archiveResult.archivePath}`);
+        console.log(`Files archived: ${archiveResult.archivedFiles.join(', ')}`);
+      } else {
+        console.log('\nNo files to archive');
+      }
+    }
+
+    process.exit(archiveResult.archived ? 0 : 0);
+  }
+
   // Get the project description from prompt or file
   let projectDescription: string | undefined;
 
@@ -1736,12 +1777,14 @@ INIT OPTIONS:
     --file PATH                  Path to file containing project description
     --url, -u URL                Connect to existing OpenCode server (instead of spawning)
     --force                      Skip archiving and overwrite existing files
+    --archive-only               Archive existing files without initialization
     --dry-run                    Show what would be done without executing
     --verbose, -v                Show detailed output during initialization
     --json                       Output results in JSON format
 
     Note: Existing feature_list.json will be archived to .runs/ before initialization.
           Use --force to skip archiving and overwrite existing files.
+          Use --archive-only to archive files without running initialization.
 
     You can also pass the prompt directly:
         pace init "Build a todo app with authentication"
