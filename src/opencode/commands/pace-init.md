@@ -1,5 +1,49 @@
-
 Execute these steps EXACTLY when starting a new long-running project. This is the foundation that enables all future coding sessions to work effectively.
+
+## Archiving Behavior
+
+**IMPORTANT:** When running `pace init` in a directory that already contains `feature_list.json`, the existing files are automatically archived before initialization.
+
+### Archive Directory Structure
+
+Archives are stored in `.runs/` with timestamped subdirectories:
+
+```
+.runs/
+├── 2025-12-15_17-00-00/
+│   ├── feature_list.json
+│   └── progress.txt
+├── 2025-12-16_09-30-15/
+│   ├── feature_list.json
+│   └── progress.txt
+└── 2025-12-17_14-22-33/
+    ├── feature_list.json
+    └── progress.txt
+```
+
+### Archive Directory Naming
+
+The archive directory name is derived from `metadata.last_updated` in `feature_list.json`:
+
+- **Format:** `YYYY-MM-DD_HH-MM-SS` (UTC timezone)
+- **Example:** `2025-12-15T17:00:00.000Z` → `.runs/2025-12-15_17-00-00/`
+- **Fallback:** If `metadata.last_updated` is missing or corrupted, the current timestamp is used
+
+### Files Archived
+
+1. **feature_list.json** - Always archived if it exists
+2. **progress.txt** - Archived if it exists (optional, no error if missing)
+
+### Error Handling
+
+- If archiving to `.runs/` fails, a `.bak` backup is created as fallback
+- If both archiving and backup fail, init continues with a warning
+- The `.runs/` directory is automatically created if it doesn't exist
+- Multiple archives are preserved (no overwrites)
+
+### Security
+
+Archive operations include path traversal protection to ensure files are only archived within the project directory.
 
 ## Prerequisites
 
@@ -32,31 +76,39 @@ Generate `feature_list.json` in the project root with comprehensive features.
 
 ```json
 {
-	"features": [
-		{
-			"id": "F001",
-			"category": "functional",
-			"description": "User can create a new item",
-			"priority": "high",
-			"steps": [
-				"Navigate to main interface",
-				"Click 'New Item' button",
-				"Fill in required fields",
-				"Click 'Save'",
-				"Verify item appears in list"
-			],
-			"passes": false
-		}
-	],
-	"metadata": {
-		"project_name": "",
-		"created_at": "",
-		"total_features": 0,
-		"passing": 0,
-		"failing": 0
-	}
+  "features": [
+    {
+      "id": "F001",
+      "category": "functional",
+      "description": "User can create a new item",
+      "priority": "high",
+      "steps": [
+        "Navigate to main interface",
+        "Click 'New Item' button",
+        "Fill in required fields",
+        "Click 'Save'",
+        "Verify item appears in list"
+      ],
+      "passes": false
+    }
+  ],
+  "metadata": {
+    "project_name": "",
+    "created_at": "",
+    "total_features": 0,
+    "passing": 0,
+    "failing": 0,
+    "last_updated": ""
+  }
 }
 ```
+
+**Important Metadata Fields:**
+
+- `last_updated`: ISO 8601 timestamp used for archive directory naming when re-initializing
+  - Example: `"2025-12-15T17:00:00.000Z"`
+  - Used to create archive directory: `.runs/2025-12-15_17-00-00/`
+  - If missing, current timestamp is used as fallback
 
 **Aim for 50-200+ features** depending on project complexity. Be thorough - missing features lead to incomplete implementations.
 
@@ -177,7 +229,6 @@ The coding agent will now be able to:
 2. Run `init.sh` to start the environment
 3. Select a feature from `feature_list.json` to implement
 4. Make incremental progress with proper tracking
-**VERY IMPORTANT** DO NOT IMPLEMENT FEATURES YOURSELF. ONLY DO THE STEPS LISTED ABOVE FOR THE REQUESTED FEATURE BELOW
+   **VERY IMPORTANT** DO NOT IMPLEMENT FEATURES YOURSELF. ONLY DO THE STEPS LISTED ABOVE FOR THE REQUESTED FEATURE BELOW
 
 ## Requested Feature
-
