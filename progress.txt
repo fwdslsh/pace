@@ -2841,3 +2841,51 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining testing features (F017-F019)
 
 ---
+---
+
+### Session 70 - Backwards Compatibility Tests for Archiving Feature
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F044: Ensure new archiving doesn't break existing pace installations
+
+**Actions Taken:**
+
+- Added comprehensive backwards compatibility test suite to tests/init-command.test.ts
+- Created 8 test cases covering different upgrade scenarios:
+  1. Test with feature_list.json missing metadata.last_updated field (old installations)
+  2. Test with minimal metadata (only project_name)
+  3. Test with no metadata object at all (very old format)
+  4. Test .runs directory creation on first upgrade from old installation
+  5. Test corrupted feature_list.json handling during upgrade
+  6. Test full archive and reinitialize workflow (old format -> archive -> new format)
+  7. Test feature_list.json with extra unknown/custom fields
+  8. Test warning message when metadata.last_updated is missing
+- All tests verify that archiving works gracefully with old project formats
+- Tests confirm that metadata fields are optional and fallback to current timestamp
+- Tests verify .runs directory is created automatically on first use
+- Verified all 247 existing tests still pass with 0 failures
+
+**Test Results:**
+
+- Added 8 new test cases within "Init Command End-to-End Archiving Workflow" describe block
+- All new tests properly handle edge cases and old installation formats
+- `bun test` passes (247 pass, 28 skip, 0 fail)
+- `./pace status` shows 12/50 passing
+- Feature F044 verified passing
+
+**Current Status:**
+
+- Features passing: 12/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F046 (Ensure archiving code passes linting)
+- Continue with remaining archiving features
+- Note: The backwards compatibility tests ensure smooth upgrade path for existing users
+
+---
