@@ -3206,3 +3206,52 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining testing and documentation features
 
 ---
+
+---
+
+### Session 77 - Missing Progress.txt Archiving Tests
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F017: Test archiving with missing progress.txt
+
+**Actions Taken:**
+
+- Reviewed existing archiving implementation in cli.ts (lines 1136-1146, 1180-1213)
+- Confirmed verbose logging for missing progress.txt was added in Session 71 (line 1210-1211)
+- Added two comprehensive tests for F017 in tests/init-command.test.ts:
+  1. Test verifying complete archiving workflow without progress.txt:
+     - Creates feature_list.json without progress.txt  
+     - Actually performs archiving (not dry-run)
+     - Verifies feature_list.json is archived successfully
+     - Confirms no errors occur due to missing progress.txt
+     - Validates archive directory contains only feature_list.json (using readdir)
+  2. Test verifying verbose logging in dry-run mode:
+     - Uses --dry-run and --verbose flags
+     - Confirms "progress.txt not found (skipping)" message is displayed
+- Added readdir to fs/promises imports for directory listing verification
+- All 5 verification steps from F017 feature specification are covered
+- Tests pass successfully (44 pass, 32 skip, 0 fail in init-command.test.ts)
+- Full test suite passes (257 pass, 32 skip, 0 fail)
+
+**Test Results:**
+
+- Both F017 tests pass successfully
+- Verified archiving works correctly when progress.txt is missing
+- Verbose mode correctly reports missing progress.txt
+- No regressions in existing tests
+
+**Current Status:**
+
+- Features passing: 19/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F018 (Test archiving with missing metadata.last_updated)
+- Continue with remaining testing tasks
+
+---
