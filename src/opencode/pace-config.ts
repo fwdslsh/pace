@@ -56,7 +56,23 @@ export interface PaceOrchestratorConfig {
 export interface PaceSettings {
   /** Orchestrator settings for the CLI */
   orchestrator?: PaceOrchestratorConfig;
-  /** Custom archive directory path (defaults to '.runs') */
+  /**
+   * Custom archive directory path for storing archived project files
+   *
+   * When running `pace init` in a directory with existing project files,
+   * pace archives the old files to preserve previous work. This setting
+   * controls where those archives are stored.
+   *
+   * @default '.runs'
+   * @example
+   * ```json
+   * {
+   *   "pace": {
+   *     "archiveDir": ".archives"
+   *   }
+   * }
+   * ```
+   */
   archiveDir?: string;
 }
 

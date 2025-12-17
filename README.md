@@ -257,6 +257,24 @@ $ pace init -p "Build an inventory system"
 
 The `.runs/` directory is automatically added to `.gitignore` to prevent archived runs from being committed to version control, though you can customize this behavior if you want to track your project history.
 
+**Customizing Archive Directory:**
+
+You can configure a custom archive directory by adding an `archiveDir` setting to your `pace.json` file:
+
+```json
+{
+  "pace": {
+    "archiveDir": ".archives"
+  }
+}
+```
+
+With this configuration, archives will be stored in `.archives/<timestamp>/` instead of the default `.runs/<timestamp>/`. This is useful if you want to:
+
+- Use a more descriptive directory name
+- Keep archives in a different location
+- Match your project's existing archive structure
+
 ### Workflow
 
 1. **Orient**: Reads project state from `feature_list.json` and progress files
