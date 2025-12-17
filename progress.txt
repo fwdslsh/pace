@@ -3145,3 +3145,64 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining archiving features
 
 ---
+
+### Session 76 - Dry-run Archiving Tests
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F013: Respect --dry-run flag for archiving operations
+
+**Actions Taken:**
+
+- Reviewed existing dry-run archiving implementation in cli.ts (lines 1131-1146)
+- Confirmed all F013 requirements were already implemented:
+  * Line 1131: Check if options.dryRun is true
+  * Lines 1132-1146: Log what WOULD be archived without moving files
+  * Line 1134: Print "[DRY RUN] Would archive to: .runs/<timestamp>/" message
+  * Dry-run block prevents directory creation and file movement
+  * Actual archiving only happens in else block (line 1147+)
+- Added comprehensive test suite for F013 (2 new tests):
+  1. Test verifying dry-run shows archive plan without executing
+     - Verifies [DRY RUN] message with correct archive path
+     - Confirms .runs directory is NOT created
+     - Confirms files are NOT moved from project root
+     - Validates file contents remain unchanged
+  2. Test verifying dry-run with missing progress.txt and --verbose
+     - Verifies progress.txt not found message displays with --verbose
+     - Confirms .runs directory is NOT created
+     - Confirms feature_list.json remains at root
+- Performed manual end-to-end testing:
+  * Created test project with feature_list.json and progress.txt
+  * Ran `pace init --prompt "Test" --dry-run`
+  * Verified correct output messages displayed
+  * Confirmed no files were moved
+  * Confirmed .runs directory was not created
+
+**Test Results:**
+
+- All 2 new F013 tests pass
+- `bun test tests/init-command.test.ts` passes (44 pass, 30 skip, 0 fail, 160 expect() calls)
+- `bun test` passes all 257 tests (30 skip, 0 fail, 718 expect() calls)
+- Manual end-to-end test confirmed all 5 F013 requirements:
+  1. ✓ options.dryRun is checked correctly
+  2. ✓ Logs what WOULD be archived (feature_list.json, progress.txt)
+  3. ✓ Prints "[DRY RUN] Would archive to: .runs/2025-12-17_10-00-00/"
+  4. ✓ Does NOT create directories or move files
+  5. ✓ Shows complete archive plan without executing
+
+**Current Status:**
+
+- Features passing: 18/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F017 (Test archiving with missing progress.txt)
+- Or F018 (Test archiving with missing metadata.last_updated)
+- Or F019 (Test multiple consecutive init operations)
+- Continue with remaining testing and documentation features
+
+---
