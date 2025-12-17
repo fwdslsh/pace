@@ -2339,3 +2339,52 @@ The coding agent should start with critical and high priority features:
 
 ---
 
+---
+
+### Session 61 - Archive Logic Implementation
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F005: Implement archive logic in handleInit before running initializer agent
+
+**Actions Taken:**
+
+- Verified that archive logic was already implemented in handleInit function (lines 1022-1104 in cli.ts)
+- Archive logic includes:
+  - Check if feature_list.json exists before init
+  - Read metadata.last_updated timestamp from feature_list.json
+  - Normalize timestamp to directory-safe format using normalizeTimestamp()
+  - Create .runs/<normalized-timestamp>/ directory
+  - Move feature_list.json to archive directory using moveToArchive()
+  - Move progress.txt to archive directory if it exists
+  - Log archiving actions to console with emoji indicators
+  - Continue with normal init flow after archiving
+- Conducted comprehensive end-to-end testing with three test scenarios:
+  1. Standard case: Both feature_list.json and progress.txt present with valid metadata
+  2. Edge case: Missing progress.txt (archived only feature_list.json)
+  3. Edge case: Missing metadata.last_updated (used current timestamp as fallback)
+
+**Test Results:**
+
+- All three test scenarios passed successfully:
+  - Standard archiving: Created .runs/2025-12-15_10-30-00/ with both files
+  - Missing progress.txt: Created .runs/2025-12-16_14-20-00/ with only feature_list.json
+  - Missing metadata: Created .runs/2025-12-17_18-19-22/ using current timestamp
+- Verified archived files maintain correct content and permissions
+- Verified source files are removed after successful archiving
+- `bun run build` succeeds
+- `./pace status` shows 3/50 passing
+
+**Current Status:**
+
+- Features passing: 3/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F035 (End-to-end test: Full init workflow with archiving) or F003 (Add function to check if feature_list.json exists)
+- Continue implementing remaining archiving-related features
+
