@@ -45,6 +45,9 @@ tmp/
 temp/
 *.tmp
 
+# Debug files
+debug-*.js
+
 # Local development
 
 # Archived runs
