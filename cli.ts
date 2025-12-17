@@ -307,6 +307,7 @@ class Orchestrator {
   private projectDir: string;
   private port?: number;
   private url?: string; // URL to connect to existing OpenCode server
+  private model?: string; // Model override from CLI
   private maxSessions?: number;
   private maxFailures?: number;
   private delay?: number;
@@ -325,6 +326,7 @@ class Orchestrator {
     this.projectDir = resolve(options.projectDir);
     this.port = options.port;
     this.url = options.url;
+    this.model = options.model; // Store CLI model override
     // Only set maxSessions if explicitly provided or untilComplete is true
     this.maxSessions = options.untilComplete
       ? undefined
@@ -481,8 +483,8 @@ class Orchestrator {
     const client = this.client;
     const startTime = Date.now();
 
-    // Get agent-specific model if configured
-    const agentModelId = getAgentModel(this.paceConfig, PACE_AGENTS.CODING);
+    // Get agent-specific model if configured (CLI --model overrides everything)
+    const agentModelId = this.model ?? getAgentModel(this.paceConfig, PACE_AGENTS.CODING);
     const agentModel = agentModelId ? parseModelId(agentModelId) : undefined;
     const displayModel = agentModelId ?? this.activeModel;
 
@@ -869,10 +871,17 @@ class Orchestrator {
 
         this.state.sessionCount++;
         if (!this.json) {
+          // Get agent-specific model if configured (CLI --model overrides everything)
+          const agentModelId = this.model ?? getAgentModel(this.paceConfig, PACE_AGENTS.CODING);
+          const displayModel = agentModelId ?? this.activeModel;
+
           console.log('\n' + '='.repeat(60));
           console.log(`SESSION ${this.state.sessionCount}: Feature ${nextFeature.id}`);
           console.log('='.repeat(60));
           console.log(`Description: ${nextFeature.description.slice(0, 60)}...`);
+          if (displayModel) {
+            console.log(`Model: ${displayModel}`);
+          }
           console.log('\n[DRY RUN] Would create coding session here');
         }
       }
@@ -1100,6 +1109,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
   });
 
   if (options.dryRun) {
+    // Get agent-specific model if configured (CLI --model overrides everything)
+    const agentModelId = options.model ?? getAgentModel(paceConfig, PACE_AGENTS.INITIALIZER);
+
     if (options.json) {
       console.log(
         JSON.stringify({
@@ -1109,6 +1121,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
           promptPreview:
             projectDescription.slice(0, 200) + (projectDescription.length > 200 ? '...' : ''),
           message: 'Would initialize pace project with the given description',
+          model: agentModelId,
         }),
       );
     } else {
@@ -1116,6 +1129,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       console.log(' PACE INIT (DRY RUN)');
       console.log('='.repeat(60));
       console.log(`\nProject directory: ${projectDir}`);
+      if (agentModelId) {
+        console.log(`Model: ${agentModelId}`);
+      }
       console.log(`\nProject description:`);
       console.log('-'.repeat(40));
       console.log(
@@ -1181,8 +1197,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       }
     }
 
-    // Get agent-specific model if configured
-    const agentModelId = getAgentModel(paceConfig, PACE_AGENTS.INITIALIZER);
+    // Get agent-specific model if configured (CLI --model overrides everything)
+    const agentModelId = options.model ?? getAgentModel(paceConfig, PACE_AGENTS.INITIALIZER);
+    const agentModel = agentModelId ? parseModelId(agentModelId) : undefined;
 
     if (!options.json) {
       if (agentModelId) {
@@ -1220,8 +1237,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       body: {
         parts: [{ type: 'text', text: fullPrompt }],
         agent: 'pace-initializer',
-
-        //...(agentModel && { model: agentModel }),
+        ...(agentModel && { model: agentModel }),
       },
     });
 
