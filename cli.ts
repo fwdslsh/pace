@@ -21,7 +21,7 @@
  *     pace update F001 pass
  */
 
-import { readFile, stat } from 'fs/promises';
+import { readFile, stat, mkdir, rename } from 'fs/promises';
 import { join, resolve } from 'path';
 
 import { createOpencode } from '@opencode-ai/sdk';

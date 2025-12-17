@@ -1,0 +1,138 @@
+# Project Progress Log
+
+## Project: [PROJECT_NAME]
+## Created: [YYYY-MM-DD]
+## Repository: [path/to/repo]
+
+---
+
+## Quick Reference
+
+**Current Status:** Initialization Complete / In Progress / Feature Complete
+**Features Passing:** 0 / [TOTAL]
+**Last Session:** Session 1 - Initialization
+**Next Target:** F001 - [First feature to implement]
+
+---
+
+## Session History
+
+### Session 1 - Initialization
+**Date:** [YYYY-MM-DD HH:MM]
+**Agent Type:** Initializer
+
+**Actions Taken:**
+- Analyzed project requirements
+- Created feature_list.json with [N] features
+- Generated init.sh script for development environment
+- Initialized git repository
+- Made initial commit
+
+**Environment Details:**
+- Framework: [e.g., React 18, Django 4.2, etc.]
+- Language: [e.g., TypeScript, Python 3.11]
+- Development Server: http://localhost:[PORT]
+- Key Dependencies:
+  - [dependency 1]
+  - [dependency 2]
+  - [dependency 3]
+
+**File Structure Created:**
+```
+project-root/
+├── feature_list.json
+├── claude-progress.txt
+├── init.sh
+└── [other initial files]
+```
+
+**Git Commit:** [commit hash] - "chore: initialize project with long-running agent harness"
+
+**Next Steps:**
+- Run init.sh to start development environment
+- Begin implementing features starting with F001
+- Focus on critical/high priority features first
+
+---
+
+### Session 2 - [Feature Focus]
+**Date:** [YYYY-MM-DD HH:MM]
+**Agent Type:** Coding
+
+**Orientation:**
+- Read progress file: ✓
+- Checked git log: ✓
+- Reviewed feature list: ✓
+- Ran init.sh: ✓
+- Sanity test passed: ✓
+
+**Feature Worked On:**
+- F00X: [Feature description]
+
+**Implementation Details:**
+- [What was built]
+- [Files created/modified]
+- [Technical approach taken]
+
+**Testing Performed:**
+- [End-to-end test description]
+- [Browser automation steps if applicable]
+- [Verification results]
+
+**Result:** ✓ Feature passing / ✗ Feature incomplete
+
+**Git Commits:**
+- [hash] - "[commit message 1]"
+- [hash] - "[commit message 2]"
+
+**Current Status:**
+- Features passing: X / [TOTAL]
+- Known issues: [None / List issues]
+
+**Next Steps:**
+- Next recommended feature: F00Y - [description]
+- [Any preparation needed]
+- [Notes for next session]
+
+---
+
+## Known Issues
+
+[Document any bugs, blockers, or concerns discovered during development]
+
+| Issue | Severity | First Seen | Status | Notes |
+|-------|----------|------------|--------|-------|
+| None currently | - | - | - | - |
+
+---
+
+## Architecture Decisions
+
+[Document important technical decisions made during development]
+
+| Decision | Rationale | Session |
+|----------|-----------|---------|
+| [e.g., Used React Query for API calls] | [Why this choice was made] | Session N |
+
+---
+
+## Dependencies & Environment
+
+**Required Environment Variables:**
+```bash
+# List any env vars needed
+EXAMPLE_VAR=value
+```
+
+**Starting the Development Environment:**
+```bash
+./init.sh
+```
+
+**Common Commands:**
+```bash
+# List useful commands for the project
+npm run dev     # Start dev server
+npm run test    # Run tests
+npm run build   # Build for production
+```

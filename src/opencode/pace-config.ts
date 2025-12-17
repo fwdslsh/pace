@@ -208,7 +208,8 @@ const paceComplete = parseFrontmatter<CommandFrontmatter>(paceCompleteMd);
 const DEFAULT_AGENTS: NonNullable<OpencodeConfig['agent']> = {
   'pace-coding': {
     name: 'pace-coding',
-    description: codingAgent.frontmatter.description || 'Implements features following pace workflow',
+    description:
+      codingAgent.frontmatter.description || 'Implements features following pace workflow',
     mode: codingAgent.frontmatter.mode || 'subagent',
     prompt: codingAgent.content,
     tools: codingAgent.frontmatter.tools,
@@ -222,7 +223,8 @@ const DEFAULT_AGENTS: NonNullable<OpencodeConfig['agent']> = {
   },
   'pace-coordinator': {
     name: 'pace-coordinator',
-    description: coordinatorAgent.frontmatter.description || 'Orchestrates multiple coding sessions',
+    description:
+      coordinatorAgent.frontmatter.description || 'Orchestrates multiple coding sessions',
     mode: coordinatorAgent.frontmatter.mode || 'subagent',
     prompt: coordinatorAgent.content,
     tools: coordinatorAgent.frontmatter.tools,
