@@ -6,6 +6,45 @@
 
 ---
 
+### Session 109 - [Feature Focus]
+
+**Date:** 2025-12-17
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F040: Add utility command to list archived runs
+
+**Actions Taken:**
+
+- Verified archives command was already implemented and fully functional
+- Tested human-readable output format showing 18 archives with timestamps and metadata
+- Tested JSON output format returning structured data with archive paths and metadata
+- Confirmed command appears in help text with proper options documentation
+- Updated feature_list.json to mark F040 as passing (was incorrectly marked as failing)
+- Updated metadata counts from 46/50 to 47/50 passing features
+- Ran full test suite to ensure no regressions (367 pass, 0 fail)
+
+**Test Results:**
+
+- Archives command successfully lists all directories in .runs/
+- Shows timestamp and basic metadata for each archive including creation reason and file lists when available
+- Both human-readable and JSON output formats work correctly
+- Command properly documented in help text with examples and options
+- All existing tests continue to pass with no regressions
+
+**Current Status:**
+
+- Features passing: 47/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F042 (Add utility command to delete old archives) or F048 (Validate archive directory structure)
+- All F040 verification steps completed successfully
+
+---
+
 ### Session 108 - [Feature Focus]
 
 **Date:** 2025-12-17
