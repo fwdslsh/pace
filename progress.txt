@@ -2933,3 +2933,47 @@ The coding agent should start with critical and high priority features:
 - Note: All archiving code now meets project linting and code quality standards
 
 ---
+
+### Session 72 - Handle Missing progress.txt During Archiving
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F007: Handle case where progress.txt doesn't exist during archiving
+
+**Actions Taken:**
+
+- Reviewed existing archiving code in cli.ts
+- Identified that the code already handles missing progress.txt gracefully (lines 1205-1207 and 1140-1142)
+- Added optional verbose logging when progress.txt is not found during archiving
+- Added log message: "ℹ️ progress.txt not found (skipping)" in verbose mode
+- Applied to both dry-run preview (line 1142) and actual archiving (line 1207)
+- Respects --json flag to avoid polluting JSON output
+- Tested manually with temp directory containing only feature_list.json
+- Verified archiving works correctly when only feature_list.json exists
+
+**Test Results:**
+
+- Manual test: Created temp dir with only feature_list.json (no progress.txt)
+- `pace init --dry-run --verbose` correctly shows skip message
+- `pace init --dry-run` (without verbose) does not show message
+- `bun run lint` passes with 0 errors
+- `bun test` passes (247 pass, 28 skip, 0 fail)
+- `bun run build` succeeds
+- `./pace validate` confirms feature_list.json is valid
+- `./pace status` shows 14/50 passing (28.0%)
+
+**Current Status:**
+
+- Features passing: 14/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F008 (Preserve .runs directory structure across multiple inits)
+- Or F017 (Test archiving with missing progress.txt) - though manual testing already confirms this works
+- Continue with remaining archiving features
+
+---
