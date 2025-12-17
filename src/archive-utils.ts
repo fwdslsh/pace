@@ -2,6 +2,12 @@
  * archive-utils.ts - Utilities for archiving pace project files
  */
 
+import type { ArchiveError } from './types.js';
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
 /**
  * Validates that a directory name is safe and doesn't contain path traversal characters
  *
@@ -177,8 +183,8 @@ async function isPathWithinDirectory(destPath: string, parentPath: string): Prom
  * @param filename - The filename to use in the destination (defaults to original filename)
  * @param projectDir - The project root directory (defaults to process.cwd())
  * @returns A promise that resolves to the destination file path
- * @throws Error if the source file doesn't exist or move operation fails
- * @throws Error if the destination path is unsafe or outside the project directory
+ * @throws {ArchiveError} if the source file doesn't exist or move operation fails
+ * @throws {ArchiveError} if the destination path is unsafe or outside the project directory
  *
  * @example
  * ```typescript
@@ -201,9 +207,14 @@ export async function moveToArchive(
     try {
       await stat(sourcePath);
     } catch (error) {
-      const err = error as { code?: string };
+      const err = error as ArchiveError;
       if (err.code === 'ENOENT') {
-        throw new Error(`Source file not found: ${sourcePath}`);
+        const notFoundError: ArchiveError = new Error(
+          `Source file not found: ${sourcePath}`,
+        ) as ArchiveError;
+        notFoundError.code = 'ENOENT';
+        notFoundError.path = sourcePath;
+        throw notFoundError;
       }
       throw error;
     }
@@ -245,7 +256,7 @@ export async function moveToArchive(
     try {
       await rename(sourcePath, destPath);
     } catch (error) {
-      const err = error as { code?: string };
+      const err = error as ArchiveError;
       // EXDEV error means cross-device link, need to copy instead
       if (err.code === 'EXDEV') {
         await copyFile(sourcePath, destPath);
@@ -257,7 +268,12 @@ export async function moveToArchive(
 
     return destPath;
   } catch (error) {
-    const err = error as { message?: string };
-    throw new Error(`Failed to move file to archive: ${err.message || 'Unknown error'}`);
+    const err = error as ArchiveError;
+    const archiveError: ArchiveError = new Error(
+      `Failed to move file to archive: ${err.message || 'Unknown error'}`,
+    ) as ArchiveError;
+    archiveError.code = err.code;
+    archiveError.path = err.path || sourcePath;
+    throw archiveError;
   }
 }

@@ -132,3 +132,41 @@ export interface UpdateOutput {
     percentage: number;
   };
 }
+
+// ============================================================================
+// Archive Types
+// ============================================================================
+
+/**
+ * Options for the moveToArchive function
+ */
+export interface MoveToArchiveOptions {
+  /** The path to the source file to move */
+  sourcePath: string;
+  /** The destination directory path */
+  destDirectory: string;
+  /** The filename to use in the destination (optional, defaults to original filename) */
+  filename?: string;
+  /** The project root directory (optional, defaults to process.cwd()) */
+  projectDir?: string;
+}
+
+/**
+ * Result of a successful archive operation
+ */
+export interface ArchiveResult {
+  /** The full path to the archived file */
+  destPath: string;
+  /** Whether the file was successfully archived */
+  success: boolean;
+}
+
+/**
+ * Error information for archive operations
+ */
+export interface ArchiveError extends Error {
+  /** Error code if available (e.g., 'ENOENT', 'EXDEV') */
+  code?: string;
+  /** Path that caused the error */
+  path?: string;
+}
