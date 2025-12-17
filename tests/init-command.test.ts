@@ -1214,6 +1214,208 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
     expect(normalizedTimestamp2).not.toBe(normalizedTimestamp3);
     expect(normalizedTimestamp1).not.toBe(normalizedTimestamp3);
   });
+
+  /**
+   * Integration test for F016: Full init archiving flow
+   * This test validates the complete archiving workflow by simulating running init twice
+   */
+  it('should complete full init archiving flow (F016)', async () => {
+    // STEP 1: Create initial feature_list.json and progress.txt (simulating first init)
+    const initialFeatureList: FeatureList = {
+      features: [
+        {
+          id: 'F001',
+          category: 'core',
+          description: 'User authentication feature',
+          priority: 'critical',
+          steps: ['Create login page', 'Add JWT authentication', 'Test login flow'],
+          passes: false,
+        },
+        {
+          id: 'F002',
+          category: 'functional',
+          description: 'Dashboard view',
+          priority: 'high',
+          steps: ['Design dashboard', 'Implement widgets', 'Add data visualization'],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'First Init Project',
+        created_at: '2025-12-15',
+        total_features: 2,
+        passing: 0,
+        failing: 2,
+        last_updated: '2025-12-15T10:00:00.000Z',
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    const progressPath = join(tempDir, 'progress.txt');
+    const initialProgressContent = `# Progress Log - Session 1
+
+**Date:** 2025-12-15
+**Agent:** Initializer
+
+## Overview
+Created initial project structure with 2 features.
+
+## Next Steps
+Start implementing F001: User authentication feature.
+`;
+
+    await writeFile(featureListPath, JSON.stringify(initialFeatureList, null, 2));
+    await writeFile(progressPath, initialProgressContent);
+
+    // STEP 2: Verify first init created feature_list.json and progress.txt
+    let featureStats = await stat(featureListPath);
+    expect(featureStats.isFile()).toBe(true);
+
+    let progressStats = await stat(progressPath);
+    expect(progressStats.isFile()).toBe(true);
+
+    const firstFeatureContent = await readFile(featureListPath, 'utf-8');
+    const firstProgressContent = await readFile(progressPath, 'utf-8');
+    expect(firstFeatureContent).toContain('First Init Project');
+    expect(firstFeatureContent).toContain('User authentication feature');
+    expect(firstProgressContent).toContain('Session 1');
+    expect(firstProgressContent).toContain('Initializer');
+
+    // STEP 3: Run pace init again (with dry-run to verify archiving is triggered)
+    // This simulates the user running init a second time
+    const result = await runCLI(['init', '--prompt', 'Second initialization', '--dry-run']);
+
+    // Verify archiving messages appear in output
+    expect(result.stdout).toContain('Existing project files found');
+    expect(result.stdout).toContain('[DRY RUN] Would archive to');
+    expect(result.stdout).toContain('.runs/2025-12-15_10-00-00');
+    expect(result.stdout).toContain('feature_list.json');
+    expect(result.stdout).toContain('progress.txt');
+    expect(result.exitCode).toBe(0);
+
+    // STEP 4: Actually perform the archiving (simulating non-dry-run init)
+    // This tests the archiving utilities that handleInit uses
+    const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
+
+    const timestamp = initialFeatureList.metadata?.last_updated || new Date().toISOString();
+    const normalizedTimestamp = normalizeTimestamp(timestamp);
+    expect(normalizedTimestamp).toBe('2025-12-15_10-00-00'); // Verify normalization
+
+    const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+
+    // Archive both files
+    await moveToArchive(featureListPath, archivePath, 'feature_list.json');
+    await moveToArchive(progressPath, archivePath, 'progress.txt');
+
+    // STEP 5: Check .runs/<timestamp>/ directory was created
+    const archiveDirStats = await stat(archivePath);
+    expect(archiveDirStats.isDirectory()).toBe(true);
+
+    const archivedFeaturePath = join(archivePath, 'feature_list.json');
+    const archivedProgressPath = join(archivePath, 'progress.txt');
+
+    const archivedFeatureStats = await stat(archivedFeaturePath);
+    expect(archivedFeatureStats.isFile()).toBe(true);
+
+    const archivedProgressStats = await stat(archivedProgressPath);
+    expect(archivedProgressStats.isFile()).toBe(true);
+
+    // STEP 6: Verify archived files match original content
+    const archivedFeatureContent = await readFile(archivedFeaturePath, 'utf-8');
+    const archivedProgressContent = await readFile(archivedProgressPath, 'utf-8');
+
+    expect(archivedFeatureContent).toContain('First Init Project');
+    expect(archivedFeatureContent).toContain('User authentication feature');
+    expect(archivedFeatureContent).toContain('Dashboard view');
+    expect(archivedProgressContent).toContain('Session 1');
+    expect(archivedProgressContent).toContain('Initializer');
+
+    // Verify JSON structure is intact
+    const archivedParsed = JSON.parse(archivedFeatureContent);
+    expect(archivedParsed.features).toHaveLength(2);
+    expect(archivedParsed.features[0].id).toBe('F001');
+    expect(archivedParsed.features[1].id).toBe('F002');
+    expect(archivedParsed.metadata.project_name).toBe('First Init Project');
+
+    // Verify original files are gone from root
+    let featureExistsAtRoot = false;
+    try {
+      await stat(featureListPath);
+      featureExistsAtRoot = true;
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'ENOENT') {
+        featureExistsAtRoot = false;
+      }
+    }
+    expect(featureExistsAtRoot).toBe(false);
+
+    let progressExistsAtRoot = false;
+    try {
+      await stat(progressPath);
+      progressExistsAtRoot = true;
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'ENOENT') {
+        progressExistsAtRoot = false;
+      }
+    }
+    expect(progressExistsAtRoot).toBe(false);
+
+    // Create new files (simulating second init creating new project files)
+    const secondFeatureList: FeatureList = {
+      features: [
+        {
+          id: 'F001',
+          category: 'core',
+          description: 'New feature from second init',
+          priority: 'high',
+          steps: ['Step 1'],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Second Init Project',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-17T15:00:00.000Z',
+      },
+    };
+
+    const secondProgressContent = `# Progress Log - Session 1
+
+**Date:** 2025-12-17
+**Agent:** Initializer
+
+## Overview
+Created project after archiving previous run.
+`;
+
+    await writeFile(featureListPath, JSON.stringify(secondFeatureList, null, 2));
+    await writeFile(progressPath, secondProgressContent);
+
+    // Verify new files exist and have correct content
+    const newFeatureContent = await readFile(featureListPath, 'utf-8');
+    const newProgressContent = await readFile(progressPath, 'utf-8');
+    expect(newFeatureContent).toContain('Second Init Project');
+    expect(newProgressContent).toContain('archiving previous run');
+
+    // Verify old files are still in archive and intact
+    const finalArchivedFeature = await readFile(archivedFeaturePath, 'utf-8');
+    const finalArchivedProgress = await readFile(archivedProgressPath, 'utf-8');
+    expect(finalArchivedFeature).toContain('First Init Project');
+    expect(finalArchivedProgress).toContain('Session 1');
+
+    // Run pace status to verify everything works
+    const statusResult = await runCLI(['status']);
+    expect(statusResult.stdout).toContain('Second Init Project');
+    expect(statusResult.stdout).toContain('0/1 passing');
+    expect(statusResult.exitCode).toBe(0);
+
+    // STEP 7: Cleanup is handled by afterEach
+  });
 });
 
 /**
