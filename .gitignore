@@ -45,3 +45,6 @@ temp/
 *.tmp
 
 # Local development
+
+# Archived runs
+.runs/
