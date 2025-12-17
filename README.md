@@ -12,6 +12,7 @@ A Bun/TypeScript workflow orchestrator built on the **OpenCode SDK** for maximum
 - **Automatic Feature Progression**: Works through features in priority order
 - **Session Management**: Configurable session limits, failure thresholds, and delays
 - **Progress Tracking**: Monitors feature completion and provides detailed statistics
+- **Project Archiving**: Automatically archives existing project files when re-initializing, preserving previous work in timestamped directories
 - **Rich Output**: Shows system messages, assistant responses, tool executions, and results
 - **JSON Output**: Machine-readable output for scripting and CI/CD integration
 - **Comprehensive Testing**: Full test suite with 100+ tests covering all functionality
@@ -206,6 +207,55 @@ pace update <feature-id> <pass|fail>
 ```
 
 ## How It Works
+
+### Project Archiving
+
+When you run `pace init` in a directory that already contains project files (`feature_list.json` or `progress.txt`), pace automatically archives the existing files before initializing a new project. This allows you to safely start fresh while preserving your previous work.
+
+**When Archiving Occurs:**
+
+- Running `pace init` when `feature_list.json` already exists
+- Files are moved to `.runs/<timestamp>/` before new initialization
+- Previous project state is preserved for reference or recovery
+
+**Archive Directory Structure:**
+
+```
+.runs/
+├── 2025-12-15_17-00-00/
+│   ├── feature_list.json
+│   └── progress.txt
+├── 2025-12-16_10-30-45/
+│   ├── feature_list.json
+│   └── progress.txt
+└── 2025-12-17_14-22-18/
+    ├── feature_list.json
+    └── progress.txt
+```
+
+Each archive directory is named using the timestamp from `metadata.last_updated` in your `feature_list.json`. If this field is missing, pace uses the current timestamp as a fallback. The format is `YYYY-MM-DD_HH-MM-SS` for easy sorting and readability.
+
+**Example Scenario:**
+
+```bash
+# First project initialization
+$ pace init -p "Build a todo app"
+✓ Created feature_list.json (50 features)
+✓ Created progress.txt
+✓ Created init.sh
+
+# Later, start a new project in the same directory
+$ pace init -p "Build an inventory system"
+📂 Existing project files found
+📦 Archiving to .runs/2025-12-15_17-00-00/
+✓ Archived feature_list.json
+✓ Archived progress.txt
+✓ Created feature_list.json (75 features)
+✓ Created progress.txt
+✓ Created init.sh
+```
+
+The `.runs/` directory is automatically added to `.gitignore` to prevent archived runs from being committed to version control, though you can customize this behavior if you want to track your project history.
 
 ### Workflow
 
