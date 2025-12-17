@@ -3255,3 +3255,55 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining testing tasks
 
 ---
+
+---
+
+### Session 78 - Missing Metadata.last_updated Archiving Tests
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F018: Test archiving with missing metadata.last_updated
+
+**Actions Taken:**
+
+- Reviewed existing archiving implementation in cli.ts (lines 1106-1113)
+- Confirmed fallback logic for missing metadata.last_updated:
+  - Uses `new Date().toISOString()` as fallback when last_updated is missing
+  - Logs warning: "⚠️  Warning: metadata.last_updated is missing, using current timestamp as fallback"
+- Found existing basic test at line 1407 that only tested dry-run mode
+- Added comprehensive test for F018 in tests/init-command.test.ts (after line 1440):
+  1. Creates feature_list.json without last_updated field in metadata
+  2. Actually performs archiving (not dry-run) using archive utilities
+  3. Verifies archiving uses current timestamp as fallback
+  4. Validates archive directory name matches format: YYYY-MM-DD_HH-MM-SS
+  5. Confirms timestamp is recent (within 5 seconds of test execution)
+  6. Verifies all files are archived successfully
+  7. Checks that JSON structure is preserved in archived copy
+  8. Confirms metadata.last_updated remains undefined in archived version
+  9. Validates original files are removed after archiving
+  10. Verifies archive directory contains both feature_list.json and progress.txt
+- Test covers all 5 verification steps from F018 feature specification
+- All tests pass successfully (257 pass, 33 skip, 0 fail in full suite)
+
+**Test Results:**
+
+- F018 test passes successfully
+- Verified fallback timestamp is generated and used correctly
+- Archive directory naming validated with regex pattern
+- File archiving confirmed to work without last_updated metadata
+- No regressions in existing tests
+
+**Current Status:**
+
+- Features passing: 20/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F019 (Test multiple consecutive init operations)
+- Continue with remaining testing tasks
+
+---
