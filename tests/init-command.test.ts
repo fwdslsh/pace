@@ -9,7 +9,7 @@
  */
 
 import { spawn } from 'child_process';
-import { mkdtemp, rm, writeFile, readFile, stat, chmod, mkdir } from 'fs/promises';
+import { mkdtemp, rm, writeFile, readFile, stat, chmod, mkdir, readdir } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -2494,5 +2494,198 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     // ✅ 3. Multiple init operations created separate archives (verified 3 separate archives exist)
     // ✅ 4. Old archives were not overwritten (each archive contains its original content)
     // ✅ 5. Tested with 4 consecutive init operations (creating 3 archives)
+  });
+});
+
+/**
+ * Tests for F010: Handle corrupted feature_list.json during archiving
+ * Ensures corrupted JSON files are archived safely and init continues
+ */
+describe('Init Command Corrupted JSON Handling (F010)', () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    // Create a temporary test directory
+    tempDir = join('/tmp', `pace-test-f010-${Date.now()}`);
+    await mkdir(tempDir, { recursive: true });
+
+    // Change to temp directory for tests
+    process.chdir(tempDir);
+  });
+
+  afterEach(async () => {
+    // Clean up temp directory
+    try {
+      await rm(tempDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  /**
+   * Helper to run CLI commands in the temp directory
+   */
+  async function runCLI(
+    args: string[],
+  ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    const cliPath = join(import.meta.dir, '..', 'cli.ts');
+    const proc = Bun.spawn(['bun', 'run', cliPath, ...args], {
+      cwd: tempDir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const exitCode = await proc.exited;
+
+    return { exitCode, stdout, stderr };
+  }
+
+  it('should archive corrupted feature_list.json with fallback timestamp (F010 step 1-2)', async () => {
+    // Create a corrupted JSON file that can't be parsed
+    const featureListPath = join(tempDir, 'feature_list.json');
+    const corruptedContent = '{ "features": [ invalid json syntax }';
+    await writeFile(featureListPath, corruptedContent);
+
+    // Run init with dry-run to test archiving logic without SDK requirement
+    const result = await runCLI(['init', '--prompt', 'New project after corruption', '--dry-run']);
+
+    // Verify command succeeded
+    expect(result.exitCode).toBe(0);
+
+    // Verify warning was displayed
+    expect(result.stdout).toContain('Existing project files found');
+    expect(result.stdout).toContain('⚠️');
+    expect(result.stdout).toContain('Could not read metadata');
+
+    // Verify dry-run shows archiving plan
+    expect(result.stdout).toContain('[DRY RUN] Would archive to: .runs/');
+    expect(result.stdout).toMatch(/\.runs\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/);
+
+    // ✅ F010 Step 1: Corrupted JSON parsing handled gracefully
+    // ✅ F010 Step 2: Fallback timestamp would be used
+  });
+
+  it('should log warning about corrupted JSON (F010 step 3)', async () => {
+    // Create corrupted JSON
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, '{ "malformed": json }');
+
+    // Run init with dry-run
+    const result = await runCLI(['init', '--prompt', 'Test warning message', '--dry-run']);
+
+    // Verify warning was logged
+    expect(result.stdout).toContain('⚠️');
+    expect(result.stdout).toContain('Could not read metadata');
+
+    // ✅ F010 Step 3: Warning logged about corrupted JSON
+  });
+
+  it('should handle various forms of corrupted JSON (F010 step 4-5)', async () => {
+    // Create various forms of corrupted JSON
+    const corruptedSamples = [
+      { content: '{ "features": [ }', description: 'Missing closing bracket' },
+      { content: '{ "metadata": { "last_updated": }', description: 'Missing value' },
+      { content: 'not even json at all', description: 'Not JSON' },
+      { content: '', description: 'Empty file' },
+      { content: '{"features":["partial', description: 'Truncated' },
+    ];
+
+    for (const sample of corruptedSamples) {
+      // Create corrupted file
+      const featureListPath = join(tempDir, 'feature_list.json');
+      await writeFile(featureListPath, sample.content);
+
+      // Run init with dry-run
+      const result = await runCLI(['init', '--prompt', `Test: ${sample.description}`, '--dry-run']);
+
+      // Verify command doesn't crash despite corrupted JSON
+      expect(result.exitCode).toBe(0);
+
+      // Verify warning is shown
+      expect(result.stdout).toContain('Could not read metadata');
+
+      // Verify archiving would proceed
+      expect(result.stdout).toContain('[DRY RUN] Would archive to');
+    }
+
+    // ✅ F010 Step 4: Various corruption types handled safely
+    // ✅ F010 Step 5: Init would proceed successfully in all cases
+  });
+
+  it('should handle corrupted JSON with progress.txt present', async () => {
+    // Create corrupted feature_list.json
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, '{ corrupt json }');
+
+    // Create valid progress.txt
+    const progressPath = join(tempDir, 'progress.txt');
+    await writeFile(progressPath, '# Session 1\nSome progress notes\n');
+
+    // Run init with dry-run
+    const result = await runCLI(['init', '--prompt', 'Test with progress', '--dry-run']);
+
+    // Verify command succeeded
+    expect(result.exitCode).toBe(0);
+
+    // Verify both files would be archived
+    expect(result.stdout).toContain('feature_list.json');
+    expect(result.stdout).toContain('progress.txt');
+
+    // Verify warning about corrupted JSON
+    expect(result.stdout).toContain('Could not read metadata');
+  });
+
+  it('should use current timestamp when corrupted JSON has no metadata', async () => {
+    // Create JSON that's parseable but has no metadata.last_updated
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, '{ "corrupt": "but parseable" }');
+
+    const beforeTimestamp = new Date();
+
+    // Run init with dry-run
+    const result = await runCLI(['init', '--prompt', 'Test timestamp fallback', '--dry-run']);
+
+    // Verify command succeeded
+    expect(result.exitCode).toBe(0);
+
+    // Verify output shows timestamp-based archive directory
+    const timestampRegex = /\.runs\/(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})/;
+    const match = result.stdout.match(timestampRegex);
+    expect(match).toBeTruthy();
+
+    if (match) {
+      const archiveDirName = match[1];
+      // Extract date from archive directory name
+      const archiveDate = archiveDirName.split('_')[0];
+      const expectedDate = beforeTimestamp.toISOString().split('T')[0];
+
+      // Archive date should be today
+      expect(archiveDate).toBe(expectedDate);
+    }
+
+    // Verify warning about missing metadata (either corrupted JSON or missing field)
+    const hasCorruptedWarning = result.stdout.includes('Could not read metadata');
+    const hasMissingFieldWarning = result.stdout.includes('metadata.last_updated is missing');
+    expect(hasCorruptedWarning || hasMissingFieldWarning).toBe(true);
+  });
+
+  it('should display clear feedback when archiving corrupted JSON in verbose mode', async () => {
+    // Create corrupted JSON
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, '{ invalid }');
+
+    // Run init with verbose and dry-run
+    const result = await runCLI(['init', '--prompt', 'Test verbose', '--verbose', '--dry-run']);
+
+    // Check for informative messages
+    expect(result.stdout).toContain('Existing project files found');
+    expect(result.stdout).toContain('Could not read metadata');
+    expect(result.stdout).toContain('using current timestamp');
+    expect(result.stdout).toContain('[DRY RUN] Would archive to');
+
+    // Verify command succeeded
+    expect(result.exitCode).toBe(0);
   });
 });
