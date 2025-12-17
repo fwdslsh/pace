@@ -3563,4 +3563,210 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
     const archivedProgress = await readFile(archivedProgressPath, 'utf-8');
     expect(archivedProgress).toContain('Custom Archive Test Progress');
   });
+
+  /**
+   * F028: Handle case where .runs already contains conflicting directory
+   * Tests conflict resolution when archive directory already exists
+   */
+  it('should handle archive directory conflicts by appending suffix (F028)', async () => {
+    // STEP 1: Create .runs/<timestamp> directory manually
+    const runsDir = join(tempDir, '.runs');
+    const baseTimestamp = '2025-12-17_10-00-00';
+    const baseArchivePath = join(runsDir, baseTimestamp);
+
+    await mkdir(baseArchivePath, { recursive: true });
+    // Add a file to make it a "real" conflict
+    await writeFile(join(baseArchivePath, 'existing.txt'), 'This directory already exists');
+
+    // STEP 2: Create feature_list.json with same timestamp (simulating unlikely but possible conflict)
+    const featureList: FeatureList = {
+      features: [
+        {
+          id: 'F001',
+          category: 'core',
+          description: 'Test conflict resolution',
+          priority: 'high',
+          steps: ['Step 1'],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Conflict Test',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-17T10:00:00.000Z', // Same timestamp
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList, null, 2));
+
+    const progressPath = join(tempDir, 'progress.txt');
+    await writeFile(progressPath, '# Conflict Test Progress');
+
+    // STEP 3: Run archiving with conflict resolution
+    const { resolveUniqueArchivePath, moveToArchive } = await import('../src/archive-utils.js');
+
+    // Resolve unique path (should detect conflict and append -1)
+    const uniqueArchivePath = await resolveUniqueArchivePath(baseArchivePath);
+
+    // STEP 4: Verify archiving handles conflict gracefully
+    expect(uniqueArchivePath).toBe(`${baseArchivePath}-1`);
+
+    // STEP 5: Archive files to the unique path
+    await moveToArchive(featureListPath, uniqueArchivePath, 'feature_list.json');
+    await moveToArchive(progressPath, uniqueArchivePath, 'progress.txt');
+
+    // Verify files were archived to the conflict-free directory
+    const archivedFeaturePath = join(uniqueArchivePath, 'feature_list.json');
+    const archivedProgressPath = join(uniqueArchivePath, 'progress.txt');
+
+    const archivedFeatureStats = await stat(archivedFeaturePath);
+    expect(archivedFeatureStats.isFile()).toBe(true);
+
+    const archivedProgressStats = await stat(archivedProgressPath);
+    expect(archivedProgressStats.isFile()).toBe(true);
+
+    // Verify content
+    const archivedContent = await readFile(archivedFeaturePath, 'utf-8');
+    expect(archivedContent).toContain('Conflict Test');
+
+    // Verify original conflict directory is still intact
+    const existingFile = await readFile(join(baseArchivePath, 'existing.txt'), 'utf-8');
+    expect(existingFile).toContain('This directory already exists');
+
+    // Verify both directories exist
+    const baseStats = await stat(baseArchivePath);
+    expect(baseStats.isDirectory()).toBe(true);
+
+    const uniqueStats = await stat(uniqueArchivePath);
+    expect(uniqueStats.isDirectory()).toBe(true);
+  });
+
+  it('should handle multiple conflicts by incrementing suffix (F028)', async () => {
+    // Create base directory and first two conflict directories
+    const runsDir = join(tempDir, '.runs');
+    const baseTimestamp = '2025-12-17_14-30-00';
+    const baseArchivePath = join(runsDir, baseTimestamp);
+
+    await mkdir(baseArchivePath, { recursive: true });
+    await mkdir(`${baseArchivePath}-1`, { recursive: true });
+    await mkdir(`${baseArchivePath}-2`, { recursive: true });
+
+    // Add files to verify they're distinct
+    await writeFile(join(baseArchivePath, 'test.txt'), 'Base');
+    await writeFile(join(`${baseArchivePath}-1`, 'test.txt'), 'Conflict 1');
+    await writeFile(join(`${baseArchivePath}-2`, 'test.txt'), 'Conflict 2');
+
+    // Resolve unique path
+    const { resolveUniqueArchivePath } = await import('../src/archive-utils.js');
+    const uniqueArchivePath = await resolveUniqueArchivePath(baseArchivePath);
+
+    // Should append -3
+    expect(uniqueArchivePath).toBe(`${baseArchivePath}-3`);
+
+    // Create feature list and archive to the unique path
+    const featureList: FeatureList = {
+      features: [],
+      metadata: {
+        project_name: 'Multi Conflict Test',
+        last_updated: '2025-12-17T14:30:00.000Z',
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList, null, 2));
+
+    const { moveToArchive } = await import('../src/archive-utils.js');
+    await moveToArchive(featureListPath, uniqueArchivePath, 'feature_list.json');
+
+    // Verify new archive was created
+    const archivedFile = join(uniqueArchivePath, 'feature_list.json');
+    const archivedStats = await stat(archivedFile);
+    expect(archivedStats.isFile()).toBe(true);
+
+    // Verify all four directories exist with different content
+    const baseContent = await readFile(join(baseArchivePath, 'test.txt'), 'utf-8');
+    expect(baseContent).toBe('Base');
+
+    const conflict1Content = await readFile(join(`${baseArchivePath}-1`, 'test.txt'), 'utf-8');
+    expect(conflict1Content).toBe('Conflict 1');
+
+    const conflict2Content = await readFile(join(`${baseArchivePath}-2`, 'test.txt'), 'utf-8');
+    expect(conflict2Content).toBe('Conflict 2');
+
+    const conflict3Content = await readFile(archivedFile, 'utf-8');
+    expect(conflict3Content).toContain('Multi Conflict Test');
+  });
+
+  it('should use conflict resolution in ArchiveManager (F028)', async () => {
+    // This test verifies that ArchiveManager uses resolveUniqueArchivePath
+
+    // Create existing archive directory
+    const baseTimestamp = '2025-12-17_16-00-00';
+    const existingArchive = join(tempDir, '.runs', baseTimestamp);
+    await mkdir(existingArchive, { recursive: true });
+    await writeFile(join(existingArchive, 'old.txt'), 'Existing archive');
+
+    // Create feature_list.json with conflicting timestamp
+    const featureList: FeatureList = {
+      features: [
+        {
+          id: 'F001',
+          description: 'Test ArchiveManager conflict',
+          priority: 'high',
+          category: 'core',
+          steps: [],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'ArchiveManager Test',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-17T16:00:00.000Z', // Same timestamp
+      },
+    };
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    await writeFile(featureListPath, JSON.stringify(featureList, null, 2));
+
+    const progressPath = join(tempDir, 'progress.txt');
+    await writeFile(progressPath, '# ArchiveManager Test');
+
+    // Use ArchiveManager to archive
+    const { ArchiveManager } = await import('../src/archive-manager.js');
+    const manager = new ArchiveManager();
+
+    const result = await manager.archive({
+      projectDir: tempDir,
+      archiveDir: '.runs',
+      dryRun: false,
+      silent: true,
+    });
+
+    // Verify archiving succeeded
+    expect(result.archived).toBe(true);
+    expect(result.archivePath).toBe(join(tempDir, '.runs', `${baseTimestamp}-1`));
+    expect(result.archivedFiles).toContain('feature_list.json');
+    expect(result.archivedFiles).toContain('progress.txt');
+
+    // Verify files were archived to -1 directory
+    const archivedFeature = join(result.archivePath!, 'feature_list.json');
+    const archivedProgress = join(result.archivePath!, 'progress.txt');
+
+    const featureContent = await readFile(archivedFeature, 'utf-8');
+    expect(featureContent).toContain('ArchiveManager Test');
+
+    const progressContent = await readFile(archivedProgress, 'utf-8');
+    expect(progressContent).toContain('ArchiveManager Test');
+
+    // Verify original archive is still intact
+    const originalFile = await readFile(join(existingArchive, 'old.txt'), 'utf-8');
+    expect(originalFile).toBe('Existing archive');
+  });
 });

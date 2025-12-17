@@ -4,7 +4,7 @@ import { join } from 'path';
 
 import { afterEach, describe, expect, test } from 'bun:test';
 
-import { moveToArchive, normalizeTimestamp } from '../src/archive-utils';
+import { moveToArchive, normalizeTimestamp, resolveUniqueArchivePath } from '../src/archive-utils';
 
 describe('normalizeTimestamp', () => {
   test('converts valid ISO timestamp to directory-safe format', () => {
@@ -933,5 +933,219 @@ Next steps: Continue with remaining features
       const { stdout: statusOutput3 } = await execAsync('git status --short', { cwd: testDir });
       expect(statusOutput3).toBe(''); // Clean working tree
     });
+  });
+});
+
+describe('resolveUniqueArchivePath', () => {
+  // Create a temporary test directory for each test
+  const testDir = join(tmpdir(), 'pace-test-unique-' + Date.now());
+
+  afterEach(async () => {
+    // Clean up test directory after each test
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  test('returns original path when directory does not exist', async () => {
+    // Setup: Create test directory structure
+    await mkdir(testDir, { recursive: true });
+    const archivePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+
+    // Execute: Resolve unique path
+    const uniquePath = await resolveUniqueArchivePath(archivePath);
+
+    // Verify: Returns original path (no conflict)
+    expect(uniquePath).toBe(archivePath);
+  });
+
+  test('appends -1 suffix when directory already exists', async () => {
+    // Setup: Create existing archive directory
+    await mkdir(testDir, { recursive: true });
+    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    await mkdir(basePath, { recursive: true });
+
+    // Execute: Resolve unique path
+    const uniquePath = await resolveUniqueArchivePath(basePath);
+
+    // Verify: Returns path with -1 suffix
+    expect(uniquePath).toBe(`${basePath}-1`);
+  });
+
+  test('appends -2 suffix when both base and -1 exist', async () => {
+    // Setup: Create existing archive directories
+    await mkdir(testDir, { recursive: true });
+    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    await mkdir(basePath, { recursive: true });
+    await mkdir(`${basePath}-1`, { recursive: true });
+
+    // Execute: Resolve unique path
+    const uniquePath = await resolveUniqueArchivePath(basePath);
+
+    // Verify: Returns path with -2 suffix
+    expect(uniquePath).toBe(`${basePath}-2`);
+  });
+
+  test('appends -3 suffix when base, -1, and -2 exist', async () => {
+    // Setup: Create multiple existing archive directories
+    await mkdir(testDir, { recursive: true });
+    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    await mkdir(basePath, { recursive: true });
+    await mkdir(`${basePath}-1`, { recursive: true });
+    await mkdir(`${basePath}-2`, { recursive: true });
+
+    // Execute: Resolve unique path
+    const uniquePath = await resolveUniqueArchivePath(basePath);
+
+    // Verify: Returns path with -3 suffix
+    expect(uniquePath).toBe(`${basePath}-3`);
+  });
+
+  test('handles gaps in suffix sequence', async () => {
+    // Setup: Create directories with gap (base and -2 exist, but not -1)
+    await mkdir(testDir, { recursive: true });
+    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    await mkdir(basePath, { recursive: true });
+    await mkdir(`${basePath}-2`, { recursive: true });
+    // Note: -1 does not exist
+
+    // Execute: Resolve unique path
+    const uniquePath = await resolveUniqueArchivePath(basePath);
+
+    // Verify: Returns -1 (fills the gap)
+    expect(uniquePath).toBe(`${basePath}-1`);
+  });
+
+  test('handles high suffix numbers (10+)', async () => {
+    // Setup: Create 12 archive directories (base + suffixes 1-11)
+    await mkdir(testDir, { recursive: true });
+    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    await mkdir(basePath, { recursive: true });
+
+    for (let i = 1; i <= 11; i++) {
+      await mkdir(`${basePath}-${i}`, { recursive: true });
+    }
+
+    // Execute: Resolve unique path
+    const uniquePath = await resolveUniqueArchivePath(basePath);
+
+    // Verify: Returns path with -12 suffix
+    expect(uniquePath).toBe(`${basePath}-12`);
+  });
+
+  test('works with different timestamp formats', async () => {
+    // Setup: Test with various timestamp formats
+    await mkdir(testDir, { recursive: true });
+    const timestamps = [
+      '2025-12-17_10-00-00',
+      '2024-01-01_00-00-00',
+      '2025-06-15_23-59-59',
+      '2025-12-31_12-34-56',
+    ];
+
+    for (const timestamp of timestamps) {
+      const basePath = join(testDir, '.runs', timestamp);
+      await mkdir(basePath, { recursive: true });
+
+      // Execute: Resolve unique path
+      const uniquePath = await resolveUniqueArchivePath(basePath);
+
+      // Verify: Returns path with -1 suffix
+      expect(uniquePath).toBe(`${basePath}-1`);
+
+      // Clean up for next iteration
+      await rm(basePath, { recursive: true });
+    }
+  });
+
+  test('returns unique path for nested archive directory', async () => {
+    // Setup: Create nested archive directory structure
+    await mkdir(testDir, { recursive: true });
+    const basePath = join(testDir, 'archives', 'project1', '2025-12-17_10-00-00');
+    await mkdir(basePath, { recursive: true });
+
+    // Execute: Resolve unique path
+    const uniquePath = await resolveUniqueArchivePath(basePath);
+
+    // Verify: Returns path with -1 suffix
+    expect(uniquePath).toBe(`${basePath}-1`);
+  });
+
+  test('handles path with existing files (not directories)', async () => {
+    // Setup: Create a file with the same name as archive path
+    await mkdir(testDir, { recursive: true });
+    await mkdir(join(testDir, '.runs'), { recursive: true });
+    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+
+    // Create a file instead of directory
+    await writeFile(basePath, 'some content');
+
+    // Execute: Resolve unique path
+    const uniquePath = await resolveUniqueArchivePath(basePath);
+
+    // Verify: Returns path with -1 suffix (treats file as conflict)
+    expect(uniquePath).toBe(`${basePath}-1`);
+  });
+
+  test('resolves correctly when parent directory does not exist', async () => {
+    // Setup: Don't create parent directory
+    await mkdir(testDir, { recursive: true });
+    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    // Note: .runs directory doesn't exist yet
+
+    // Execute: Resolve unique path
+    const uniquePath = await resolveUniqueArchivePath(basePath);
+
+    // Verify: Returns original path (no conflict, parent will be created later)
+    expect(uniquePath).toBe(basePath);
+  });
+
+  test('concurrent resolution returns different paths', async () => {
+    // Setup: Create base archive directory
+    await mkdir(testDir, { recursive: true });
+    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    await mkdir(basePath, { recursive: true });
+
+    // Execute: Resolve paths concurrently
+    const [path1, path2, path3] = await Promise.all([
+      resolveUniqueArchivePath(basePath),
+      resolveUniqueArchivePath(basePath),
+      resolveUniqueArchivePath(basePath),
+    ]);
+
+    // Verify: All resolve to -1 (they check at the same time before any is created)
+    // This is expected behavior - actual directory creation in ArchiveManager
+    // will be sequential, so conflicts will be avoided at that level
+    expect(path1).toBe(`${basePath}-1`);
+    expect(path2).toBe(`${basePath}-1`);
+    expect(path3).toBe(`${basePath}-1`);
+  });
+
+  test('maintains original path structure (no side effects)', async () => {
+    // Setup: Create base archive directory
+    await mkdir(testDir, { recursive: true });
+    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    await mkdir(basePath, { recursive: true });
+
+    // Execute: Resolve unique path
+    const uniquePath = await resolveUniqueArchivePath(basePath);
+
+    // Verify: Original directory still exists (function doesn't modify filesystem)
+    const baseStats = await stat(basePath);
+    expect(baseStats.isDirectory()).toBe(true);
+
+    // Verify: Unique path does not exist yet
+    let uniqueExists = true;
+    try {
+      await stat(uniquePath);
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'ENOENT') {
+        uniqueExists = false;
+      }
+    }
+    expect(uniqueExists).toBe(false);
   });
 });

@@ -183,6 +183,50 @@ async function isPathWithinDirectory(destPath: string, parentPath: string): Prom
 }
 
 /**
+ * Resolves a unique archive directory path by appending a numeric suffix if needed
+ *
+ * If the archive directory already exists, this function appends a suffix (-1, -2, etc.)
+ * to create a unique directory name.
+ *
+ * @param baseArchivePath - The base archive directory path (e.g., ".runs/2025-12-15_17-00-00")
+ * @returns A promise that resolves to a unique archive directory path
+ *
+ * @example
+ * ```typescript
+ * // If .runs/2025-12-15_17-00-00 exists:
+ * await resolveUniqueArchivePath('.runs/2025-12-15_17-00-00')
+ * // Returns: '.runs/2025-12-15_17-00-00-1'
+ *
+ * // If both -1 and -2 exist:
+ * // Returns: '.runs/2025-12-15_17-00-00-3'
+ * ```
+ */
+export async function resolveUniqueArchivePath(baseArchivePath: string): Promise<string> {
+  const { stat } = await import('fs/promises');
+
+  let uniquePath = baseArchivePath;
+  let suffix = 0;
+
+  // Keep incrementing suffix until we find a path that doesn't exist
+  while (true) {
+    try {
+      await stat(uniquePath);
+      // Path exists, try next suffix
+      suffix++;
+      uniquePath = `${baseArchivePath}-${suffix}`;
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'ENOENT') {
+        // Path doesn't exist, we can use it
+        return uniquePath;
+      }
+      // Some other error occurred, rethrow
+      throw error;
+    }
+  }
+}
+
+/**
  * Safely moves a file to an archive directory
  *
  * Security: Validates that destination directory is safe and within the project directory.

@@ -10,7 +10,7 @@
 import { copyFile, readFile, stat } from 'fs/promises';
 import { join } from 'path';
 
-import { moveToArchive, normalizeTimestamp } from './archive-utils';
+import { moveToArchive, normalizeTimestamp, resolveUniqueArchivePath } from './archive-utils';
 
 /**
  * Options for the archive operation
@@ -104,15 +104,20 @@ export class ArchiveManager {
 
     // Normalize timestamp to directory-safe format
     const normalizedTimestamp = normalizeTimestamp(timestamp);
-    archivePath = join(projectDir, archiveDir, normalizedTimestamp);
+    const baseArchivePath = join(projectDir, archiveDir, normalizedTimestamp);
+
+    // Resolve unique archive path (handles conflicts by appending -1, -2, etc.)
+    archivePath = await resolveUniqueArchivePath(baseArchivePath);
 
     if (dryRun) {
       // Dry-run: show what would be archived without actually moving files
-      await this.performDryRun(projectDir, archiveDir, normalizedTimestamp, silent, verbose);
+      const displayPath = archivePath.replace(join(projectDir) + '/', '');
+      await this.performDryRun(projectDir, displayPath, silent, verbose);
     } else {
       // Actually perform archiving
       if (!silent) {
-        console.log(`📁 Archiving to: ${archiveDir}/${normalizedTimestamp}/`);
+        const displayPath = archivePath.replace(join(projectDir) + '/', '');
+        console.log(`📁 Archiving to: ${displayPath}/`);
       }
 
       // Move feature_list.json to archive
@@ -210,15 +215,13 @@ export class ArchiveManager {
    * Performs a dry-run showing what would be archived
    *
    * @param projectDir - The project directory path
-   * @param archiveDir - The archive directory name
-   * @param normalizedTimestamp - The normalized timestamp for the archive directory
+   * @param displayPath - The display path to show (relative to project dir)
    * @param silent - Whether to suppress console output
    * @param verbose - Whether to show verbose output
    */
   private async performDryRun(
     projectDir: string,
-    archiveDir: string,
-    normalizedTimestamp: string,
+    displayPath: string,
     silent: boolean,
     verbose: boolean,
   ): Promise<void> {
@@ -226,7 +229,7 @@ export class ArchiveManager {
       return;
     }
 
-    console.log(`📁 [DRY RUN] Would archive to: ${archiveDir}/${normalizedTimestamp}/`);
+    console.log(`📁 [DRY RUN] Would archive to: ${displayPath}/`);
     console.log('  • feature_list.json');
 
     const progressPath = join(projectDir, 'progress.txt');
