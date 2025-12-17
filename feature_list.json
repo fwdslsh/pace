@@ -169,7 +169,7 @@
         "Add 'archived' boolean and 'archivePath' fields to JSON output",
         "Test both --json and normal output modes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": "F013",
@@ -716,8 +716,8 @@
     "project_name": "pace-init-archiving",
     "created_at": "2025-12-17",
     "total_features": 50,
-    "passing": 27,
-    "failing": 23,
+    "passing": 28,
+    "failing": 22,
     "last_updated": "2025-12-17T00:00:00.000Z"
   }
 }
