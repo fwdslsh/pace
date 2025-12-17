@@ -3035,3 +3035,58 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining archiving features
 
 ---
+
+### Session 74 - Handle Corrupted JSON During Archiving
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F010: Handle corrupted feature_list.json during archiving
+
+**Actions Taken:**
+
+- Reviewed existing archiving logic in cli.ts (lines 1101-1124)
+- Confirmed corrupted JSON handling was already implemented:
+  * Try-catch block catches JSON.parse() errors
+  * Fallback to current timestamp when parsing fails
+  * Warning message displayed to user
+  * Archiving continues despite corrupted JSON
+- Added comprehensive test suite for F010 (6 new tests)
+- Tested various corruption scenarios:
+  * Invalid JSON syntax
+  * Truncated JSON
+  * Empty files
+  * Missing closing brackets
+  * Missing values
+- Verified warning messages are displayed correctly
+- Tested interaction with progress.txt when JSON is corrupted
+- All tests use --dry-run to avoid SDK dependency
+- Added readdir to fs/promises imports in test file
+
+**Test Results:**
+
+- All 6 new F010 tests pass
+- `bun test tests/init-command.test.ts --grep "F010"` passes (41 pass, 28 skip, 0 fail)
+- `bun test` passes all 254 tests (28 skip, 0 fail, 704 expect() calls)
+- End-to-end verification confirms all 5 F010 requirements:
+  1. ✓ Corrupted JSON files are archived safely
+  2. ✓ Fallback timestamp (current time) used for directory name
+  3. ✓ Warning logged about corrupted JSON
+  4. ✓ Corrupted files archived without data loss
+  5. ✓ Init proceeds successfully despite corruption
+
+**Current Status:**
+
+- Features passing: 16/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F011 (Display informative console messages during archiving)
+- Or F013 (Respect --dry-run flag for archiving operations)
+- Or F017 (Test archiving with missing progress.txt)
+- Continue with remaining archiving features
+
+---
