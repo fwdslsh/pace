@@ -3367,3 +3367,55 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining testing and integration tasks
 
 ---
+
+---
+
+### Session 80 - FeatureManager Integration Test
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F026: Ensure archiving works with existing FeatureManager
+
+**Actions Taken:**
+
+- Added comprehensive integration tests in tests/feature-manager.test.ts
+- Created 5 new test cases covering all verification steps:
+  1. FeatureManager.load() works correctly after archiving
+  2. Archived files don't interfere with new files
+  3. Feature stats calculated correctly after archiving
+  4. Update operations work after archiving
+  5. Multiple archive operations preserve all previous runs
+- Tests simulate real archiving workflow:
+  - Create initial feature list with sample data
+  - Use archive-utils to move files to .runs directory
+  - Create new feature list
+  - Validate all FeatureManager operations on new list
+  - Confirm archived files remain intact and separate
+- Verified all tests pass (24 tests in feature-manager.test.ts)
+- Verified full test suite passes (260 tests)
+- Verified build and lint pass
+
+**Test Results:**
+
+- All 5 new integration tests passing
+- FeatureManager.load() correctly returns empty list after archiving
+- New feature list loads correctly without interference from archived files
+- Stats calculations accurate for new feature list
+- Update operations (updateFeatureStatus, findFeature, getNextFeature) work correctly
+- Multiple archives preserve all previous runs in separate timestamped directories
+- Full test suite: 260 tests passing
+
+**Current Status:**
+
+- Features passing: 22/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F020 (Update CLI help text to mention archiving behavior)
+- Continue with remaining documentation tasks (F020-F023)
+
+---
