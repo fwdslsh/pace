@@ -24,7 +24,7 @@
 import { readFile, stat, mkdir, rename } from 'fs/promises';
 import { join, resolve } from 'path';
 
-import { createOpencode } from '@opencode-ai/sdk';
+import { createOpencode, createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk';
 
 import { FeatureManager } from './src/feature-manager';
 import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
@@ -53,6 +53,7 @@ interface ParsedArgs {
   options: {
     projectDir: string;
     port?: number;
+    url?: string; // URL to connect to existing OpenCode server
     model?: string;
     maxSessions?: number;
     maxFailures?: number;
@@ -152,6 +153,10 @@ function parseArgs(): ParsedArgs {
 
       case '--port':
         options.port = parseInt(args[++i]);
+        break;
+      case '--url':
+      case '-u':
+        options.url = args[++i];
         break;
       case '--model':
       case '-m':
@@ -288,6 +293,7 @@ ${basePrompt}`;
 class Orchestrator {
   private projectDir: string;
   private port?: number;
+  private url?: string; // URL to connect to existing OpenCode server
   private maxSessions?: number;
   private maxFailures?: number;
   private delay?: number;
@@ -299,11 +305,13 @@ class Orchestrator {
   private featureManager: FeatureManager;
   private state: OrchestratorState;
   private opencode: Awaited<ReturnType<typeof createOpencode>> | null = null;
+  private externalClient: OpencodeClient | null = null; // Client for external server
   private activeModel: string | null = null;
 
   constructor(options: ParsedArgs['options']) {
     this.projectDir = resolve(options.projectDir);
     this.port = options.port;
+    this.url = options.url;
     // Only set maxSessions if explicitly provided or untilComplete is true
     this.maxSessions = options.untilComplete
       ? undefined
@@ -361,24 +369,50 @@ class Orchestrator {
   }
 
   /**
-   * Initialize the OpenCode server
+   * Get the OpenCode client (either from embedded server or external connection)
+   */
+  private get client(): OpencodeClient {
+    if (this.externalClient) return this.externalClient;
+    if (this.opencode) return this.opencode.client;
+    throw new Error('OpenCode not initialized. Call initialize() first.');
+  }
+
+  /**
+   * Check if we're connected to an external server
+   */
+  private get isExternalServer(): boolean {
+    return this.externalClient !== null;
+  }
+
+  /**
+   * Initialize the OpenCode server or connect to existing one
    */
   private async initialize(): Promise<void> {
     this.log('Loading pace configuration...');
     this.paceConfig = await loadConfig(this.projectDir);
 
-    this.log('Initializing OpenCode server...');
+    if (this.url) {
+      // Connect to existing OpenCode server
+      this.log(`Connecting to existing OpenCode server at ${this.url}...`);
+      this.externalClient = createOpencodeClient({
+        baseUrl: this.url,
+      });
+      this.log(`Connected to OpenCode server: ${this.url}`);
+    } else {
+      // Start embedded OpenCode server
+      this.log('Initializing OpenCode server...');
 
-    // OpenCode reads its config from .opencode/opencode.jsonc automatically
-    this.opencode = await createOpencode({
-      port: this.port ?? 0,
-    });
+      // OpenCode reads its config from .opencode/opencode.jsonc automatically
+      this.opencode = await createOpencode({
+        port: this.port ?? 0,
+      });
 
-    this.log(`OpenCode server started: ${this.opencode.server.url}`);
+      this.log(`OpenCode server started: ${this.opencode.server.url}`);
+    }
 
     // Fetch the active model from OpenCode config
     try {
-      const configResult = await this.opencode.client.config.get();
+      const configResult = await this.client.config.get();
       if (configResult.data?.model) {
         this.activeModel = configResult.data.model;
       }
@@ -388,10 +422,11 @@ class Orchestrator {
   }
 
   /**
-   * Shut down the OpenCode server
+   * Shut down the OpenCode server (only if we started it)
    */
   private async shutdown(): Promise<void> {
-    if (this.opencode?.server?.close) {
+    // Only shut down if we started an embedded server (not external)
+    if (!this.isExternalServer && this.opencode?.server?.close) {
       this.log('Shutting down OpenCode server...');
       this.opencode.server.close();
     }
@@ -426,11 +461,11 @@ class Orchestrator {
    * Run a coding session for a specific feature
    */
   private async runCodingSession(feature: Feature): Promise<boolean> {
-    if (!this.opencode) {
+    if (!this.opencode && !this.externalClient) {
       throw new Error('OpenCode not initialized');
     }
 
-    const client = this.opencode.client;
+    const client = this.client;
     const startTime = Date.now();
 
     // Get agent-specific model if configured
@@ -914,34 +949,55 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       projectDescription.slice(0, 300) + (projectDescription.length > 300 ? '\n...' : ''),
     );
     console.log('-'.repeat(40));
-    console.log('\nInitializing OpenCode server...');
+    if (options.url) {
+      console.log(`\nConnecting to OpenCode server at ${options.url}...`);
+    } else {
+      console.log('\nInitializing OpenCode server...');
+    }
   }
 
-  // Initialize OpenCode
+  // Initialize OpenCode (embedded server or external connection)
   let opencode: Awaited<ReturnType<typeof createOpencode>> | null = null;
+  let externalClient: OpencodeClient | null = null;
+  const isExternalServer = !!options.url;
 
   try {
     // Load pace config for agent model overrides
     const paceConfig = await loadConfig(projectDir);
 
-    // OpenCode reads its config from .opencode/opencode.jsonc automatically
-    opencode = await createOpencode({
-      port: 0,
-    });
+    let client: OpencodeClient;
+
+    if (options.url) {
+      // Connect to existing OpenCode server
+      externalClient = createOpencodeClient({
+        baseUrl: options.url,
+      });
+      client = externalClient;
+      if (!options.json) {
+        console.log(`Connected to OpenCode server: ${options.url}`);
+      }
+    } else {
+      // Start embedded OpenCode server
+      // OpenCode reads its config from .opencode/opencode.jsonc automatically
+      opencode = await createOpencode({
+        port: 0,
+      });
+      client = opencode.client;
+      if (!options.json) {
+        console.log(`OpenCode server started: ${opencode.server.url}`);
+      }
+    }
 
     // Get agent-specific model if configured
     const agentModelId = getAgentModel(paceConfig, PACE_AGENTS.INITIALIZER);
     const agentModel = agentModelId ? parseModelId(agentModelId) : undefined;
 
     if (!options.json) {
-      console.log(`OpenCode server started: ${opencode.server.url}`);
       if (agentModelId) {
         console.log(`Model: ${agentModelId}`);
       }
       console.log('\nRunning initializer agent...\n');
     }
-
-    const client = opencode.client;
 
     // Create a session for initialization
     const sessionResult = await client.session.create({
@@ -1208,7 +1264,8 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     }
     process.exit(1);
   } finally {
-    if (opencode?.server?.close) {
+    // Only shut down if we started an embedded server (not external)
+    if (!isExternalServer && opencode?.server?.close) {
       await opencode.server.close();
     }
   }
@@ -1429,6 +1486,7 @@ COMMANDS:
 INIT OPTIONS:
     --prompt, -p TEXT            Project description prompt
     --file PATH                  Path to file containing project description
+    --url, -u URL                Connect to existing OpenCode server (instead of spawning)
     --dry-run                    Show what would be done without executing
     --verbose, -v                Show detailed output during initialization
     --json                       Output results in JSON format
@@ -1438,6 +1496,7 @@ INIT OPTIONS:
 
 RUN OPTIONS:
     --project-dir, -d DIR        Project directory (default: current directory)
+    --url, -u URL                Connect to existing OpenCode server (instead of spawning)
     --max-sessions, -n N         Maximum number of sessions to run (default: 10)
     --max-failures, -f N         Stop after N consecutive failures (default: 3)
     --delay SECONDS              Seconds to wait between sessions (default: 5)
