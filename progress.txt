@@ -3864,3 +3864,43 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining documentation tasks
 
 ---
+
+### Session 90 - README Documentation Update
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F023: Update README.md with archiving feature
+
+**Actions Taken:**
+
+- **Updated README.md with comprehensive archiving documentation**:
+  - Added new "Project Archiving" section under "How It Works"
+  - Documented when archiving occurs (during `pace init` when files exist)
+  - Explained archive directory structure with visual example tree showing `.runs/<timestamp>/` format
+  - Added detailed example scenario showing before/after of running init twice in same directory
+  - Included explanation of timestamp source (metadata.last_updated with fallback to current time)
+  - Documented .gitignore behavior for .runs directory
+  - Updated Features list to include "Project Archiving" as a key feature
+  - All documentation follows existing README style and formatting
+
+**Test Results:**
+
+- All tests pass: 281 pass, 34 skip, 0 fail
+- Build succeeds without errors
+- `bunx prettier --check README.md` passes (formatting is correct)
+- `./pace status` correctly shows 32/50 passing
+
+**Current Status:**
+
+- Features passing: 32/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F024 (Extract archiving logic into separate module)
+- Continue with refactoring and remaining low-priority tasks
+
+---
