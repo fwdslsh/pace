@@ -2794,3 +2794,50 @@ The coding agent should start with critical and high priority features:
 - Continue with testing features (F016-F019)
 
 ---
+
+### Session 69 - Integration Test for Full Init Archiving Flow
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F016: Add integration test for full init archiving flow
+
+**Actions Taken:**
+
+- Reviewed existing init command implementation in cli.ts (handleInit function)
+- Analyzed existing end-to-end archiving tests in tests/init-command.test.ts
+- Identified that existing tests covered most requirements but didn't fully validate the complete flow
+- Added comprehensive integration test "should complete full init archiving flow (F016)" that:
+  1. Creates initial feature_list.json and progress.txt (simulating first init)
+  2. Verifies both files are created and have correct content
+  3. Runs `pace init` again with dry-run to verify archiving is triggered
+  4. Actually performs archiving using moveToArchive utilities
+  5. Validates .runs/<timestamp>/ directory is created with correct structure
+  6. Verifies archived files match original content exactly
+  7. Confirms original files are removed from root directory
+  8. Creates new files (simulating second init)
+  9. Runs `pace status` to verify everything still works
+- Test explicitly validates all 6 verification steps from F016 requirements
+- All 247 tests pass (including 34 init-command tests)
+
+**Test Results:**
+
+- New integration test added to tests/init-command.test.ts (lines 1220-1406)
+- Test validates complete workflow: initial files → archiving → new files → status check
+- `bun test tests/init-command.test.ts` passes (34 pass, 21 skip)
+- `bun test` passes (247 pass, 21 skip, 640 expect() calls)
+- Build and linting all pass
+
+**Current Status:**
+
+- Features passing: 11/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F017 (Test archiving with missing progress.txt)
+- Continue with remaining testing features (F017-F019)
+
+---
