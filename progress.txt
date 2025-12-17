@@ -4079,3 +4079,82 @@ The coding agent should start with critical and high priority features:
 - Continue with remaining edge-case and enhancement features
 
 ---
+
+---
+
+### Session 94 - Archive Conflict Resolution
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F028: Handle case where .runs already contains conflicting directory
+
+**Actions Taken:**
+
+- **Added resolveUniqueArchivePath() function**:
+  - Created new utility function in src/archive-utils.ts
+  - Checks if archive directory exists and generates unique name with numeric suffix
+  - Appends -1, -2, -3, etc. until finding a non-existent path
+  - Returns unique path that can be safely created
+
+- **Updated ArchiveManager to use conflict resolution**:
+  - Modified archive() method in src/archive-manager.ts
+  - Now resolves unique archive path before creating directory
+  - Handles unlikely but possible case of same-timestamp archives
+  - Ensures no archive directories are ever overwritten
+
+- **Added comprehensive unit tests**:
+  - 13 new tests in tests/archive-utils.test.ts for resolveUniqueArchivePath()
+  - Tests for basic conflicts (returns -1 suffix)
+  - Tests for multiple conflicts (returns -2, -3, etc.)
+  - Tests for gap handling (fills gaps in suffix sequence)
+  - Tests for high suffix numbers (10+)
+  - Tests with various timestamp formats
+  - Tests with nested archive directories
+  - Tests with files vs directories as conflicts
+  - Tests when parent directory doesn't exist
+  - Tests concurrent resolution (all return same suffix)
+  - Tests that function doesn't modify filesystem
+
+- **Added integration tests**:
+  - 3 new tests in tests/init-command.test.ts simulating real-world scenarios
+  - Test 1: Single conflict (manual directory creation then init)
+  - Test 2: Multiple conflicts (base, -1, -2 exist, creates -3)
+  - Test 3: Full ArchiveManager integration with conflict resolution
+
+- **Testing**:
+  - All 301 tests passing (62 in archive-utils.test.ts, 48 in init-command.test.ts)
+  - Verified conflict resolution works correctly in all scenarios
+  - Tested with gaps in suffix sequence
+  - Verified original archives remain intact
+  - Confirmed ArchiveManager properly uses resolveUniqueArchivePath
+
+**Implementation Details:**
+
+The resolveUniqueArchivePath() function uses a simple loop-based approach:
+1. Start with the base archive path (e.g., .runs/2025-12-17_10-00-00)
+2. Try to stat() the path - if ENOENT, the path is free
+3. If the path exists, increment suffix counter and try again
+4. Continue until finding a non-existent path
+5. Return the unique path
+
+This ensures that even in the unlikely event of:
+- Manual directory creation with the same timestamp
+- Clock synchronization issues causing identical timestamps
+- Testing scenarios with simulated conflicts
+
+The archiving system will gracefully handle the conflict by creating a new directory with a numeric suffix, preserving all existing archives without any data loss.
+
+**Current Status:**
+
+- Features passing: 36/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F029 (Handle very long or invalid project directory paths)
+- Continue with remaining edge-case features
+
+---
