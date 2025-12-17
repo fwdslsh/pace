@@ -995,20 +995,36 @@ Begin now by analyzing the requirements and creating all necessary files.`;
     let currentTool = '';
     let lastProgressUpdate = 0;
 
-    // Progress indicator for non-verbose mode
-    const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    let spinnerIndex = 0;
-    let spinnerInterval: ReturnType<typeof setInterval> | null = null;
+    // Progress indicator for non-verbose mode - turtle walking back and forth
+    const trackWidth = 20;
+    let turtlePosition = 0;
+    let turtleDirection = 1; // 1 = right, -1 = left
+    let animationInterval: ReturnType<typeof setInterval> | null = null;
 
     if (!options.json && !options.verbose) {
-      spinnerInterval = setInterval(() => {
+      animationInterval = setInterval(() => {
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-        const frame = spinnerFrames[spinnerIndex % spinnerFrames.length];
         const toolInfo = currentTool ? ` ${currentTool}` : '';
-        const statusLine = `${frame} Working... ${elapsed}s elapsed, ${toolCalls} tool calls${toolInfo}`;
+
+        // Build the track with turtle
+        const leftPad = ' '.repeat(turtlePosition);
+        const rightPad = ' '.repeat(trackWidth - turtlePosition);
+        const turtle = turtleDirection > 0 ? '🐢' : '🐢';
+        const track = `[${leftPad}${turtle}${rightPad}]`;
+
+        const statusLine = `${track} ${elapsed}s elapsed, ${toolCalls} tool calls${toolInfo}`;
         process.stdout.write(`\r${statusLine.padEnd(80)}`);
-        spinnerIndex++;
-      }, 100);
+
+        // Move turtle
+        turtlePosition += turtleDirection;
+        if (turtlePosition >= trackWidth) {
+          turtlePosition = trackWidth;
+          turtleDirection = -1;
+        } else if (turtlePosition <= 0) {
+          turtlePosition = 0;
+          turtleDirection = 1;
+        }
+      }, 150);
     }
 
     for await (const event of events.stream) {
@@ -1083,9 +1099,9 @@ Begin now by analyzing the requirements and creating all necessary files.`;
       }
     }
 
-    // Clean up spinner
-    if (spinnerInterval) {
-      clearInterval(spinnerInterval);
+    // Clean up turtle animation
+    if (animationInterval) {
+      clearInterval(animationInterval);
       process.stdout.write('\r' + ' '.repeat(80) + '\r');
     }
 
