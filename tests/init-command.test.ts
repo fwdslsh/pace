@@ -1268,10 +1268,10 @@ Start implementing F001: User authentication feature.
     await writeFile(progressPath, initialProgressContent);
 
     // STEP 2: Verify first init created feature_list.json and progress.txt
-    let featureStats = await stat(featureListPath);
+    const featureStats = await stat(featureListPath);
     expect(featureStats.isFile()).toBe(true);
 
-    let progressStats = await stat(progressPath);
+    const progressStats = await stat(progressPath);
     expect(progressStats.isFile()).toBe(true);
 
     const firstFeatureContent = await readFile(featureListPath, 'utf-8');
@@ -1620,7 +1620,7 @@ Created project after archiving previous run.
       await writeFile(progressPath, '# Old progress log\n\nSome old progress...');
 
       // Verify files exist
-      let featureStats = await stat(featureListPath);
+      const featureStats = await stat(featureListPath);
       expect(featureStats.isFile()).toBe(true);
 
       // Perform archiving (simulating what init does)
@@ -2047,7 +2047,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
       // If successful, this test is invalid (permissions worked)
       expect(true).toBe(false);
-    } catch (error) {
+    } catch {
       // Expected: archiving to .runs failed
       // Now simulate fallback to .bak
       const { copyFile } = await import('fs/promises');
@@ -2094,7 +2094,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       const normalizedTimestamp = normalizeTimestamp(timestamp);
       const archivePath = join(runsDir, normalizedTimestamp);
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
-    } catch (error) {
+    } catch {
       archivingFailed = true;
     }
 
@@ -2140,7 +2140,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       const normalizedTimestamp = normalizeTimestamp(timestamp);
       const archivePath = join(tempDir, '.runs', normalizedTimestamp);
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
-    } catch (error) {
+    } catch {
       archivingFailed = true;
     }
 
@@ -2152,7 +2152,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       const { copyFile } = await import('fs/promises');
       const bakPath = `${featureListPath}.bak`;
       await copyFile(featureListPath, bakPath);
-    } catch (error) {
+    } catch {
       bakFailed = true;
     }
 
@@ -2186,7 +2186,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       const normalizedTimestamp = normalizeTimestamp(timestamp);
       const archivePath = join(runsPath, normalizedTimestamp);
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
-    } catch (error) {
+    } catch {
       archivingFailed = true;
     }
 
@@ -2231,7 +2231,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       const normalizedTimestamp = normalizeTimestamp(timestamp);
       const archivePath = join(runsPath, normalizedTimestamp);
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
-    } catch (error) {
+    } catch {
       archivingFailed = true;
     }
 
@@ -2244,5 +2244,255 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     expect(parsed.features[0].id).toBe('F001');
 
     // This demonstrates that failed archiving doesn't corrupt or delete the original
+  });
+
+  it('should preserve .runs directory structure across multiple consecutive inits (F008)', async () => {
+    // This test verifies F008 requirements:
+    // 1. .runs directory is created if it doesn't exist
+    // 2. Each init creates a new timestamped subdirectory
+    // 3. Multiple init operations create separate archives
+    // 4. Old archives are not overwritten
+    // 5. Test with 3+ consecutive init operations
+
+    const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
+
+    // ===== SIMULATION 1: First init (creates initial files) =====
+    const firstFeatureList = {
+      features: [
+        {
+          id: 'F001',
+          description: 'Feature 1',
+          priority: 'high',
+          category: 'core',
+          steps: [],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'First Init',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-17T10:00:00.000Z', // Timestamp for first init
+      },
+    };
+    const firstProgress = 'Progress Log - Init 1\nCreated on 2025-12-17 10:00:00';
+
+    const featureListPath = join(tempDir, 'feature_list.json');
+    const progressPath = join(tempDir, 'progress.txt');
+
+    await writeFile(featureListPath, JSON.stringify(firstFeatureList, null, 2));
+    await writeFile(progressPath, firstProgress);
+
+    // ===== SIMULATION 2: Second init (archives first files) =====
+    // Read the first init's timestamp and archive it
+    const firstTimestamp = firstFeatureList.metadata.last_updated;
+    const firstNormalized = normalizeTimestamp(firstTimestamp);
+    expect(firstNormalized).toBe('2025-12-17_10-00-00');
+
+    const firstArchivePath = join(tempDir, '.runs', firstNormalized);
+
+    // Archive first init files
+    await moveToArchive(featureListPath, firstArchivePath, 'feature_list.json');
+    await moveToArchive(progressPath, firstArchivePath, 'progress.txt');
+
+    // Create second init files
+    const secondFeatureList = {
+      features: [
+        {
+          id: 'F002',
+          description: 'Feature 2',
+          priority: 'medium',
+          category: 'ui',
+          steps: [],
+          passes: false,
+        },
+        {
+          id: 'F003',
+          description: 'Feature 3',
+          priority: 'low',
+          category: 'docs',
+          steps: [],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Second Init',
+        created_at: '2025-12-17',
+        total_features: 2,
+        passing: 0,
+        failing: 2,
+        last_updated: '2025-12-17T11:30:00.000Z', // Different timestamp
+      },
+    };
+    const secondProgress = 'Progress Log - Init 2\nCreated on 2025-12-17 11:30:00';
+
+    await writeFile(featureListPath, JSON.stringify(secondFeatureList, null, 2));
+    await writeFile(progressPath, secondProgress);
+
+    // ===== SIMULATION 3: Third init (archives second files) =====
+    const secondTimestamp = secondFeatureList.metadata.last_updated;
+    const secondNormalized = normalizeTimestamp(secondTimestamp);
+    expect(secondNormalized).toBe('2025-12-17_11-30-00');
+
+    const secondArchivePath = join(tempDir, '.runs', secondNormalized);
+
+    // Archive second init files
+    await moveToArchive(featureListPath, secondArchivePath, 'feature_list.json');
+    await moveToArchive(progressPath, secondArchivePath, 'progress.txt');
+
+    // Create third init files
+    const thirdFeatureList = {
+      features: [
+        {
+          id: 'F004',
+          description: 'Feature 4',
+          priority: 'critical',
+          category: 'security',
+          steps: [],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Third Init',
+        created_at: '2025-12-17',
+        total_features: 1,
+        passing: 0,
+        failing: 1,
+        last_updated: '2025-12-17T14:45:00.000Z', // Yet another timestamp
+      },
+    };
+    const thirdProgress = 'Progress Log - Init 3\nCreated on 2025-12-17 14:45:00';
+
+    await writeFile(featureListPath, JSON.stringify(thirdFeatureList, null, 2));
+    await writeFile(progressPath, thirdProgress);
+
+    // ===== SIMULATION 4: Fourth init (archives third files) =====
+    const thirdTimestamp = thirdFeatureList.metadata.last_updated;
+    const thirdNormalized = normalizeTimestamp(thirdTimestamp);
+    expect(thirdNormalized).toBe('2025-12-17_14-45-00');
+
+    const thirdArchivePath = join(tempDir, '.runs', thirdNormalized);
+
+    // Archive third init files
+    await moveToArchive(featureListPath, thirdArchivePath, 'feature_list.json');
+    await moveToArchive(progressPath, thirdArchivePath, 'progress.txt');
+
+    // Create fourth (final) init files
+    const fourthFeatureList = {
+      features: [
+        {
+          id: 'F005',
+          description: 'Feature 5',
+          priority: 'high',
+          category: 'performance',
+          steps: [],
+          passes: false,
+        },
+        {
+          id: 'F006',
+          description: 'Feature 6',
+          priority: 'medium',
+          category: 'testing',
+          steps: [],
+          passes: false,
+        },
+      ],
+      metadata: {
+        project_name: 'Fourth Init',
+        created_at: '2025-12-17',
+        total_features: 2,
+        passing: 0,
+        failing: 2,
+        last_updated: '2025-12-17T16:20:00.000Z',
+      },
+    };
+    const fourthProgress = 'Progress Log - Init 4\nCreated on 2025-12-17 16:20:00';
+
+    await writeFile(featureListPath, JSON.stringify(fourthFeatureList, null, 2));
+    await writeFile(progressPath, fourthProgress);
+
+    // ===== VERIFICATION: Check .runs directory structure =====
+
+    // 1. Verify .runs directory was created
+    const runsPath = join(tempDir, '.runs');
+    const runsStats = await stat(runsPath);
+    expect(runsStats.isDirectory()).toBe(true);
+
+    // 2. Verify all three archive subdirectories exist (from inits 1, 2, and 3)
+    const firstArchiveStats = await stat(firstArchivePath);
+    expect(firstArchiveStats.isDirectory()).toBe(true);
+
+    const secondArchiveStats = await stat(secondArchivePath);
+    expect(secondArchiveStats.isDirectory()).toBe(true);
+
+    const thirdArchiveStats = await stat(thirdArchivePath);
+    expect(thirdArchiveStats.isDirectory()).toBe(true);
+
+    // 3. Verify each archive contains both feature_list.json and progress.txt
+
+    // First archive
+    const firstArchivedFeature = join(firstArchivePath, 'feature_list.json');
+    const firstArchivedProgress = join(firstArchivePath, 'progress.txt');
+    expect((await stat(firstArchivedFeature)).isFile()).toBe(true);
+    expect((await stat(firstArchivedProgress)).isFile()).toBe(true);
+
+    const firstArchivedContent = JSON.parse(await readFile(firstArchivedFeature, 'utf-8'));
+    expect(firstArchivedContent.metadata.project_name).toBe('First Init');
+    expect(firstArchivedContent.features[0].id).toBe('F001');
+
+    const firstProgressContent = await readFile(firstArchivedProgress, 'utf-8');
+    expect(firstProgressContent).toContain('Init 1');
+
+    // Second archive
+    const secondArchivedFeature = join(secondArchivePath, 'feature_list.json');
+    const secondArchivedProgress = join(secondArchivePath, 'progress.txt');
+    expect((await stat(secondArchivedFeature)).isFile()).toBe(true);
+    expect((await stat(secondArchivedProgress)).isFile()).toBe(true);
+
+    const secondArchivedContent = JSON.parse(await readFile(secondArchivedFeature, 'utf-8'));
+    expect(secondArchivedContent.metadata.project_name).toBe('Second Init');
+    expect(secondArchivedContent.features.length).toBe(2);
+    expect(secondArchivedContent.features[0].id).toBe('F002');
+
+    const secondProgressContent = await readFile(secondArchivedProgress, 'utf-8');
+    expect(secondProgressContent).toContain('Init 2');
+
+    // Third archive
+    const thirdArchivedFeature = join(thirdArchivePath, 'feature_list.json');
+    const thirdArchivedProgress = join(thirdArchivePath, 'progress.txt');
+    expect((await stat(thirdArchivedFeature)).isFile()).toBe(true);
+    expect((await stat(thirdArchivedProgress)).isFile()).toBe(true);
+
+    const thirdArchivedContent = JSON.parse(await readFile(thirdArchivedFeature, 'utf-8'));
+    expect(thirdArchivedContent.metadata.project_name).toBe('Third Init');
+    expect(thirdArchivedContent.features[0].id).toBe('F004');
+
+    const thirdProgressContent = await readFile(thirdArchivedProgress, 'utf-8');
+    expect(thirdProgressContent).toContain('Init 3');
+
+    // 4. Verify current working directory has the fourth init files
+    const currentFeatureContent = JSON.parse(await readFile(featureListPath, 'utf-8'));
+    expect(currentFeatureContent.metadata.project_name).toBe('Fourth Init');
+    expect(currentFeatureContent.features.length).toBe(2);
+    expect(currentFeatureContent.features[0].id).toBe('F005');
+
+    const currentProgressContent = await readFile(progressPath, 'utf-8');
+    expect(currentProgressContent).toContain('Init 4');
+
+    // 5. Verify old archives were not overwritten (each has unique content)
+    // We already verified this above by checking each archive has its original content
+    // Additional check: verify timestamps are all different
+    const timestamps = [firstNormalized, secondNormalized, thirdNormalized];
+    const uniqueTimestamps = new Set(timestamps);
+    expect(uniqueTimestamps.size).toBe(3); // All three timestamps should be unique
+
+    // Summary verification for F008:
+    // ✅ 1. .runs directory was created
+    // ✅ 2. Each init created a new timestamped subdirectory (3 subdirectories for 3 archives)
+    // ✅ 3. Multiple init operations created separate archives (verified 3 separate archives exist)
+    // ✅ 4. Old archives were not overwritten (each archive contains its original content)
+    // ✅ 5. Tested with 4 consecutive init operations (creating 3 archives)
   });
 });
