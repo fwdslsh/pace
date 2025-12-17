@@ -61,19 +61,29 @@ function isValidDirectoryName(dirname: string): boolean {
 /**
  * Normalizes an ISO timestamp string to a directory-safe format: YYYY-MM-DD_HH-MM-SS
  *
+ * Timezone Handling: All timestamps are normalized to UTC to ensure consistency
+ * across different timezones. This means:
+ * - Input timestamps with timezone offsets (e.g., +05:00, -08:00) are converted to UTC
+ * - Input timestamps without timezone info are treated as UTC (per ISO 8601 spec)
+ * - Directory names will be consistent regardless of the timezone of the original timestamp
+ * - Two timestamps representing the same moment in time will always produce the same directory name
+ *
  * Security: This function ensures the output contains only alphanumeric characters,
  * hyphens, and underscores. It is safe from path traversal attacks as it constructs
  * the output from numeric date components only.
  *
  * @param isoTimestamp - An ISO 8601 timestamp string (e.g., "2025-12-15T17:00:00.000Z")
- * @returns A directory-safe timestamp string (e.g., "2025-12-15_17-00-00")
+ * @returns A directory-safe timestamp string in UTC (e.g., "2025-12-15_17-00-00")
  *
  * @example
  * ```typescript
- * normalizeTimestamp("2025-12-15T17:00:00.000Z")  // Returns: "2025-12-15_17-00-00"
- * normalizeTimestamp("invalid")                    // Returns: current timestamp
- * normalizeTimestamp("")                           // Returns: current timestamp
- * normalizeTimestamp("../../../etc/passwd")        // Returns: current timestamp (invalid date)
+ * normalizeTimestamp("2025-12-15T17:00:00.000Z")     // Returns: "2025-12-15_17-00-00"
+ * normalizeTimestamp("2025-12-15T17:00:00+00:00")    // Returns: "2025-12-15_17-00-00" (same as above)
+ * normalizeTimestamp("2025-12-15T19:00:00+02:00")    // Returns: "2025-12-15_17-00-00" (converted to UTC)
+ * normalizeTimestamp("2025-12-15T12:00:00-05:00")    // Returns: "2025-12-15_17-00-00" (converted to UTC)
+ * normalizeTimestamp("invalid")                       // Returns: current timestamp in UTC
+ * normalizeTimestamp("")                              // Returns: current timestamp in UTC
+ * normalizeTimestamp("../../../etc/passwd")           // Returns: current timestamp (invalid date)
  * ```
  */
 export function normalizeTimestamp(isoTimestamp: string): string {
@@ -121,12 +131,17 @@ export function normalizeTimestamp(isoTimestamp: string): string {
  * This function is used when the provided timestamp is invalid, missing, or cannot be parsed.
  * It generates a timestamp based on the current UTC time to ensure consistency across timezones.
  *
+ * Timezone Handling: Always returns the current time in UTC, regardless of the system's local
+ * timezone. This ensures that archive directory names are consistent across different machines
+ * and geographic locations.
+ *
  * @returns Current timestamp in YYYY-MM-DD_HH-MM-SS format (UTC)
  *
  * @example
  * ```typescript
  * // If called at 2025-12-17 14:30:45 UTC, returns:
  * getFallbackTimestamp()  // Returns: "2025-12-17_14-30-45"
+ * // Same result regardless of whether called from New York, London, or Tokyo
  * ```
  */
 function getFallbackTimestamp(): string {

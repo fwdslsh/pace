@@ -119,6 +119,166 @@ describe('normalizeTimestamp', () => {
     }
   });
 
+  describe('timezone normalization to UTC', () => {
+    test('converts timestamp with positive UTC offset to UTC', () => {
+      // 16:00 in +02:00 timezone = 14:00 UTC
+      const result = normalizeTimestamp('2025-12-15T16:00:00+02:00');
+      expect(result).toBe('2025-12-15_14-00-00');
+    });
+
+    test('converts timestamp with negative UTC offset to UTC', () => {
+      // 17:00 in -05:00 timezone = 22:00 UTC
+      const result = normalizeTimestamp('2025-12-15T17:00:00-05:00');
+      expect(result).toBe('2025-12-15_22-00-00');
+    });
+
+    test('handles UTC timestamp (Z suffix) correctly', () => {
+      const result = normalizeTimestamp('2025-12-15T17:00:00Z');
+      expect(result).toBe('2025-12-15_17-00-00');
+    });
+
+    test('handles UTC timestamp with +00:00 offset', () => {
+      const result = normalizeTimestamp('2025-12-15T17:00:00+00:00');
+      expect(result).toBe('2025-12-15_17-00-00');
+    });
+
+    test('handles UTC timestamp with -00:00 offset', () => {
+      const result = normalizeTimestamp('2025-12-15T17:00:00-00:00');
+      expect(result).toBe('2025-12-15_17-00-00');
+    });
+
+    test('converts extreme positive timezone offset (+14:00, Line Islands)', () => {
+      // 17:00 in +14:00 timezone = 03:00 UTC
+      const result = normalizeTimestamp('2025-12-15T17:00:00+14:00');
+      expect(result).toBe('2025-12-15_03-00-00');
+    });
+
+    test('converts extreme negative timezone offset (-12:00, Baker Island)', () => {
+      // 17:00 in -12:00 timezone = 05:00 UTC (next day)
+      const result = normalizeTimestamp('2025-12-15T17:00:00-12:00');
+      expect(result).toBe('2025-12-16_05-00-00');
+    });
+
+    test('handles timezone offset that crosses day boundary (forward)', () => {
+      // 23:00 in -05:00 timezone = 04:00 UTC next day
+      const result = normalizeTimestamp('2025-12-15T23:00:00-05:00');
+      expect(result).toBe('2025-12-16_04-00-00');
+    });
+
+    test('handles timezone offset that crosses day boundary (backward)', () => {
+      // 02:00 in +10:00 timezone = 16:00 UTC previous day
+      const result = normalizeTimestamp('2025-12-15T02:00:00+10:00');
+      expect(result).toBe('2025-12-14_16-00-00');
+    });
+
+    test('handles timezone offset that crosses month boundary', () => {
+      // January 1st 02:00 in +10:00 timezone = December 31st 16:00 UTC
+      const result = normalizeTimestamp('2025-01-01T02:00:00+10:00');
+      expect(result).toBe('2024-12-31_16-00-00');
+    });
+
+    test('handles timezone offset that crosses year boundary', () => {
+      // January 1st 00:30 in +05:00 timezone = December 31st 19:30 UTC
+      const result = normalizeTimestamp('2025-01-01T00:30:00+05:00');
+      expect(result).toBe('2024-12-31_19-30-00');
+    });
+
+    test('handles partial hour timezone offset (+05:30, India)', () => {
+      // 17:00 in +05:30 timezone = 11:30 UTC
+      const result = normalizeTimestamp('2025-12-15T17:00:00+05:30');
+      expect(result).toBe('2025-12-15_11-30-00');
+    });
+
+    test('handles partial hour timezone offset (+05:45, Nepal)', () => {
+      // 17:00 in +05:45 timezone = 11:15 UTC
+      const result = normalizeTimestamp('2025-12-15T17:00:00+05:45');
+      expect(result).toBe('2025-12-15_11-15-00');
+    });
+
+    test('handles negative partial hour timezone offset (-03:30, Newfoundland)', () => {
+      // 17:00 in -03:30 timezone = 20:30 UTC
+      const result = normalizeTimestamp('2025-12-15T17:00:00-03:30');
+      expect(result).toBe('2025-12-15_20-30-00');
+    });
+
+    test('same UTC moment produces same directory name regardless of timezone', () => {
+      // All these timestamps represent the same moment: 2025-12-15 17:00:00 UTC
+      const timestamps = [
+        '2025-12-15T17:00:00Z', // UTC
+        '2025-12-15T17:00:00+00:00', // UTC with offset notation
+        '2025-12-15T19:00:00+02:00', // Berlin/Paris time
+        '2025-12-15T12:00:00-05:00', // New York time (EST)
+        '2025-12-15T09:00:00-08:00', // Los Angeles time (PST)
+        '2025-12-16T04:00:00+11:00', // Sydney time (AEDT, next day)
+        '2025-12-15T22:30:00+05:30', // India time
+      ];
+
+      const results = timestamps.map((ts) => normalizeTimestamp(ts));
+
+      // All should produce the same normalized timestamp
+      const expected = '2025-12-15_17-00-00';
+      results.forEach((result) => {
+        expect(result).toBe(expected);
+      });
+
+      // Verify all results are identical
+      const uniqueResults = new Set(results);
+      expect(uniqueResults.size).toBe(1);
+    });
+
+    test('handles DST transition timestamp (spring forward)', () => {
+      // March 10, 2025 02:30 in -05:00 (EST, before DST) = 07:30 UTC
+      const result = normalizeTimestamp('2025-03-10T02:30:00-05:00');
+      expect(result).toBe('2025-03-10_07-30-00');
+    });
+
+    test('handles DST transition timestamp (fall back)', () => {
+      // November 2, 2025 01:30 in -04:00 (EDT, after DST) = 05:30 UTC
+      const result = normalizeTimestamp('2025-11-02T01:30:00-04:00');
+      expect(result).toBe('2025-11-02_05-30-00');
+    });
+
+    test('handles leap second timestamp (if supported)', () => {
+      // Some systems support 60 seconds for leap seconds
+      // Most will normalize this to next minute
+      const result = normalizeTimestamp('2025-06-30T23:59:60Z');
+      // Should either be 23:59:59 or 00:00:00 next day
+      expect(result).toMatch(/^2025-(06-30_23-59-(59|60)|07-01_00-00-00)$/);
+    });
+
+    test('timestamp at midnight UTC is correctly normalized', () => {
+      const result = normalizeTimestamp('2025-12-15T00:00:00Z');
+      expect(result).toBe('2025-12-15_00-00-00');
+    });
+
+    test('timestamp at end of day UTC is correctly normalized', () => {
+      const result = normalizeTimestamp('2025-12-15T23:59:59Z');
+      expect(result).toBe('2025-12-15_23-59-59');
+    });
+
+    test('milliseconds are truncated (not rounded)', () => {
+      // 999ms should truncate to :59, not round up to :00
+      const result = normalizeTimestamp('2025-12-15T17:00:59.999Z');
+      expect(result).toBe('2025-12-15_17-00-59');
+    });
+
+    test('different input formats for same UTC time produce same result', () => {
+      const timestamps = [
+        '2025-12-15T17:00:00.000Z',
+        '2025-12-15T17:00:00Z',
+        '2025-12-15T17:00:00.000+00:00',
+        '2025-12-15T17:00:00+00:00',
+      ];
+
+      const results = timestamps.map((ts) => normalizeTimestamp(ts));
+      const uniqueResults = new Set(results);
+
+      // All should produce the same result
+      expect(uniqueResults.size).toBe(1);
+      expect(results[0]).toBe('2025-12-15_17-00-00');
+    });
+  });
+
   describe('security: path traversal protection', () => {
     test('rejects path traversal attempt with ../../../', () => {
       const maliciousTimestamp = '../../../etc/passwd';
