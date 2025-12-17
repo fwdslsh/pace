@@ -1087,6 +1087,8 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
   // Check if feature_list.json already exists and archive if needed
   const featureListPath = join(projectDir, 'feature_list.json');
   let archivePath: string | null = null;
+  let archived = false;
+  let archivedFiles: string[] = [];
 
   const featureListExists = await checkFeatureListExists(projectDir);
 
@@ -1153,6 +1155,8 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       // Move feature_list.json to archive
       try {
         await moveToArchive(featureListPath, archivePath, 'feature_list.json');
+        archived = true;
+        archivedFiles.push('feature_list.json');
         if (!options.json) {
           console.log('  ✓ Archived feature_list.json');
         }
@@ -1183,6 +1187,7 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
         await stat(progressPath);
         try {
           await moveToArchive(progressPath, archivePath, 'progress.txt');
+          archivedFiles.push('progress.txt');
           if (!options.json) {
             console.log('  ✓ Archived progress.txt');
           }
@@ -1557,6 +1562,9 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
           featureCount,
           filesCreated,
           sessionId: session.id,
+          archived,
+          archivePath,
+          archivedFiles,
         }),
       );
     } else {
