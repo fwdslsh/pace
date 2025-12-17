@@ -3638,3 +3638,53 @@ The coding agent should start with critical and high priority features:
 - Monitor CI runs to ensure tests pass on all OS platforms
 
 ---
+
+---
+
+### Session 85 - Type Safety for Archive Functions
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F047: Add type safety for archive-related functions
+
+**Actions Taken:**
+
+- **Defined Archive Type Interfaces**:
+  - Created `ArchiveError` interface extending Error with `code` and `path` fields
+  - Created `MoveToArchiveOptions` interface for function parameters (sourcePath, destDirectory, filename, projectDir)
+  - Created `ArchiveResult` interface for operation results (destPath, success)
+  - Added all three interfaces to `src/types.ts` for external use
+
+- **Improved Error Handling**:
+  - Replaced `as { code?: string }` type assertions with proper `ArchiveError` type
+  - Replaced `as { message?: string }` type assertions with proper `ArchiveError` type
+  - Added proper error code and path propagation in error handling
+  - Updated JSDoc to reference `@throws {ArchiveError}` instead of generic Error
+
+- **Type Safety Improvements**:
+  - Imported `ArchiveError` type into `src/archive-utils.ts`
+  - No 'any' types used in archiving code (already clean)
+  - All error handling now uses strongly-typed error objects
+  - All interfaces properly exported for external use
+
+**Test Results:**
+
+- `bun run lint` passes cleanly (no errors)
+- `bun test` passes (281 tests pass, 0 fail)
+- `bun run build` succeeds
+- `./pace status` shows 27/50 passing
+
+**Current Status:**
+
+- Features passing: 27/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F012 (Respect --json flag when displaying archive messages) or F020 (Update CLI help text)
+- Continue with remaining low priority documentation and UX tasks
+
+---
