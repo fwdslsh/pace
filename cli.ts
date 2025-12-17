@@ -26,6 +26,7 @@ import { join, resolve } from 'path';
 
 import { createOpencode, createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk';
 
+import { ArchiveManager } from './src/archive-manager';
 import { FeatureManager } from './src/feature-manager';
 import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
 import paceInitMd from './src/opencode/commands/pace-init.md' with { type: 'text' };
@@ -1085,143 +1086,13 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
   }
 
   // Check if feature_list.json already exists and archive if needed
-  const featureListPath = join(projectDir, 'feature_list.json');
-  let archivePath: string | null = null;
-  let archived = false;
-  let archivedFiles: string[] = [];
-
-  const featureListExists = await checkFeatureListExists(projectDir);
-
-  if (featureListExists) {
-    // File exists - archive before initializing (unless dry-run)
-    if (!options.json) {
-      console.log('\n📦 Existing project files found');
-    }
-
-    // Read metadata.last_updated from feature_list.json
-    let timestamp: string;
-    try {
-      const content = await readFile(featureListPath, 'utf-8');
-      const data = JSON.parse(content);
-
-      if (data.metadata?.last_updated) {
-        timestamp = data.metadata.last_updated;
-      } else {
-        // metadata.last_updated is missing - use current timestamp as fallback
-        timestamp = new Date().toISOString();
-        if (!options.json) {
-          console.log(
-            '⚠️  Warning: metadata.last_updated is missing, using current timestamp as fallback',
-          );
-        }
-      }
-    } catch {
-      // If JSON is corrupted or read fails, use current timestamp
-      timestamp = new Date().toISOString();
-      if (!options.json) {
-        console.log(
-          '⚠️  Warning: Could not read metadata from feature_list.json, using current timestamp',
-        );
-      }
-    }
-
-    // Normalize timestamp to directory-safe format
-    const { normalizeTimestamp, moveToArchive } = await import('./src/archive-utils.js');
-    const normalizedTimestamp = normalizeTimestamp(timestamp);
-    archivePath = join(projectDir, '.runs', normalizedTimestamp);
-
-    if (options.dryRun) {
-      // Dry-run: show what would be archived without actually moving files
-      if (!options.json) {
-        console.log(`📁 [DRY RUN] Would archive to: .runs/${normalizedTimestamp}/`);
-        console.log('  • feature_list.json');
-        const progressPath = join(projectDir, 'progress.txt');
-        try {
-          await stat(progressPath);
-          console.log('  • progress.txt');
-        } catch {
-          // progress.txt doesn't exist
-          if (options.verbose) {
-            console.log('  ℹ️  progress.txt not found (skipping)');
-          }
-        }
-      }
-    } else {
-      // Actually perform archiving
-      if (!options.json) {
-        console.log(`📁 Archiving to: .runs/${normalizedTimestamp}/`);
-      }
-
-      // Move feature_list.json to archive
-      try {
-        await moveToArchive(featureListPath, archivePath, 'feature_list.json');
-        archived = true;
-        archivedFiles.push('feature_list.json');
-        if (!options.json) {
-          console.log('  ✓ Archived feature_list.json');
-        }
-      } catch (error) {
-        // If archiving to .runs fails, try .bak fallback
-        if (!options.json) {
-          console.error(`  ✗ Failed to archive to .runs: ${error}`);
-          console.log('  ⚠️  Attempting fallback: creating .bak backup');
-        }
-        try {
-          const { copyFile } = await import('fs/promises');
-          const bakPath = `${featureListPath}.bak`;
-          await copyFile(featureListPath, bakPath);
-          if (!options.json) {
-            console.log(`  ✓ Created backup: ${bakPath}`);
-          }
-        } catch (bakError) {
-          if (!options.json) {
-            console.error(`  ✗ Fallback backup also failed: ${bakError}`);
-            console.log('  ⚠️  Init will continue, but old files may be overwritten');
-          }
-        }
-      }
-
-      // Move progress.txt to archive (if it exists)
-      const progressPath = join(projectDir, 'progress.txt');
-      try {
-        await stat(progressPath);
-        try {
-          await moveToArchive(progressPath, archivePath, 'progress.txt');
-          archivedFiles.push('progress.txt');
-          if (!options.json) {
-            console.log('  ✓ Archived progress.txt');
-          }
-        } catch (moveError) {
-          // If archiving to .runs fails, try .bak fallback
-          if (!options.json) {
-            console.error(`  ✗ Failed to archive progress.txt to .runs: ${moveError}`);
-            console.log('  ⚠️  Attempting fallback: creating .bak backup');
-          }
-          try {
-            const { copyFile } = await import('fs/promises');
-            const bakPath = `${progressPath}.bak`;
-            await copyFile(progressPath, bakPath);
-            if (!options.json) {
-              console.log(`  ✓ Created backup: ${bakPath}`);
-            }
-          } catch (bakError) {
-            if (!options.json) {
-              console.error(`  ✗ Fallback backup also failed: ${bakError}`);
-            }
-          }
-        }
-      } catch {
-        // progress.txt doesn't exist, that's OK
-        if (!options.json && options.verbose) {
-          console.log('  ℹ️  progress.txt not found (skipping)');
-        }
-      }
-
-      if (!options.json) {
-        console.log('✅ Archiving complete\n');
-      }
-    }
-  }
+  const archiveManager = new ArchiveManager();
+  const { archived, archivePath, archivedFiles } = await archiveManager.archive({
+    projectDir,
+    dryRun: options.dryRun,
+    silent: options.json,
+    verbose: options.verbose,
+  });
 
   if (options.dryRun) {
     if (options.json) {
