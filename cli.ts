@@ -52,7 +52,7 @@ import {
 // ============================================================================
 
 interface ParsedArgs {
-  command: 'run' | 'init' | 'status' | 'validate' | 'update' | 'help';
+  command: 'run' | 'init' | 'status' | 'validate' | 'update' | 'archives' | 'help';
   options: {
     projectDir: string;
     port?: number;
@@ -137,6 +137,7 @@ function parseArgs(): ParsedArgs {
       cmd === 'status' ||
       cmd === 'validate' ||
       cmd === 'update' ||
+      cmd === 'archives' ||
       cmd === 'help'
     ) {
       command = cmd;
@@ -1768,6 +1769,108 @@ async function handleUpdate(options: ParsedArgs['options']): Promise<void> {
   }
 }
 
+async function handleArchives(options: ParsedArgs['options']): Promise<void> {
+  const projectDir = resolve(options.projectDir);
+
+  // Load pace config to get archive directory setting
+  const paceConfig = await loadConfig(projectDir);
+  const paceSettings = getPaceSettings(paceConfig);
+
+  const archiveManager = new ArchiveManager();
+
+  try {
+    const archives = await archiveManager.listArchives(projectDir, paceSettings.archiveDir);
+
+    if (options.json) {
+      // JSON output format
+      console.log(
+        JSON.stringify({
+          archives: archives.map((archive) => ({
+            name: archive.name,
+            timestamp: archive.timestamp,
+            reason: archive.metadata?.reason,
+            files: archive.metadata?.files,
+            path: archive.path,
+          })),
+          count: archives.length,
+        }),
+      );
+    } else {
+      // Human-readable output format
+      if (archives.length === 0) {
+        console.log('\nNo archives found.');
+        console.log('Archives are created when you reinitialize a pace project.');
+        console.log('Use "pace init" with an existing project to create archives.');
+        return;
+      }
+
+      console.log('\n' + '='.repeat(60));
+      console.log(' PROJECT ARCHIVES');
+      console.log('='.repeat(60));
+      console.log(`\nFound ${archives.length} archive${archives.length === 1 ? '' : 's'}:\n`);
+
+      for (const archive of archives) {
+        let date: Date;
+
+        // Try to parse timestamp, fall back to parsing directory name
+        try {
+          date = new Date(archive.timestamp);
+          if (isNaN(date.getTime())) {
+            // If timestamp is not valid, try to parse directory name
+            // Convert "YYYY-MM-DD_HH-MM-SS" to a valid date format
+            const match = archive.name.match(
+              /^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})(?:-(\d+))?$/,
+            );
+            if (match) {
+              const [, year, month, day, hour, minute, second] = match;
+              date = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`);
+            } else {
+              date = new Date();
+            }
+          }
+
+          // If still invalid, use current time
+          if (isNaN(date.getTime())) {
+            date = new Date();
+          }
+        } catch {
+          date = new Date();
+        }
+
+        const formattedDate = date.toLocaleDateString();
+        const formattedTime = date.toLocaleTimeString();
+
+        console.log(`📁 ${archive.name}`);
+        console.log(`   Created: ${formattedDate} ${formattedTime}`);
+
+        if (archive.metadata?.reason) {
+          console.log(`   Reason: ${archive.metadata.reason}`);
+        }
+
+        if (archive.metadata?.files && archive.metadata.files.length > 0) {
+          console.log(`   Files: ${archive.metadata.files.join(', ')}`);
+        }
+
+        console.log('');
+      }
+
+      console.log('='.repeat(60));
+    }
+  } catch (error) {
+    if (options.json) {
+      console.log(
+        JSON.stringify({
+          success: false,
+          error: String(error),
+        }),
+      );
+    } else {
+      console.error(`Error listing archives: ${error}`);
+    }
+    process.exit(1);
+  }
+}
+
 function printHelp(): void {
   console.log(`
 pace - Pragmatic Agent for Compounding Engineering
@@ -1778,11 +1881,12 @@ USAGE:
     pace [COMMAND] [OPTIONS]
 
 COMMANDS:
-    run          Run the orchestrator (default)
+    run          Run orchestrator (default)
     init         Initialize a new pace project
     status       Show project status
     validate     Validate feature_list.json
     update       Update feature status
+    archives     List archived runs
     help         Show this help message
 
 INIT OPTIONS:
@@ -1821,6 +1925,9 @@ VALIDATE OPTIONS:
     --json                       Output results in JSON format
 
 UPDATE OPTIONS:
+    --json                       Output results in JSON format
+
+ARCHIVES OPTIONS:
     --json                       Output results in JSON format
 
 GLOBAL OPTIONS:
@@ -1885,6 +1992,10 @@ EXAMPLES:
     # Get JSON output for scripting
     pace run --json --max-sessions 5
 
+    # List archived runs
+    pace archives
+    pace archives --json
+
 OPENCODE PLUGIN:
     For interactive use within OpenCode TUI, install the pace plugin:
     
@@ -1922,6 +2033,9 @@ async function main(): Promise<void> {
       break;
     case 'update':
       await handleUpdate(options);
+      break;
+    case 'archives':
+      await handleArchives(options);
       break;
   }
 }

@@ -7,7 +7,7 @@
  * a pace project.
  */
 
-import { copyFile, readFile, stat, writeFile } from 'fs/promises';
+import { copyFile, readFile, readdir, stat, writeFile } from 'fs/promises';
 import { join } from 'path';
 
 import { moveToArchive, normalizeTimestamp, resolveUniqueArchivePath } from './archive-utils';
@@ -44,10 +44,28 @@ export interface ArchiveOptions {
 export interface ArchiveResult {
   /** Whether archiving was performed */
   archived: boolean;
-  /** Path to the archive directory (if archived) */
+  /** Path to archive directory (if archived) */
   archivePath: string | null;
   /** List of files that were archived */
   archivedFiles: string[];
+}
+
+/**
+ * Information about an archive directory
+ */
+export interface ArchiveInfo {
+  /** Archive directory name (timestamp) */
+  name: string;
+  /** Full path to archive directory */
+  path: string;
+  /** Archive creation timestamp (from directory name or metadata) */
+  timestamp: string;
+  /** Archive metadata if available */
+  metadata?: {
+    reason?: string;
+    files?: string[];
+    originalMetadata?: any;
+  };
 }
 
 /**
@@ -391,14 +409,88 @@ export class ArchiveManager {
   }
 
   /**
-   * Archives a single file to the archive directory
+   * Lists all archive directories in the specified archive directory
    *
-   * @param filePath - Path to the file to archive
-   * @param archivePath - Path to the archive directory
-   * @param filename - Filename to use in the archive
+   * @param projectDir - The project directory path
+   * @param archiveDir - Archive directory path (defaults to '.runs')
+   * @returns Promise resolving to array of archive information
+   */
+  async listArchives(projectDir: string, archiveDir = '.runs'): Promise<ArchiveInfo[]> {
+    const archiveBasePath = join(projectDir, archiveDir);
+    const archives: ArchiveInfo[] = [];
+
+    try {
+      // Check if archive directory exists
+      await stat(archiveBasePath);
+
+      // Read all entries in archive directory
+      const entries = await readdir(archiveBasePath);
+
+      // Filter for directories that look like timestamped archives
+      for (const entry of entries) {
+        const entryPath = join(archiveBasePath, entry);
+        try {
+          const entryStat = await stat(entryPath);
+          if (entryStat.isDirectory()) {
+            // Try to read metadata file
+            let metadata: ArchiveInfo['metadata'] = undefined;
+            let timestamp = entry; // Default to directory name as timestamp
+
+            try {
+              const metadataPath = join(entryPath, '.archive-info.json');
+              const metadataContent = await readFile(metadataPath, 'utf-8');
+              const metadataData = JSON.parse(metadataContent);
+
+              metadata = {
+                reason: metadataData.archive?.reason,
+                files: metadataData.archive?.files,
+                originalMetadata: metadataData.originalMetadata,
+              };
+
+              // Use archive timestamp if available
+              if (metadataData.archive?.timestamp) {
+                timestamp = metadataData.archive.timestamp;
+              }
+            } catch {
+              // No metadata file available, that's okay
+            }
+
+            archives.push({
+              name: entry,
+              path: entryPath,
+              timestamp,
+              metadata,
+            });
+          }
+        } catch {
+          // Skip entries that can't be accessed
+          continue;
+        }
+      }
+
+      // Sort archives by timestamp (newest first)
+      archives.sort((a, b) => {
+        const aTime = new Date(a.timestamp).getTime();
+        const bTime = new Date(b.timestamp).getTime();
+        return bTime - aTime;
+      });
+    } catch {
+      // Archive directory doesn't exist or can't be accessed
+      // Return empty array
+    }
+
+    return archives;
+  }
+
+  /**
+   * Archives a single file to archive directory
+   *
+   * @param filePath - Path to file to archive
+   * @param archivePath - Path to archive directory
+   * @param filename - Filename to use in archive
    * @param projectDir - The project root directory for path validation
    * @param silent - Whether to suppress console output
-   * @param optional - Whether the file is optional (don't fail if it doesn't exist)
+   * @param optional - Whether file is optional (don't fail if it doesn't exist)
    * @returns Promise resolving to true if file was archived, false otherwise
    */
   private async archiveFile(
