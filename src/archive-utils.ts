@@ -61,3 +61,68 @@ function getFallbackTimestamp(): string {
 
   return `${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
 }
+
+/**
+ * Safely moves a file to an archive directory
+ *
+ * @param sourcePath - The path to the source file to move
+ * @param destDirectory - The destination directory path
+ * @param filename - The filename to use in the destination (defaults to original filename)
+ * @returns A promise that resolves to the destination file path
+ * @throws Error if the source file doesn't exist or move operation fails
+ *
+ * @example
+ * ```typescript
+ * await moveToArchive('./feature_list.json', './.runs/2025-12-15_17-00-00', 'feature_list.json');
+ * // Moves file to ./.runs/2025-12-15_17-00-00/feature_list.json
+ * ```
+ */
+export async function moveToArchive(
+  sourcePath: string,
+  destDirectory: string,
+  filename?: string,
+): Promise<string> {
+  // Import here to avoid circular dependencies at top level
+  const { mkdir, rename, copyFile, unlink, stat } = await import('fs/promises');
+  const { join, basename } = await import('path');
+
+  try {
+    // Verify source file exists
+    try {
+      await stat(sourcePath);
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'ENOENT') {
+        throw new Error(`Source file not found: ${sourcePath}`);
+      }
+      throw error;
+    }
+
+    // Use provided filename or extract from source path
+    const destFilename = filename || basename(sourcePath);
+    const destPath = join(destDirectory, destFilename);
+
+    // Create destination directory if it doesn't exist (mkdir -p equivalent)
+    await mkdir(destDirectory, { recursive: true });
+
+    // Try to rename first (faster, atomic operation)
+    // If that fails (e.g., cross-device), fall back to copy + delete
+    try {
+      await rename(sourcePath, destPath);
+    } catch (error) {
+      const err = error as { code?: string };
+      // EXDEV error means cross-device link, need to copy instead
+      if (err.code === 'EXDEV') {
+        await copyFile(sourcePath, destPath);
+        await unlink(sourcePath);
+      } else {
+        throw error;
+      }
+    }
+
+    return destPath;
+  } catch (error) {
+    const err = error as { message?: string };
+    throw new Error(`Failed to move file to archive: ${err.message || 'Unknown error'}`);
+  }
+}

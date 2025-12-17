@@ -1,6 +1,10 @@
-import { describe, expect, test } from 'bun:test';
+import { mkdir, readFile, rm, stat, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
-import { normalizeTimestamp } from '../src/archive-utils';
+import { afterEach, describe, expect, test } from 'bun:test';
+
+import { moveToArchive, normalizeTimestamp } from '../src/archive-utils';
 
 describe('normalizeTimestamp', () => {
   test('converts valid ISO timestamp to directory-safe format', () => {
@@ -113,5 +117,166 @@ describe('normalizeTimestamp', () => {
       expect(resultMs).toBeGreaterThanOrEqual(before - 1000);
       expect(resultMs).toBeLessThanOrEqual(after + 1000);
     }
+  });
+});
+
+describe('moveToArchive', () => {
+  // Create a temporary test directory for each test
+  const testDir = join(tmpdir(), 'pace-test-archive-' + Date.now());
+  const sourceDir = join(testDir, 'source');
+  const destDir = join(testDir, 'dest');
+
+  afterEach(async () => {
+    // Clean up test directory after each test
+    try {
+      await rm(testDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
+
+  test('successfully moves a file to archive directory', async () => {
+    // Setup: Create source directory and file
+    await mkdir(sourceDir, { recursive: true });
+    const sourceFile = join(sourceDir, 'test.txt');
+    const testContent = 'test content';
+    await writeFile(sourceFile, testContent);
+
+    // Execute: Move file to archive
+    const destPath = await moveToArchive(sourceFile, destDir, 'test.txt');
+
+    // Verify: File exists in destination
+    const destContent = await readFile(destPath, 'utf-8');
+    expect(destContent).toBe(testContent);
+    expect(destPath).toBe(join(destDir, 'test.txt'));
+
+    // Verify: Source file no longer exists
+    let sourceExists = true;
+    try {
+      await stat(sourceFile);
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === 'ENOENT') {
+        sourceExists = false;
+      }
+    }
+    expect(sourceExists).toBe(false);
+  });
+
+  test('creates nested destination directories if they do not exist', async () => {
+    // Setup: Create source file
+    await mkdir(sourceDir, { recursive: true });
+    const sourceFile = join(sourceDir, 'test.txt');
+    await writeFile(sourceFile, 'nested test');
+
+    // Execute: Move to deeply nested directory
+    const nestedDestDir = join(destDir, 'level1', 'level2', 'level3');
+    const destPath = await moveToArchive(sourceFile, nestedDestDir, 'test.txt');
+
+    // Verify: File exists in nested destination
+    const content = await readFile(destPath, 'utf-8');
+    expect(content).toBe('nested test');
+  });
+
+  test('uses source filename when destination filename is not provided', async () => {
+    // Setup: Create source file
+    await mkdir(sourceDir, { recursive: true });
+    const sourceFile = join(sourceDir, 'original-name.json');
+    await writeFile(sourceFile, '{"test": true}');
+
+    // Execute: Move without specifying filename
+    const destPath = await moveToArchive(sourceFile, destDir);
+
+    // Verify: Destination uses original filename
+    expect(destPath).toBe(join(destDir, 'original-name.json'));
+    const content = await readFile(destPath, 'utf-8');
+    expect(content).toBe('{"test": true}');
+  });
+
+  test('renames file when destination filename is different', async () => {
+    // Setup: Create source file
+    await mkdir(sourceDir, { recursive: true });
+    const sourceFile = join(sourceDir, 'old-name.txt');
+    await writeFile(sourceFile, 'rename test');
+
+    // Execute: Move with new filename
+    const destPath = await moveToArchive(sourceFile, destDir, 'new-name.txt');
+
+    // Verify: File exists with new name
+    expect(destPath).toBe(join(destDir, 'new-name.txt'));
+    const content = await readFile(destPath, 'utf-8');
+    expect(content).toBe('rename test');
+  });
+
+  test('throws error when source file does not exist', async () => {
+    // Execute and verify: Should throw error for non-existent file
+    const nonExistentFile = join(sourceDir, 'does-not-exist.txt');
+
+    await expect(moveToArchive(nonExistentFile, destDir, 'test.txt')).rejects.toThrow(
+      /Source file not found/,
+    );
+  });
+
+  test('handles moving large files correctly', async () => {
+    // Setup: Create source file with large content
+    await mkdir(sourceDir, { recursive: true });
+    const sourceFile = join(sourceDir, 'large.txt');
+    const largeContent = 'x'.repeat(1024 * 1024); // 1MB of data
+    await writeFile(sourceFile, largeContent);
+
+    // Execute: Move large file
+    const destPath = await moveToArchive(sourceFile, destDir, 'large.txt');
+
+    // Verify: File content is intact
+    const content = await readFile(destPath, 'utf-8');
+    expect(content.length).toBe(largeContent.length);
+    expect(content).toBe(largeContent);
+  });
+
+  test('handles JSON files correctly', async () => {
+    // Setup: Create JSON file
+    await mkdir(sourceDir, { recursive: true });
+    const sourceFile = join(sourceDir, 'feature_list.json');
+    const jsonData = { features: [{ id: 'F001', passes: true }], metadata: { total: 1 } };
+    await writeFile(sourceFile, JSON.stringify(jsonData, null, 2));
+
+    // Execute: Move JSON file
+    const destPath = await moveToArchive(sourceFile, destDir, 'feature_list.json');
+
+    // Verify: JSON file is intact and parseable
+    const content = await readFile(destPath, 'utf-8');
+    const parsed = JSON.parse(content);
+    expect(parsed).toEqual(jsonData);
+  });
+
+  test('handles text files with various content types', async () => {
+    // Setup: Create file with special characters
+    await mkdir(sourceDir, { recursive: true });
+    const sourceFile = join(sourceDir, 'progress.txt');
+    const specialContent = 'Line 1\nLine 2\n✓ Unicode ✗\n---\n## Markdown';
+    await writeFile(sourceFile, specialContent);
+
+    // Execute: Move text file
+    const destPath = await moveToArchive(sourceFile, destDir, 'progress.txt');
+
+    // Verify: Content preserved including special characters
+    const content = await readFile(destPath, 'utf-8');
+    expect(content).toBe(specialContent);
+  });
+
+  test('handles permission errors gracefully', async () => {
+    // Note: This test is platform-dependent and may not work on all systems
+    // We'll test that errors are wrapped in a meaningful error message
+    await mkdir(sourceDir, { recursive: true });
+    const sourceFile = join(sourceDir, 'test.txt');
+    await writeFile(sourceFile, 'test');
+
+    // Try to move to an invalid destination (null byte in path)
+    // This should fail on most systems
+    const invalidDest = '/invalid/\x00/path';
+
+    await expect(moveToArchive(sourceFile, invalidDest, 'test.txt')).rejects.toThrow(
+      /Failed to move file to archive/,
+    );
   });
 });
