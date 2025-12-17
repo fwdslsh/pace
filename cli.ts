@@ -1039,10 +1039,10 @@ Begin now by analyzing the requirements and creating all necessary files.`;
         const emojiRow = displayEmojis.length > 0 ? `[${displayEmojis}]` : '';
 
         // ASCII art turtles that face the direction they're walking
-        //   _o)>  - shell, head, direction (going right)
-        //   <(o_  - direction, head, shell (going left)
-        const turtleRight = '_o)>';
-        const turtleLeft = '<(o_';
+        //   ~}@}o  - tail, shell, head (going right)
+        //   o{@{~  - head, shell, tail (going left)
+        const turtleRight = '~}@}o';
+        const turtleLeft = 'o{@{~';
         const turtle = turtleDirection > 0 ? turtleRight : turtleLeft;
         const turtleWidth = turtle.length;
 
