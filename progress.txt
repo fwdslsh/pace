@@ -4026,3 +4026,56 @@ The coding agent should start with critical and high priority features:
 - Recommended next feature: F027 (Verify git operations are not affected by archiving)
 - Continue with remaining archiving features and enhancements
 
+
+---
+
+### Session 93 - Git Integration Verification
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F027: Verify git operations are not affected by archiving
+
+**Actions Taken:**
+
+- **Verified .runs is in .gitignore**:
+  - Confirmed .runs/ is present in .gitignore at line 50
+  - Ensures archived files are ignored by git by default
+
+- **Added comprehensive git integration tests**:
+  - Created new test suite in tests/archive-utils.test.ts
+  - Test 1: Verify .runs directory is properly ignored when in .gitignore
+  - Test 2: Verify archived files CAN be committed if .runs is removed from .gitignore
+  - Test 3: Verify git log functionality works with .runs directory present
+  - Test 4: Verify no unexpected git behavior after archiving operations
+
+- **Verified StatusReporter git functionality**:
+  - Confirmed getGitLog() method exists and works correctly (src/status-reporter.ts:44-54)
+  - Uses `git log --oneline` which is unaffected by .gitignore
+
+- **Testing**:
+  - All 50 tests in archive-utils.test.ts pass
+  - Total test suite: 286 pass, 34 skip, 0 fail
+  - Verified git operations work correctly with manual testing
+
+**Test Results:**
+
+- ✅ .runs is properly ignored by git when in .gitignore
+- ✅ Archived files can be committed if desired (by removing from .gitignore)
+- ✅ git log functionality works correctly
+- ✅ git status shows expected behavior (deleted tracked files, .runs ignored)
+- ✅ No unexpected git behavior detected
+
+**Current Status:**
+
+- Features passing: 35/50 (70%)
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F028 (Handle case where .runs already contains conflicting directory)
+- Continue with remaining edge-case and enhancement features
+
+---
