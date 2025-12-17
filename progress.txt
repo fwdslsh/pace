@@ -2388,3 +2388,54 @@ The coding agent should start with critical and high priority features:
 - Recommended next feature: F035 (End-to-end test: Full init workflow with archiving) or F003 (Add function to check if feature_list.json exists)
 - Continue implementing remaining archiving-related features
 
+---
+
+### Session 62 - End-to-End Archiving Test
+
+**Date:** Wed Dec 17 2025
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- F035: End-to-end test: Full init workflow with archiving
+
+**Actions Taken:**
+
+- Added comprehensive end-to-end integration tests to `tests/init-command.test.ts`
+- Created 4 new test cases covering the full archiving workflow:
+  1. **Main E2E test**: Complete workflow from initial files → modification → re-init → archiving → verification
+     - Creates initial feature_list.json and progress.txt
+     - Modifies features (marks as passing)
+     - Simulates archive operation using normalizeTimestamp() and moveToArchive()
+     - Verifies archived files in .runs/<timestamp>/ directory
+     - Verifies original files removed from root
+     - Creates new files simulating second init
+     - Verifies both old (archived) and new files intact
+     - Runs `pace status` to validate command works with new files
+  2. **Missing progress.txt test**: Verifies archiving works when only feature_list.json exists
+  3. **Missing metadata test**: Verifies fallback to current timestamp when last_updated is missing
+  4. **Multiple inits test**: Verifies .runs preserves multiple archive directories with unique timestamps
+- Fixed import ordering issues (moved builtin imports before bun:test)
+- Fixed unused variable issues (replaced `catch (e)` with `catch` where variable unused)
+- All tests follow existing test patterns and use proper TypeScript types
+
+**Test Results:**
+
+- New tests added: 4 comprehensive E2E tests
+- All 36 tests in init-command.test.ts pass (16 pass, 20 skip - SDK tests)
+- Full test suite: 229 tests pass, 20 skip, 0 fail
+- `bun run lint` passes with no errors
+- `bun run build` succeeds
+- `./pace status` shows 4/50 passing (8.0%)
+
+**Current Status:**
+
+- Features passing: 4/50
+- Known issues: None
+
+**Next Steps:**
+
+- Recommended next feature: F003 (Add function to check if feature_list.json exists before init)
+- Then F004 (Add function to read metadata.last_updated from feature_list.json)
+- Continue implementing remaining verification and functional features
+
