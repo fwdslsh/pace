@@ -135,6 +135,19 @@ export class ArchiveManager {
       // Dry-run: show what would be archived without actually moving files
       const displayPath = archivePath.replace(join(projectDir) + '/', '');
       await this.performDryRun(projectDir, displayPath, silent, verbose);
+
+      // In dry-run mode, still report what would be archived
+      archived = true;
+      archivedFiles.push('feature_list.json');
+
+      // Check if progress.txt exists and would be archived
+      const progressPath = join(projectDir, 'progress.txt');
+      try {
+        await stat(progressPath);
+        archivedFiles.push('progress.txt');
+      } catch {
+        // progress.txt doesn't exist, don't add to archivedFiles
+      }
     } else {
       // Actually perform archiving
       if (!silent) {

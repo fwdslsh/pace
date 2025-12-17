@@ -1186,6 +1186,11 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
             projectDescription.slice(0, 200) + (projectDescription.length > 200 ? '...' : ''),
           message: 'Would initialize pace project with the given description',
           model: agentModelId,
+          archive: {
+            archived,
+            archivePath,
+            archivedFiles,
+          },
         }),
       );
     } else {
