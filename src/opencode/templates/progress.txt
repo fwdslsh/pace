@@ -46,6 +46,11 @@ project-root/
 └── [other initial files]
 ```
 
+**Token Usage:**
+- Input tokens: [X,XXX]
+- Output tokens: [X,XXX]
+- Total tokens: [X,XXX]
+
 **Git Commit:** [commit hash] - "chore: initialize project with long-running agent harness"
 
 **Next Steps:**
@@ -78,6 +83,11 @@ project-root/
 - [End-to-end test description]
 - [Browser automation steps if applicable]
 - [Verification results]
+
+**Token Usage:**
+- Input tokens: [X,XXX]
+- Output tokens: [X,XXX]
+- Total tokens: [X,XXX]
 
 **Result:** ✓ Feature passing / ✗ Feature incomplete
 

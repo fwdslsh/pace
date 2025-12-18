@@ -21,7 +21,7 @@
  *     pace update F001 pass
  */
 
-import { readFile, stat } from 'fs/promises';
+import { readFile, writeFile, stat } from 'fs/promises';
 import { join, resolve } from 'path';
 
 import { createOpencode, createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk';
@@ -30,20 +30,135 @@ import { ArchiveManager } from './src/archive-manager';
 import { FeatureManager } from './src/feature-manager';
 import codingAgentMd from './src/opencode/agents/coding-agent.md' with { type: 'text' };
 import paceInitMd from './src/opencode/commands/pace-init.md' with { type: 'text' };
+
 import {
   loadConfig,
   type PaceConfig,
   getAgentModel,
   getPaceSettings,
+  getCostSettings,
+  getBudgetSettings,
+  getTokenDisplaySettings,
 } from './src/opencode/pace-config';
 import { createProgressIndicator, type ProgressIndicator } from './src/progress-indicator';
 import { StatusReporter } from './src/status-reporter';
-import { PACE_AGENTS, type Feature, type SessionSummary } from './src/types';
+import { ProgressParser } from './src/progress-parser';
+import {
+  type SessionSummary,
+  type TokenUsage,
+  type StatusOutput,
+  type ValidationError,
+  type FeatureListMetadata,
+  type ModelTokenUsage,
+  type TokenUsageByModel,
+  type TokenBudget,
+  type BudgetStatus,
+  Feature,
+  Priority,
+  PACE_AGENTS,
+  CostBreakdown,
+  TokenUsageWithCost,
+  ModelPricing,
+  CostConfig,
+} from './src/types';
 import {
   validateFeatureList,
   formatValidationErrors,
   formatValidationStats,
+  validateTokenUsage,
 } from './src/validators';
+import { calculateCost, formatCost, isCostCalculationSupported } from './src/cost-calculator';
+import { TokenExporter } from './src/token-exporter';
+import { ModelTokenTracker, createModelTokenTracker } from './src/model-token-tracker';
+import { calculateTokenEfficiencyMetrics } from './src/token-efficiency';
+import {
+  isAccessibleMode,
+  makeAccessible,
+  getTokenPrefix,
+  getTokenUsageHeader,
+  getAccessibleBudgetMessage,
+} from './src/accessibility';
+import { formatTokenUsageWithIndicators, calculateAverageTokens } from './src/token-visualization';
+import {
+  detectRateLimitError,
+  formatRateLimitError,
+  logRateLimitDebug,
+  type SessionError,
+  type RateLimitInfo,
+} from './src/rate-limit-handler';
+
+// Helper function to get accessible token usage template
+function getTokenUsageTemplate(): string {
+  return isAccessibleMode() ? 'Token **Usage:**' : '💎 **Token Usage:**';
+}
+
+interface RetryConfig {
+  maxRetries: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  backoffMultiplier: number;
+}
+
+const DEFAULT_RETRY_CONFIG: RetryConfig = {
+  maxRetries: 3,
+  baseDelayMs: 1000,
+  maxDelayMs: 30000,
+  backoffMultiplier: 2,
+};
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function calculateBackoffDelay(
+  attempt: number,
+  config: RetryConfig,
+  suggestedWaitSeconds?: number,
+): number {
+  if (suggestedWaitSeconds) {
+    return Math.min(suggestedWaitSeconds * 1000 * 1.1, config.maxDelayMs);
+  }
+
+  const exponentialDelay = config.baseDelayMs * Math.pow(config.backoffMultiplier, attempt - 1);
+  const jitter = Math.random() * 0.1 * exponentialDelay;
+  return Math.min(exponentialDelay + jitter, config.maxDelayMs);
+}
+
+async function retryWithBackoff<T>(
+  operation: () => Promise<T>,
+  rateLimitInfo: RateLimitInfo,
+  config: RetryConfig = DEFAULT_RETRY_CONFIG,
+): Promise<{ result: T; success: boolean; attempts: number; lastError?: Error }> {
+  let lastError: Error | undefined;
+
+  for (let attempt = 1; attempt <= config.maxRetries + 1; attempt++) {
+    try {
+      const result = await operation();
+      return { result, success: true, attempts: attempt };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (attempt > config.maxRetries) {
+        break;
+      }
+
+      const delay = calculateBackoffDelay(attempt, config, rateLimitInfo.suggestedWaitSeconds);
+      const waitSeconds = Math.ceil(delay / 1000);
+
+      console.error(
+        `\n⏳ Rate limit retry ${attempt}/${config.maxRetries}: Waiting ${waitSeconds}s...`,
+      );
+      await sleep(delay);
+    }
+  }
+
+  return {
+    result: undefined as T,
+    success: false,
+    attempts: config.maxRetries + 1,
+    lastError,
+  };
+}
 
 // Import agent prompts from markdown files
 
@@ -61,6 +176,8 @@ interface ParsedArgs {
     | 'archives'
     | 'restore'
     | 'clean-archives'
+    | 'export'
+    | 'tokens'
     | 'help';
   options: {
     projectDir: string;
@@ -74,6 +191,7 @@ interface ParsedArgs {
     dryRun?: boolean;
     verbose?: boolean;
     json?: boolean;
+    compact?: boolean;
     help?: boolean;
     // Init-specific
     prompt?: string;
@@ -83,6 +201,7 @@ interface ParsedArgs {
     // Update-specific
     featureId?: string;
     passStatus?: boolean;
+    manualTokens?: string; // Format: "input:output" or "input,output"
     // Restore-specific
     timestamp?: string;
     // Clean-archives-specific
@@ -90,10 +209,49 @@ interface ParsedArgs {
     keepLast?: number;
     // Archives-specific
     validate?: boolean;
+    // Export-specific
+    exportTokens?: string;
+    // Tokens-specific
+    fromDate?: string;
+    toDate?: string;
+    feature?: string;
+    // F054: Filter sessions by minimum token usage
+    minTokens?: number;
   };
 }
 
-interface SessionMetrics {
+/**
+ * Metrics collected for each individual coding session
+ *
+ * Tracks performance and usage data for a single session execution,
+ * including timing information, success status, and optional token usage
+ * when supported by the OpenCode SDK version.
+ *
+ * @interface SessionMetrics
+ * @property {string} sessionId - Unique identifier for the session
+ * @property {string} featureId - ID of the feature being worked on
+ * @property {number} startTime - Session start timestamp (Unix epoch in ms)
+ * @property {number} [endTime] - Session end timestamp (Unix epoch in ms)
+ * @property {boolean} success - Whether the session completed successfully
+ * @property {number} toolCalls - Number of tool calls made during the session
+ * @property {number} textParts - Number of text parts processed during the session
+ * @property {TokenUsage} [tokenUsage] - Token usage data if tracking is supported
+ *
+ * @example
+ * ```typescript
+ * const metrics: SessionMetrics = {
+ *   sessionId: "sess_12345",
+ *   featureId: "F001",
+ *   startTime: 1703123456789,
+ *   endTime: 1703123567890,
+ *   success: true,
+ *   toolCalls: 15,
+ *   textParts: 8,
+ *   tokenUsage: { input: 1500, output: 750, total: 2250 }
+ * };
+ * ```
+ */
+export interface SessionMetrics {
   sessionId: string;
   featureId: string;
   startTime: number;
@@ -101,6 +259,9 @@ interface SessionMetrics {
   success: boolean;
   toolCalls: number;
   textParts: number;
+  tokenUsage?: TokenUsage;
+  costBreakdown?: CostBreakdown;
+  model?: string;
 }
 
 interface OrchestratorState {
@@ -135,6 +296,68 @@ interface PermissionEvent {
 }
 
 // ============================================================================
+// F014 Helper Functions - SDK Token Usage Fallback
+// ============================================================================
+
+/**
+ * Check if current SDK version supports token usage tracking
+ */
+function supportsTokenTracking(): boolean {
+  try {
+    // Check if we're using a recent version of @opencode-ai/sdk
+    const sdkPackage = require('@opencode-ai/sdk/package.json');
+    const version = sdkPackage.version;
+    if (!version) return false;
+
+    // Extract major/minor version (e.g., "1.0.152" -> [1, 0, 152])
+    const versionParts = version.split('.').map((v) => parseInt(v, 10));
+    if (versionParts.length < 2) return false;
+
+    // Token tracking was properly implemented in versions 1.0.150+
+    return (
+      versionParts[0] > 1 ||
+      (versionParts[0] === 1 && versionParts[1] >= 0 && (versionParts[2] || 0) >= 150)
+    );
+  } catch (error) {
+    // If we can't determine version, assume it doesn't support tokens
+    return false;
+  }
+}
+
+/**
+ * Display fallback message when SDK doesn't provide token data
+ */
+function showTokenFallbackMessage(isDryRun: boolean = false): void {
+  if (isDryRun) return; // Don't show in dry-run mode
+
+  const supportsTokens = supportsTokenTracking();
+
+  if (!supportsTokens) {
+    console.log('\n⚠️  Token Usage Unavailable');
+    console.log("   Your OpenCode SDK version doesn't provide token usage data.");
+    console.log('');
+    console.log('   📋 Manual Tracking Options:');
+    console.log('   • Check your provider dashboard (OpenAI, Anthropic, etc.)');
+    console.log('   • Use provider API usage logs for token counts');
+    console.log('   • Consider upgrading OpenCode SDK for automatic tracking');
+    console.log('');
+    console.log('   📖 Documentation: https://docs.opencode.ai/token-tracking');
+    console.log('   🔧 Upgrade SDK: npm update @opencode-ai/sdk');
+  }
+}
+
+/**
+ * Check if token data was captured from SDK events
+ */
+function hasTokenData(sessionTokens: {
+  input?: number;
+  output?: number;
+  reasoning?: number;
+}): boolean {
+  return (sessionTokens.input ?? 0) > 0 || (sessionTokens.output ?? 0) > 0;
+}
+
+// ============================================================================
 // Argument Parsing
 // ============================================================================
 
@@ -156,6 +379,8 @@ function parseArgs(): ParsedArgs {
       cmd === 'archives' ||
       cmd === 'restore' ||
       cmd === 'clean-archives' ||
+      cmd === 'export' ||
+      cmd === 'tokens' ||
       cmd === 'help'
     ) {
       command = cmd;
@@ -220,6 +445,10 @@ function parseArgs(): ParsedArgs {
       case '--json':
         options.json = true;
         break;
+      case '--compact':
+      case '-c':
+        options.compact = true;
+        break;
       case '--prompt':
       case '-p':
         options.prompt = args[++i];
@@ -241,6 +470,24 @@ function parseArgs(): ParsedArgs {
         break;
       case '--validate':
         options.validate = true;
+        break;
+      case '--export-tokens':
+        options.exportTokens = args[++i];
+        break;
+      case '--from-date':
+        options.fromDate = args[++i];
+        break;
+      case '--to-date':
+        options.toDate = args[++i];
+        break;
+      case '--feature':
+        options.feature = args[++i];
+        break;
+      case '--tokens':
+        options.manualTokens = args[++i];
+        break;
+      case '--min-tokens':
+        options.minTokens = parseInt(args[++i]);
         break;
       default:
         // For update command, parse feature ID and pass/fail
@@ -416,6 +663,73 @@ class Orchestrator {
     return paceSettings.orchestrator?.sessionDelay ?? 5000;
   }
 
+  private get effectiveSessionTimeout(): number {
+    const paceSettings = getPaceSettings(this.paceConfig);
+    return paceSettings.orchestrator?.sessionTimeout ?? 1800000;
+  }
+
+  /**
+   * Get cost configuration settings
+   */
+  private get costSettings() {
+    return getCostSettings(this.paceConfig);
+  }
+
+  /**
+   * Get token display threshold settings
+   */
+  private get tokenDisplaySettings() {
+    return getTokenDisplaySettings(this.paceConfig);
+  }
+
+  /**
+   * Get budget configuration settings
+   */
+  private get budgetSettings() {
+    return getBudgetSettings(this.paceConfig);
+  }
+
+  /**
+   * Calculate budget status based on current usage and budget settings
+   */
+  private calculateBudgetStatus(currentUsage: number, budget: TokenBudget): BudgetStatus {
+    if (!budget.enabled || !budget.maxTokens) {
+      return {
+        enabled: false,
+      };
+    }
+
+    const percentageUsed = currentUsage / budget.maxTokens;
+    const warningThreshold = budget.warningThreshold || 0.8;
+    const criticalThreshold = budget.criticalThreshold || 0.95;
+
+    let level: 'none' | 'warning' | 'critical' | 'exceeded';
+    let message: string;
+
+    if (percentageUsed >= 1) {
+      level = 'exceeded';
+      message = `🚨 Budget exceeded: ${(percentageUsed * 100).toFixed(1)}% of token budget used (${currentUsage.toLocaleString()}/${budget.maxTokens.toLocaleString()})`;
+    } else if (percentageUsed >= criticalThreshold) {
+      level = 'critical';
+      message = `⚠️  Critical: ${(percentageUsed * 100).toFixed(1)}% of token budget used (${currentUsage.toLocaleString()}/${budget.maxTokens.toLocaleString()})`;
+    } else if (percentageUsed >= warningThreshold) {
+      level = 'warning';
+      message = `⚡ Warning: ${(percentageUsed * 100).toFixed(1)}% of token budget used (${currentUsage.toLocaleString()}/${budget.maxTokens.toLocaleString()})`;
+    } else {
+      level = 'none';
+      message = getAccessibleBudgetMessage(percentageUsed, currentUsage, budget.maxTokens, 'none');
+    }
+
+    return {
+      enabled: true,
+      currentUsage,
+      maxTokens: budget.maxTokens,
+      percentageUsed,
+      level,
+      message,
+    };
+  }
+
   /**
    * Log a message (respects verbose and json settings)
    */
@@ -515,6 +829,112 @@ class Orchestrator {
   }
 
   /**
+   * Write session progress to progress.txt with token usage
+   */
+  private async writeProgressEntry(
+    feature: Feature,
+    sessionMetrics: SessionMetrics,
+    success: boolean,
+  ): Promise<void> {
+    const progressPath = join(this.projectDir, 'progress.txt');
+
+    // Get current session number
+    let sessionNumber = 1;
+    try {
+      const existingProgress = await readFile(progressPath, 'utf-8');
+      const sessionMatches = existingProgress.match(/### Session \d+/g);
+      if (sessionMatches) {
+        sessionNumber = sessionMatches.length + 1;
+      }
+    } catch {
+      // File doesn't exist, start with session 1
+    }
+
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    // Build progress entry following the template format
+    const progressEntry = `
+
+---
+
+### Session ${sessionNumber} - ${feature.id}
+
+**Date:** ${currentDate}
+**Agent Type:** Coding
+
+**Feature Worked On:**
+
+- ${feature.id}: ${feature.description}
+
+**Actions Taken:**
+
+- Implemented ${feature.id} according to verification steps
+- ${success ? 'Successfully completed and tested feature' : 'Feature implementation incomplete'}
+- Token usage tracked during session execution
+
+**Test Results:**
+
+- ${success ? 'All verification steps completed successfully' : 'Feature did not pass all verification steps'}
+- End-to-end testing performed
+- Token usage captured from OpenCode SDK events
+
+${getTokenUsageTemplate()}
+
+- Input tokens: ${sessionMetrics.tokenUsage?.input?.toLocaleString() || '0'}
+- Output tokens: ${sessionMetrics.tokenUsage?.output?.toLocaleString() || '0'}
+- Total tokens: ${sessionMetrics.tokenUsage?.total?.toLocaleString() || '0'}
+${sessionMetrics.model ? `- Model: ${sessionMetrics.model}` : ''}
+${
+  sessionMetrics.tokenUsage &&
+  this.costSettings.enabled &&
+  this.activeModel &&
+  isCostCalculationSupported(this.activeModel, this.costSettings.customPricing)
+    ? `
+💰 **Estimated Cost:**
+
+${(() => {
+  const sessionCost = calculateCost(
+    sessionMetrics.tokenUsage!,
+    this.activeModel!,
+    this.costSettings.customPricing,
+  );
+  if (sessionCost) {
+    const currency = this.costSettings.currency || '$';
+    const precision = this.costSettings.precision || 4;
+    return `- Total cost: ${formatCost(sessionCost.totalCost, precision, currency)}
+- Input cost: ${formatCost(sessionCost.inputCost, precision, currency)}
+- Output cost: ${formatCost(sessionCost.outputCost, precision, currency)}`;
+  }
+  return '- Cost calculation not available for this model';
+})()}`
+    : ''
+}
+
+**Current Status:**
+
+- Features passing: [Updated by orchestrator]
+- Known issues: ${success ? 'None' : 'Feature implementation needs more work'}
+
+**Next Steps:**
+
+- Recommended next feature: [Determined by orchestrator]
+- ${success ? 'Ready to proceed with next critical feature' : 'Continue work on current feature or select alternative'}
+
+---
+
+`;
+
+    // Append to progress file
+    try {
+      await writeFile(progressPath, progressEntry, { flag: 'a' });
+      // Invalidate ProgressParser cache after writing
+      ProgressParser.invalidate(this.projectDir);
+    } catch (error) {
+      console.error('Failed to write progress entry:', error);
+    }
+  }
+
+  /**
    * Run a coding session for a specific feature
    */
   private async runCodingSession(feature: Feature): Promise<boolean> {
@@ -588,15 +1008,16 @@ class Orchestrator {
       return false;
     }
 
-    // Wait for completion
     if (!this.json) {
       console.log('\nAgent working...');
     }
     let success = false;
     let toolCalls = 0;
     let textParts = 0;
+    let lastTextLength = 0;
+    let tokenUsage: TokenUsage | undefined;
+    const sessionTokens = { input: 0, output: 0, reasoning: 0 };
 
-    // Progress indicator for non-verbose mode
     let progressIndicator: ProgressIndicator | null = null;
     if (!this.json && !this.verbose) {
       progressIndicator = createProgressIndicator({
@@ -605,171 +1026,366 @@ class Orchestrator {
         showElapsed: true,
         showCount: true,
         countLabel: 'tool calls',
+        showTokens: true,
       });
     }
 
+    let lastLoggedTokens = { input: 0, output: 0, reasoning: 0, timestamp: 0 };
+    let lastLoggedTools = new Map<string, number>();
+
+    const timeoutMs = this.effectiveSessionTimeout;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        const elapsed = Math.floor(timeoutMs / 60000);
+        reject(new Error(`Session timeout after ${elapsed} minutes with no completion event`));
+      }, timeoutMs);
+    });
+
+    let sessionCompleted = false;
+    let retryCount = 0;
+    const maxRetries = 3;
+
     try {
-      for await (const event of events.stream) {
-        // Session-level events have session ID in properties.sessionID
-        if (event.type === 'session.idle') {
-          const idleSessionId = event.properties?.sessionID;
-          if (idleSessionId === session.id) {
-            this.log('\nSession completed.');
-            success = true;
-            break;
-          }
-          continue;
-        }
-
-        if (event.type === 'session.error') {
-          const errorSessionId = event.properties?.sessionID;
-          if (errorSessionId === session.id) {
-            console.error('\nSession encountered an error');
-            success = false;
-            break;
-          }
-          continue;
-        }
-
-        // Handle permission requests - auto-approve all tools
-        const permEvent = event as PermissionEvent;
-        if (permEvent.type === 'permission.ask') {
-          const permission = permEvent.properties?.permission;
-          if (permission?.sessionID === session.id) {
-            if (this.verbose) {
-              const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-              console.log(`[${timestamp}] 🔓 Permission requested for: ${permission.tool}`);
-              console.log(`  Auto-approving...`);
-            }
-            // Auto-approve the permission using /allow command
-            try {
-              await client.session.command({
-                path: { id: session.id },
-                body: {
-                  command: '/allow',
-                  arguments: permission.id,
-                },
-              });
-            } catch (error) {
-              console.error(`Failed to approve permission: ${error}`);
-            }
-          }
-          continue;
-        }
-
-        // Message-level events have session ID in part.sessionID
-        const props = event.properties as EventPropertiesWithSessionID;
-        const eventSessionId = props?.sessionID || props?.part?.sessionID;
-
-        if (eventSessionId !== session.id) continue;
-
-        // Handle message events
-        if (event.type === 'message.part.updated') {
-          const part = event.properties?.part;
-          if (part?.type === 'tool') {
-            if (part.state?.status === 'running') {
-              toolCalls++;
-              // Update progress indicator
-              if (progressIndicator) {
-                progressIndicator.update({ action: part.tool || '', count: toolCalls });
+      await Promise.race([
+        timeoutPromise,
+        (async () => {
+          for await (const event of events.stream) {
+            // Session-level events have session ID in properties.sessionID
+            if (event.type === 'session.idle') {
+              const idleSessionId = event.properties?.sessionID;
+              if (idleSessionId === session.id) {
+                this.log('\nSession completed.');
+                success = true;
+                break;
               }
+              continue;
+            }
 
-              if (this.verbose) {
-                const toolName = part.tool || 'unknown';
-                const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-                console.log(`\n[${timestamp}] 🔧 Tool: ${toolName}`);
+            if (event.type === 'session.error') {
+              const errorSessionId = event.properties?.sessionID;
+              if (errorSessionId === session.id) {
+                const errorData = event.properties?.error as SessionError | undefined;
+                const rateLimitInfo = detectRateLimitError(errorData || {});
 
-                // Show tool parameters if available
-                if (part.state.input && Object.keys(part.state.input).length > 0) {
-                  const inputStr = JSON.stringify(part.state.input, null, 2);
-                  const lines = inputStr.split('\n');
-                  if (lines.length > 10) {
-                    console.log(
-                      `  Input: ${lines.slice(0, 10).join('\n  ')}\n  ... (${lines.length - 10} more lines)`,
-                    );
-                  } else {
-                    console.log(`  Input: ${inputStr}`);
+                if (rateLimitInfo.isRateLimit) {
+                  const currentTokenUsage =
+                    sessionTokens.input > 0 || sessionTokens.output > 0
+                      ? {
+                          input: sessionTokens.input,
+                          output: sessionTokens.output,
+                          reasoning: sessionTokens.reasoning,
+                        }
+                      : undefined;
+
+                  const errorMessage = formatRateLimitError(
+                    rateLimitInfo,
+                    currentTokenUsage,
+                    tokenUsage,
+                  );
+                  console.error('\n' + errorMessage);
+
+                  const modelString = agentModel
+                    ? `${agentModel.providerID}/${agentModel.modelID}`
+                    : (displayModel ?? undefined);
+                  logRateLimitDebug(rateLimitInfo, currentTokenUsage, session.id, modelString);
+
+                  if (retryCount >= maxRetries) {
+                    console.error(`\n❌ Max retries (${maxRetries}) exceeded. Giving up.`);
+                    success = false;
+                    break;
                   }
-                }
-              } else {
-                this.log(`  Tool: ${part.tool}...`);
-              }
-            } else if (part.state?.status === 'completed') {
-              if (this.verbose) {
-                const toolName = part.tool || 'unknown';
-                const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-                const title = part.state.title || 'completed';
-                const duration = part.state.time
-                  ? ((part.state.time.end - part.state.time.start) / 1000).toFixed(2)
-                  : '?';
-                console.log(`[${timestamp}] ✓ Tool: ${toolName} - ${title} (${duration}s)`);
 
-                // Show output/result if available
-                if (part.state.output) {
-                  const outputStr = part.state.output;
-                  const lines = outputStr.split('\n');
-                  if (lines.length > 20) {
-                    console.log(
-                      `  Output (${lines.length} lines):\n  ${lines.slice(0, 20).join('\n  ')}\n  ... (${lines.length - 20} more lines)`,
-                    );
-                  } else if (lines.length > 1) {
-                    console.log(`  Output:\n  ${lines.join('\n  ')}`);
-                  } else if (outputStr.length > 200) {
-                    console.log(
-                      `  Output: ${outputStr.slice(0, 200)}... (${outputStr.length} chars)`,
-                    );
-                  } else {
-                    console.log(`  Output: ${outputStr}`);
-                  }
-                }
-              } else {
-                this.log(`  Tool: ${part.tool} - ${part.state.title || 'done'}`);
-              }
-            } else if (part.state?.status === 'error') {
-              const toolName = part.tool || 'unknown';
-              if (this.verbose) {
-                const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-                console.error(`[${timestamp}] ✗ Tool: ${toolName} - ERROR`);
-                if (part.state.error) {
-                  console.error(`  Error: ${part.state.error}`);
-                }
-              } else {
-                console.error(`  Tool: ${toolName} - ERROR`);
-              }
-            }
-          } else if (part?.type === 'text') {
-            textParts++;
-            const text = part.text || '';
+                  retryCount++;
+                  const retryDelay = rateLimitInfo.suggestedWaitSeconds || 60;
+                  console.error(
+                    `\n⏳ Rate limit retry ${retryCount}/${maxRetries}: Waiting ${retryDelay}s before retrying...`,
+                  );
 
-            if (this.verbose && text.length > 0) {
-              // In verbose mode, show all text output with timestamps
-              const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-              const lines = text.split('\n');
-              console.log(`[${timestamp}] 💬 Agent response (${text.length} chars):`);
+                  await sleep(retryDelay * 1000);
 
-              // Show more text in verbose mode (up to 500 chars or 20 lines)
-              if (text.length > 500 || lines.length > 20) {
-                const preview = lines.slice(0, 20).join('\n').slice(0, 500);
-                console.log(`  ${preview.split('\n').join('\n  ')}`);
-                if (text.length > 500) {
-                  console.log(`  ... (${text.length - 500} more chars)`);
+                  continue;
                 } else {
-                  console.log(`  ... (${lines.length - 20} more lines)`);
+                  console.error('\nSession encountered an error');
+                  if (errorData?.message) {
+                    console.error(`Error: ${errorData.message}`);
+                  }
                 }
-              } else {
-                console.log(`  ${text.split('\n').join('\n  ')}`);
+
+                success = false;
+                break;
               }
-            } else if (!this.verbose && text.length > 0 && textParts % 5 === 0) {
-              this.log(`  [Text output ${textParts}...]`);
+              continue;
+            }
+
+            // Handle permission requests - auto-approve all tools
+            const permEvent = event as PermissionEvent;
+            if (permEvent.type === 'permission.ask') {
+              const permission = permEvent.properties?.permission;
+              if (permission?.sessionID === session.id) {
+                if (this.verbose) {
+                  const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+                  console.log(`[${timestamp}] 🔓 Permission requested for: ${permission.tool}`);
+                  console.log(`  Auto-approving...`);
+                }
+                // Auto-approve the permission using /allow command
+                try {
+                  await client.session.command({
+                    path: { id: session.id },
+                    body: {
+                      command: '/allow',
+                      arguments: permission.id,
+                    },
+                  });
+                } catch (error) {
+                  console.error(`Failed to approve permission: ${error}`);
+                }
+              }
+              continue;
+            }
+
+            // Track token usage from message.updated events (AssistantMessage contains token data)
+            //
+            // OpenCode SDK emits message.updated events when AI responses complete.
+            // Token data is available in event.properties.info.tokens with structure:
+            // { input: number, output: number, reasoning?: number }
+            //
+            // SDK Version Compatibility:
+            // - >= 1.2.0: Full token support including reasoning
+            // - 1.1.x: Basic input/output tokens only
+            // - < 1.1.0: No token support
+            if (event.type === 'message.updated' && event.properties?.info) {
+              const messageInfo = event.properties.info as {
+                tokens?: { input?: number; output?: number; reasoning?: number };
+              };
+              if (messageInfo.tokens) {
+                const messageTokens = messageInfo.tokens || {};
+                const input = messageTokens.input ?? 0;
+                const output = messageTokens.output ?? 0;
+                const reasoning = messageTokens.reasoning ?? 0;
+
+                sessionTokens.input += input;
+                sessionTokens.output += output;
+                sessionTokens.reasoning += reasoning;
+
+                if (this.verbose) {
+                  const now = Date.now();
+                  const isZeroTokenEvent = input === 0 && output === 0 && reasoning === 0;
+                  const isDuplicateOfLast =
+                    input === lastLoggedTokens.input &&
+                    output === lastLoggedTokens.output &&
+                    reasoning === lastLoggedTokens.reasoning &&
+                    now - lastLoggedTokens.timestamp < 100;
+
+                  if (!isZeroTokenEvent && !isDuplicateOfLast) {
+                    const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+                    const total = input + output + reasoning;
+                    const runningTotal =
+                      sessionTokens.input + sessionTokens.output + sessionTokens.reasoning;
+
+                    console.log(
+                      `[${timestamp}] 💰 +${input.toLocaleString()} in, +${output.toLocaleString()} out${reasoning ? `, +${reasoning.toLocaleString()} reasoning` : ''} (${runningTotal.toLocaleString()} total)`,
+                    );
+
+                    lastLoggedTokens = { input, output, reasoning, timestamp: now };
+                  }
+                }
+              }
+            }
+
+            // Track token usage from step-finish events (StepFinishPart contains token data)
+            //
+            // OpenCode SDK emits message.part.updated events with type 'step-finish'
+            // during multi-step reasoning processes. Token data structure matches
+            // message.updated events but represents individual step usage.
+            //
+            // Event structure:
+            // { type: 'message.part.updated', properties: {
+            //   part: { type: 'step-finish', tokens: { input, output, reasoning } }
+            // }}
+            if (
+              event.type === 'message.part.updated' &&
+              event.properties?.part?.type === 'step-finish'
+            ) {
+              const stepPart = event.properties.part as {
+                tokens?: { input?: number; output?: number; reasoning?: number };
+              };
+              if (stepPart.tokens) {
+                const stepTokens = stepPart.tokens || {};
+                const input = stepTokens.input ?? 0;
+                const output = stepTokens.output ?? 0;
+                const reasoning = stepTokens.reasoning ?? 0;
+
+                sessionTokens.input += input;
+                sessionTokens.output += output;
+                sessionTokens.reasoning += reasoning;
+
+                if (this.verbose) {
+                  const now = Date.now();
+                  const isZeroTokenEvent = input === 0 && output === 0 && reasoning === 0;
+                  const isDuplicateOfLast =
+                    input === lastLoggedTokens.input &&
+                    output === lastLoggedTokens.output &&
+                    reasoning === lastLoggedTokens.reasoning &&
+                    now - lastLoggedTokens.timestamp < 100;
+
+                  if (!isZeroTokenEvent && !isDuplicateOfLast) {
+                    const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+                    const runningTotal =
+                      sessionTokens.input + sessionTokens.output + sessionTokens.reasoning;
+
+                    console.log(
+                      `[${timestamp}] 🧠 Step: +${input.toLocaleString()} in, +${output.toLocaleString()} out${reasoning ? `, +${reasoning.toLocaleString()} reasoning` : ''} (${runningTotal.toLocaleString()} total)`,
+                    );
+
+                    lastLoggedTokens = { input, output, reasoning, timestamp: now };
+                  }
+                }
+              }
+            }
+
+            // Message-level events have session ID in part.sessionID
+            const props = event.properties as EventPropertiesWithSessionID;
+            const eventSessionId = props?.sessionID || props?.part?.sessionID;
+
+            if (eventSessionId !== session.id) continue;
+
+            // Handle message events
+            if (event.type === 'message.part.updated') {
+              const part = event.properties?.part;
+              if (part?.type === 'tool') {
+                if (part.state?.status === 'running') {
+                  toolCalls++;
+                  // Update progress indicator with token usage
+                  if (progressIndicator) {
+                    const currentTokenUsage = {
+                      input: sessionTokens.input,
+                      output: sessionTokens.output,
+                      total: sessionTokens.input + sessionTokens.output + sessionTokens.reasoning,
+                      reasoning: sessionTokens.reasoning,
+                    };
+                    progressIndicator.update({
+                      action: part.tool || '',
+                      count: toolCalls,
+                      tokens: currentTokenUsage,
+                    });
+                  }
+
+                  if (this.verbose) {
+                    const toolName = part.tool || 'unknown';
+                    const now = Date.now();
+                    const toolKey = `${toolName}-running`;
+                    const lastToolTime = lastLoggedTools.get(toolKey) || 0;
+
+                    if (now - lastToolTime > 100) {
+                      lastLoggedTools.set(toolKey, now);
+                      const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+                      console.log(`\n[${timestamp}] 🔧 Tool: ${toolName}`);
+
+                      if (part.state.input && Object.keys(part.state.input).length > 0) {
+                        const inputStr = JSON.stringify(part.state.input, null, 2);
+                        const lines = inputStr.split('\n');
+                        if (lines.length > 10) {
+                          console.log(
+                            `  Input: ${lines.slice(0, 10).join('\n  ')}\n  ... (${lines.length - 10} more lines)`,
+                          );
+                        } else {
+                          console.log(`  Input: ${inputStr}`);
+                        }
+                      }
+                    }
+                  } else {
+                    this.log(`  Tool: ${part.tool}...`);
+                  }
+                } else if (part.state?.status === 'completed') {
+                  if (this.verbose) {
+                    const toolName = part.tool || 'unknown';
+                    const now = Date.now();
+                    const toolKey = `${toolName}-completed`;
+                    const lastToolTime = lastLoggedTools.get(toolKey) || 0;
+
+                    if (now - lastToolTime > 100) {
+                      lastLoggedTools.set(toolKey, now);
+                      const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+                      const title = part.state.title || 'completed';
+                      const duration = part.state.time
+                        ? ((part.state.time.end - part.state.time.start) / 1000).toFixed(2)
+                        : '?';
+                      console.log(`[${timestamp}] ✓ Tool: ${toolName} - ${title} (${duration}s)`);
+
+                      if (part.state.output) {
+                        const outputStr = part.state.output;
+                        const lines = outputStr.split('\n');
+                        if (lines.length > 20) {
+                          console.log(
+                            `  Output (${lines.length} lines):\n  ${lines.slice(0, 20).join('\n  ')}\n  ... (${lines.length - 20} more lines)`,
+                          );
+                        } else if (lines.length > 1) {
+                          console.log(`  Output:\n  ${lines.join('\n  ')}`);
+                        } else if (outputStr.length > 200) {
+                          console.log(
+                            `  Output: ${outputStr.slice(0, 200)}... (${outputStr.length} chars)`,
+                          );
+                        } else {
+                          console.log(`  Output: ${outputStr}`);
+                        }
+                      }
+                    }
+                  } else {
+                    this.log(`  Tool: ${part.tool} - ${part.state.title || 'done'}`);
+                  }
+                } else if (part.state?.status === 'error') {
+                  const toolName = part.tool || 'unknown';
+                  if (this.verbose) {
+                    const now = Date.now();
+                    const toolKey = `${toolName}-error`;
+                    const lastToolTime = lastLoggedTools.get(toolKey) || 0;
+
+                    if (now - lastToolTime > 100) {
+                      lastLoggedTools.set(toolKey, now);
+                      const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
+                      console.error(`[${timestamp}] ✗ Tool: ${toolName} - ERROR`);
+                      if (part.state.error) {
+                        console.error(`  Error: ${part.state.error}`);
+                      }
+                    }
+                  } else {
+                    console.error(`  Tool: ${toolName} - ERROR`);
+                  }
+                }
+              } else if (part?.type === 'text') {
+                textParts++;
+                const text = part.text || '';
+
+                if (this.verbose && text.length > lastTextLength) {
+                  const newContent = text.slice(lastTextLength);
+                  lastTextLength = text.length;
+
+                  if (newContent.trim().length > 0) {
+                    process.stdout.write(newContent);
+                  }
+                } else if (!this.verbose && text.length > 0 && textParts % 5 === 0) {
+                  this.log(`  [Text output ${textParts}...]`);
+                }
+              }
             }
           }
-        }
-      }
+          sessionCompleted = true;
+        })(),
+      ]);
     } catch (error) {
-      console.error(`Event stream error: ${error}`);
-      success = false;
+      if (error instanceof Error && error.message.includes('Session timeout')) {
+        console.error(`\n⏱️  ${error.message}`);
+        console.error(`   Last activity: ${toolCalls} tool calls, ${textParts} text parts`);
+        if (this.verbose) {
+          console.error(`   Session ID: ${session.id}`);
+          console.error(`   Model: ${displayModel || 'unknown'}`);
+        }
+        success = false;
+      } else {
+        console.error(`Event stream error: ${error}`);
+        success = false;
+      }
     } finally {
-      // Clean up progress indicator
       if (progressIndicator) {
         progressIndicator.stop();
       }
@@ -777,11 +1393,30 @@ class Orchestrator {
 
     const duration = Date.now() - startTime;
 
+    // Calculate token usage from collected session data
+    if (sessionTokens.input > 0 || sessionTokens.output > 0) {
+      const rawTokenUsage = {
+        input: sessionTokens.input,
+        output: sessionTokens.output,
+        total: sessionTokens.input + sessionTokens.output,
+        model: this.activeModel || undefined,
+      };
+
+      // F034: Validate token usage data integrity
+      const validation = validateTokenUsage(rawTokenUsage, `session-${Date.now()}`);
+      tokenUsage = validation.correctedTokens || rawTokenUsage;
+    }
+
+    // F014: Add fallback for SDK versions without token usage
+    if (!hasTokenData(sessionTokens)) {
+      showTokenFallbackMessage(this.dryRun);
+    }
+
     // Check if the feature was actually marked as passing
     const featureCompleted = await this.featureManager.wasFeatureCompleted(feature.id);
 
-    // Record metrics
-    this.state.metrics.push({
+    // Create session metrics for progress writing
+    const sessionMetrics: SessionMetrics = {
       sessionId: session.id,
       featureId: feature.id,
       startTime,
@@ -789,14 +1424,43 @@ class Orchestrator {
       success: success && featureCompleted,
       toolCalls,
       textParts,
-    });
+      tokenUsage,
+      model: this.activeModel || undefined,
+    };
 
-    // Summary
+    // Add cost breakdown if available
+    if (
+      tokenUsage &&
+      this.activeModel &&
+      this.costSettings.enabled &&
+      isCostCalculationSupported(this.activeModel, this.costSettings.customPricing)
+    ) {
+      sessionMetrics.costBreakdown =
+        calculateCost(tokenUsage, this.activeModel, this.costSettings.customPricing) || undefined;
+    }
+
+    // Record metrics
+    this.state.metrics.push(sessionMetrics);
+
+    // Write progress entry with token usage (F004)
+    await this.writeProgressEntry(feature, sessionMetrics, success && featureCompleted);
+
     if (!this.json) {
       console.log('\n' + '-'.repeat(60));
       console.log('Session Summary:');
       console.log(`  Duration: ${(duration / 1000).toFixed(1)}s`);
       console.log(`  Tool calls: ${toolCalls}`);
+      if (tokenUsage !== undefined) {
+        const averageTokens = calculateAverageTokens(
+          this.state.metrics.filter((m) => m.tokenUsage).map((m) => m.tokenUsage!),
+        );
+        const formattedTokens = formatTokenUsageWithIndicators(
+          tokenUsage,
+          this.tokenDisplaySettings,
+          averageTokens,
+        );
+        console.log(`  Tokens: ${formattedTokens}`);
+      }
       console.log(`  Feature completed: ${featureCompleted ? 'Yes' : 'No'}`);
       console.log('-'.repeat(60));
     }
@@ -806,11 +1470,81 @@ class Orchestrator {
 
   /**
    * Generate final summary report
+   *
+   * Creates a comprehensive summary of the orchestration session including
+   * progress metrics, timing information, and token usage data when available.
+   *
+   * Token usage is calculated by aggregating data from all individual sessions
+   * that have tokenUsage information. The function only includes tokenUsage
+   * in the result when at least one session has token data, avoiding undefined
+   * token tracking for SDK versions that don't support it.
+   *
+   * @returns Promise resolving to SessionSummary with optional tokenUsage data
+   *
+   * @example
+   * ```typescript
+   * const summary = await orchestrator.generateSummary();
+   * // Returns SessionSummary with aggregated token usage from all sessions:
+   * // {
+   * //   sessionsRun: 3,
+   * //   featuresCompleted: 2,
+   * //   tokenUsage: {
+   * //     sessions: [...],
+   * //     total: { input: 3000, output: 1500, total: 4500 }
+   * //   }
+   * // }
+   * ```
    */
   private async generateSummary(): Promise<SessionSummary> {
     const [passing, total] = await this.featureManager.getProgress();
     const elapsed = Date.now() - this.state.startTime.getTime();
     const isComplete = await this.featureManager.isComplete();
+
+    // Calculate total token usage and model breakdown
+    const totalTokenUsage = {
+      input: 0,
+      output: 0,
+      total: 0,
+    };
+    const sessionTokens = this.state.metrics.filter((m) => m.tokenUsage).map((m) => m.tokenUsage!);
+
+    // F024: Track tokens by model tier
+    const modelTracker = createModelTokenTracker();
+
+    for (const sessionMetric of this.state.metrics) {
+      if (sessionMetric.tokenUsage && sessionMetric.model) {
+        const tokenWithModel: TokenUsage = {
+          ...sessionMetric.tokenUsage,
+          model: sessionMetric.model,
+        };
+        modelTracker.addTokenUsage(sessionMetric.model, sessionMetric.tokenUsage);
+      }
+    }
+
+    for (const tokens of sessionTokens) {
+      totalTokenUsage.input += tokens.input;
+      totalTokenUsage.output += tokens.output;
+      totalTokenUsage.total += tokens.total;
+    }
+
+    // F034: Validate total token usage data integrity
+    const totalValidation = validateTokenUsage(totalTokenUsage, 'summary-total');
+    if (totalValidation.correctedTokens) {
+      Object.assign(totalTokenUsage, totalValidation.correctedTokens);
+    }
+
+    if (sessionTokens.length > 0 && totalTokenUsage.total > 0) {
+      try {
+        const featureData = await this.featureManager.load();
+        await this.featureManager.save(featureData, true, totalTokenUsage);
+      } catch (error) {
+        console.error('Warning: Failed to save token usage to feature_list.json:', error);
+      }
+    }
+
+    // Get model breakdown if multiple models were used
+    const tokenUsageByModel =
+      modelTracker.getModelCount() > 1 ? modelTracker.getSummary() : undefined;
 
     const summary: SessionSummary = {
       sessionsRun: this.state.sessionCount,
@@ -819,15 +1553,48 @@ class Orchestrator {
       completionPercentage: total > 0 ? (passing / total) * 100 : 0,
       elapsedTime: formatDuration(elapsed),
       isComplete,
+      tokenUsage:
+        sessionTokens.length > 0
+          ? {
+              sessions: sessionTokens,
+              total: totalTokenUsage,
+            }
+          : undefined,
     };
 
+    // Add model breakdown if available
+    if (tokenUsageByModel) {
+      (summary as any).tokenUsageByModel = tokenUsageByModel;
+    }
+
     if (this.json) {
-      console.log(
-        JSON.stringify({
-          ...summary,
-          progress: { passing, total },
-        }),
-      );
+      const output = {
+        ...summary,
+        progress: { passing, total },
+        tokenTrackingSupported: supportsTokenTracking(),
+        dryRun: this.dryRun,
+      };
+
+      // Add cost information to JSON output if available
+      if (
+        summary.tokenUsage &&
+        this.activeModel &&
+        this.costSettings.enabled &&
+        isCostCalculationSupported(this.activeModel, this.costSettings.customPricing)
+      ) {
+        const totalCost = calculateCost(
+          summary.tokenUsage.total,
+          this.activeModel,
+          this.costSettings.customPricing,
+        );
+        if (totalCost) {
+          (output as any).costBreakdown = totalCost;
+          (output as any).currency = this.costSettings.currency || '$';
+          (output as any).model = this.activeModel;
+        }
+      }
+
+      console.log(JSON.stringify(output));
     } else {
       console.log('\n' + '='.repeat(60));
       console.log(' ORCHESTRATION SUMMARY');
@@ -840,6 +1607,114 @@ class Orchestrator {
       console.log(`Total time: ${summary.elapsedTime}`);
       console.log(`Complete: ${summary.isComplete ? 'Yes' : 'No'}`);
 
+      // Show token usage summary
+      if (summary.tokenUsage !== undefined && summary.tokenUsage.total !== undefined) {
+        console.log(`\n${getTokenPrefix()} Usage:`);
+        console.log(
+          `  Total: ${summary.tokenUsage.total.total.toLocaleString()} tokens (${summary.tokenUsage.total.input.toLocaleString()} in, ${summary.tokenUsage.total.output.toLocaleString()} out)`,
+        );
+        if (summary.sessionsRun > 0) {
+          const avgTokens = Math.round(summary.tokenUsage.total.total / summary.sessionsRun);
+          console.log(`  Average per session: ${avgTokens.toLocaleString()} tokens`);
+        }
+
+        // F026: Add budget warnings if enabled
+        const budgetConfig = this.budgetSettings;
+        if (budgetConfig.enabled) {
+          const budgetStatus = this.calculateBudgetStatus(
+            summary.tokenUsage.total.total,
+            budgetConfig,
+          );
+          if (budgetStatus.message) {
+            console.log(`  ${budgetStatus.message}`);
+          }
+        }
+
+        // F024: Show per-model token breakdown if multiple models were used
+        const tokenUsageByModel = (summary as any).tokenUsageByModel as TokenUsageByModel;
+        if (tokenUsageByModel && tokenUsageByModel.byModel.length > 1) {
+          console.log('\n  By Model:');
+          for (const modelUsage of tokenUsageByModel.byModel) {
+            const modelName = ModelTokenTracker.getModelTier(modelUsage.model);
+            console.log(
+              `    ${modelName}: ${modelUsage.total.toLocaleString()} tokens (${modelUsage.input.toLocaleString()} in, ${modelUsage.output.toLocaleString()} out)`,
+            );
+          }
+        }
+
+        // Show cost calculation if enabled and model is known
+        const costConfig = this.costSettings;
+        if (
+          costConfig.enabled &&
+          this.activeModel &&
+          isCostCalculationSupported(this.activeModel, costConfig.customPricing)
+        ) {
+          const totalCost = calculateCost(
+            summary.tokenUsage.total,
+            this.activeModel,
+            costConfig.customPricing,
+          );
+          if (totalCost) {
+            const currency = costConfig.currency || '$';
+            const precision = costConfig.precision || 4;
+            console.log(
+              `  💰 Estimated Cost: ${formatCost(totalCost.totalCost, precision, currency)}`,
+            );
+
+            if (summary.sessionsRun > 0) {
+              const avgCost = totalCost.totalCost / summary.sessionsRun;
+              console.log(
+                `  💰 Average Cost per Session: ${formatCost(avgCost, precision, currency)}`,
+              );
+            }
+
+            // Show cost breakdown
+            console.log(`    Input cost: ${formatCost(totalCost.inputCost, precision, currency)}`);
+            console.log(
+              `    Output cost: ${formatCost(totalCost.outputCost, precision, currency)}`,
+            );
+          }
+        }
+
+        // F027: Show token efficiency metrics if we have progress data and features
+        try {
+          const efficiencyMetrics = await calculateTokenEfficiencyMetrics(this.projectDir);
+
+          if (efficiencyMetrics.totalFeatures > 0 && efficiencyMetrics.totalTokens > 0) {
+            console.log('\n📊 Token Efficiency:');
+            console.log(
+              `  Average tokens per feature: ${efficiencyMetrics.averageTokensPerFeature.toLocaleString()}`,
+            );
+            console.log(
+              `  Average tokens per session: ${efficiencyMetrics.averageTokensPerSession.toLocaleString()}`,
+            );
+
+            // Show most efficient feature if available
+            if (efficiencyMetrics.mostEfficient.length > 0) {
+              const mostEfficient = efficiencyMetrics.mostEfficient[0];
+              console.log(
+                `  Most efficient: ${mostEfficient.featureId} (${mostEfficient.tokenUsage.toLocaleString()} tokens)`,
+              );
+            }
+
+            // Show least efficient feature if available
+            if (efficiencyMetrics.leastEfficient.length > 0) {
+              const leastEfficient = efficiencyMetrics.leastEfficient[0];
+              console.log(
+                `  Least efficient: ${leastEfficient.featureId} (${leastEfficient.tokenUsage.toLocaleString()} tokens)`,
+              );
+            }
+
+            // Show top optimization opportunity
+            if (efficiencyMetrics.optimizationOpportunities.length > 0) {
+              console.log(`  💡 Tip: ${efficiencyMetrics.optimizationOpportunities[0]}`);
+            }
+          }
+        } catch {
+          // Silently ignore if progress.txt not available or readable
+        }
+      }
+
       if (this.state.metrics.length > 0 && this.verbose) {
         console.log('\nSession Details:');
         for (const m of this.state.metrics) {
@@ -848,6 +1723,40 @@ class Orchestrator {
           console.log(
             `  ${status} ${m.featureId}: ${duration.toFixed(1)}s, ${m.toolCalls} tool calls`,
           );
+
+          // Show detailed token usage in verbose mode
+          if (m.tokenUsage) {
+            const inputTokens = (m.tokenUsage.input || 0).toLocaleString();
+            const outputTokens = (m.tokenUsage.output || 0).toLocaleString();
+            const totalTokens = (m.tokenUsage.total || 0).toLocaleString();
+            const modelInfo = m.model ? ` (${ModelTokenTracker.getModelTier(m.model)})` : '';
+            console.log(
+              `    💰 Tokens: ${inputTokens} in, ${outputTokens} out, ${totalTokens} total${modelInfo}`,
+            );
+
+            // Show cost per session if enabled and model is known
+            const costConfig = this.costSettings;
+            if (
+              costConfig.enabled &&
+              this.activeModel &&
+              isCostCalculationSupported(this.activeModel, costConfig.customPricing)
+            ) {
+              const sessionCost = calculateCost(
+                m.tokenUsage,
+                this.activeModel,
+                costConfig.customPricing,
+              );
+              if (sessionCost) {
+                const currency = costConfig.currency || '$';
+                const precision = costConfig.precision || 4;
+                console.log(
+                  `      Cost: ${formatCost(sessionCost.totalCost, precision, currency)}`,
+                );
+              }
+            }
+          } else {
+            console.log(`    💰 Tokens: No token data available`);
+          }
         }
       }
 
@@ -1227,13 +2136,14 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
           promptLength: projectDescription.length,
           promptPreview:
             projectDescription.slice(0, 200) + (projectDescription.length > 200 ? '...' : ''),
-          message: 'Would initialize pace project with the given description',
+          message: 'Would initialize pace project with given description',
           model: agentModelId,
           archive: {
             archived,
             archivePath,
             archivedFiles,
           },
+          tokenTrackingSupported: supportsTokenTracking(),
         }),
       );
     } else {
@@ -1297,7 +2207,6 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       }
     } else {
       // Start embedded OpenCode server
-      // OpenCode reads its config from .opencode/opencode.jsonc automatically
       console.log('Starting embedded OpenCode server...');
       opencode = await createOpencode({
         config: paceConfig,
@@ -1337,19 +2246,16 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     const events = await client.event.subscribe();
 
     // Use the /pace-init slash command to invoke the initializer agent
-    const fullPrompt = `${paceInitMd}\n${projectDescription}`;
 
-    console.log('--- Sending Prompt to Initializer Agent ---');
-    console.log(fullPrompt);
-    console.log('--- End of Prompt ---');
+    const fullPrompt = `${paceInitMd}\n${projectDescription}`;
 
     // Send the prompt (use promptAsync for event streaming)
     const promptResult = await client.session.promptAsync({
       path: { id: session.id },
       body: {
         parts: [{ type: 'text', text: fullPrompt }],
-        agent: 'pace-initializer',
         ...(agentModel && { model: agentModel }),
+        agent: 'pace-initializer',
       },
     });
 
@@ -1361,17 +2267,21 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     let success = false;
     let toolCalls = 0;
     let textParts = 0;
+    let lastTextLength = 0;
+    let tokenUsage: TokenUsage | undefined;
+    const sessionTokens = { input: 0, output: 0, reasoning: 0 };
     const startTime = Date.now();
 
     // Progress indicator for non-verbose mode
     let progressIndicator: ProgressIndicator | null = null;
-    if (!options.json && !options.verbose) {
+    if (!this.json && !this.verbose) {
       progressIndicator = createProgressIndicator({
         trackWidth: 20,
         showEmojis: true,
         showElapsed: true,
         showCount: true,
         countLabel: 'tool calls',
+        showTokens: true,
       });
     }
 
@@ -1400,11 +2310,6 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       if (permEvent.type === 'permission.ask') {
         const permission = permEvent.properties?.permission;
         if (permission?.sessionID === session.id) {
-          if (options.verbose && !options.json) {
-            const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-            console.log(`[${timestamp}] 🔓 Permission requested for: ${permission.tool}`);
-            console.log(`  Auto-approving...`);
-          }
           // Auto-approve the permission using /allow command
           try {
             await client.session.command({
@@ -1421,6 +2326,44 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
         continue;
       }
 
+      // Track token usage from message.updated events (AssistantMessage contains token data)
+      //
+      // OpenCode SDK integration for token extraction:
+      // Event type: 'message.updated' - emitted when AI response completes
+      // Token location: event.properties.info.tokens
+      // Structure: { input: number, output: number, reasoning?: number }
+      // SDK compatibility: Requires @opencode-ai/sdk >= 1.1.0 for basic tokens
+      if (event.type === 'message.updated' && event.properties?.info) {
+        const messageInfo = event.properties.info as {
+          tokens?: { input?: number; output?: number; reasoning?: number };
+        };
+        if (messageInfo.tokens) {
+          const messageTokens = messageInfo.tokens || {};
+          sessionTokens.input += messageTokens.input ?? 0;
+          sessionTokens.output += messageTokens.output ?? 0;
+          sessionTokens.reasoning += messageTokens.reasoning ?? 0;
+        }
+      }
+
+      // Track token usage from step-finish events (StepFinishPart contains token data)
+      //
+      // OpenCode SDK integration for step-level token extraction:
+      // Event type: 'message.part.updated' with part.type === 'step-finish'
+      // Token location: event.properties.part.tokens
+      // Use case: Multi-step reasoning processes, complex operations
+      // Structure: { input: number, output: number, reasoning?: number }
+      if (event.type === 'message.part.updated' && event.properties?.part?.type === 'step-finish') {
+        const stepPart = event.properties.part as {
+          tokens?: { input?: number; output?: number; reasoning?: number };
+        };
+        if (stepPart.tokens) {
+          const stepTokens = stepPart.tokens || {};
+          sessionTokens.input += stepTokens.input ?? 0;
+          sessionTokens.output += stepTokens.output ?? 0;
+          sessionTokens.reasoning += stepTokens.reasoning ?? 0;
+        }
+      }
+
       // Message-level events have session ID in part.sessionID
       const props = event.properties as EventPropertiesWithSessionID;
       const eventSessionId = props?.sessionID || props?.part?.sessionID;
@@ -1433,93 +2376,31 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
         if (part?.type === 'tool') {
           if (part.state?.status === 'running') {
             toolCalls++;
-            // Update progress indicator
+            // Update progress indicator with token usage
             if (progressIndicator) {
-              progressIndicator.update({ action: part.tool || '', count: toolCalls });
-            }
-
-            if (options.verbose && !options.json) {
-              const toolName = part.tool || 'unknown';
-              const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-              console.log(`\n[${timestamp}] 🔧 Tool: ${toolName}`);
-
-              // Show tool parameters if available
-              if (part.state.input && Object.keys(part.state.input).length > 0) {
-                const inputStr = JSON.stringify(part.state.input, null, 2);
-                const lines = inputStr.split('\n');
-                if (lines.length > 10) {
-                  console.log(
-                    `  Input: ${lines.slice(0, 10).join('\n  ')}\n  ... (${lines.length - 10} more lines)`,
-                  );
-                } else {
-                  console.log(`  Input: ${inputStr}`);
-                }
-              }
+              const currentTokenUsage = {
+                input: sessionTokens.input,
+                output: sessionTokens.output,
+                total: sessionTokens.input + sessionTokens.output + sessionTokens.reasoning,
+                reasoning: sessionTokens.reasoning,
+              };
+              progressIndicator.update({
+                action: part.tool || '',
+                count: toolCalls,
+                tokens: currentTokenUsage,
+              });
             }
           } else if (part.state?.status === 'completed') {
-            if (options.verbose && !options.json) {
-              const toolName = part.tool || 'unknown';
-              const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-              const title = 'done';
-              const duration = part.state.time
-                ? ((part.state.time.end - part.state.time.start) / 1000).toFixed(2)
-                : '?';
-              console.log(`[${timestamp}] ✓ Tool: ${toolName} - ${title} (${duration}s)`);
-
-              // Show output/result if available
-              if (part.state.output) {
-                const outputStr = part.state.output;
-                const lines = outputStr.split('\n');
-                if (lines.length > 20) {
-                  console.log(
-                    `  Output (${lines.length} lines):\n  ${lines.slice(0, 20).join('\n  ')}\n  ... (${lines.length - 20} more lines)`,
-                  );
-                } else if (lines.length > 1) {
-                  console.log(`  Output:\n  ${lines.join('\n  ')}`);
-                } else if (outputStr.length > 200) {
-                  console.log(
-                    `  Output: ${outputStr.slice(0, 200)}... (${outputStr.length} chars)`,
-                  );
-                } else {
-                  console.log(`  Output: ${outputStr}`);
-                }
-              }
-            }
+            // Tool completed - no verbose logging
           } else if (part.state?.status === 'error') {
-            const toolName = part.tool || 'unknown';
-            if (options.verbose && !options.json) {
-              const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-              console.error(`[${timestamp}] ✗ Tool: ${toolName} - ERROR`);
-              if (part.state.error) {
-                console.error(`  Error: ${part.state.error}`);
-              }
-            } else if (!options.json) {
+            if (!options.json) {
+              const toolName = part.tool || 'unknown';
               console.error(`  Tool: ${toolName} - ERROR`);
             }
           }
         } else if (part?.type === 'text') {
           textParts++;
-          const text = part.text || '';
-
-          if (options.verbose && !options.json && text.length > 0) {
-            // In verbose mode, show all text output with timestamps
-            const timestamp = new Date().toISOString().split('T')[1].slice(0, 8);
-            const lines = text.split('\n');
-            console.log(`[${timestamp}] 💬 Agent response (${text.length} chars):`);
-
-            // Show more text in verbose mode (up to 500 chars or 20 lines)
-            if (text.length > 500 || lines.length > 20) {
-              const preview = lines.slice(0, 20).join('\n').slice(0, 500);
-              console.log(`  ${preview.split('\n').join('\n  ')}`);
-              if (text.length > 500) {
-                console.log(`  ... (${text.length - 500} more chars)`);
-              } else {
-                console.log(`  ... (${lines.length - 20} more lines)`);
-              }
-            } else {
-              console.log(`  ${text.split('\n').join('\n  ')}`);
-            }
-          }
+          // Text streaming - no verbose logging to avoid duplication
         }
       }
     }
@@ -1530,6 +2411,20 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    // Calculate token usage from collected session data
+    if (sessionTokens.input > 0 || sessionTokens.output > 0) {
+      tokenUsage = {
+        input: sessionTokens.input,
+        output: sessionTokens.output,
+        total: sessionTokens.input + sessionTokens.output,
+      };
+    }
+
+    // F014: Add fallback for SDK versions without token usage (init command)
+    if (!hasTokenData(sessionTokens)) {
+      showTokenFallbackMessage(options.dryRun);
+    }
 
     // Check if feature_list.json was created
     let featureCount = 0;
@@ -1563,6 +2458,8 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
           featureCount,
           filesCreated,
           sessionId: session.id,
+          tokenUsage,
+          tokenTrackingSupported: supportsTokenTracking(),
           archive: {
             archived,
             archivePath,
@@ -1577,6 +2474,20 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       console.log(`\nDuration: ${duration}s`);
       console.log(`Tool calls: ${toolCalls}`);
       console.log(`Text outputs: ${textParts}`);
+      if (tokenUsage !== undefined) {
+        console.log(
+          `Tokens used: ${tokenUsage.total.toLocaleString()} (${tokenUsage.input.toLocaleString()} in, ${tokenUsage.output.toLocaleString()} out)`,
+        );
+
+        // F026: Add budget warnings if enabled
+        const budgetConfig = this.budgetSettings;
+        if (budgetConfig.enabled) {
+          const budgetStatus = this.calculateBudgetStatus(tokenUsage.total, budgetConfig);
+          if (budgetStatus.message) {
+            console.log(`  ${budgetStatus.message}`);
+          }
+        }
+      }
       console.log(`\nFiles created:`);
       for (const file of filesCreated) {
         console.log(`  - ${file}`);
@@ -1594,6 +2505,96 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
       console.log('  2. Run: pace status');
       console.log('  3. Run: pace run --max-sessions 5');
       console.log('='.repeat(60) + '\n');
+    }
+
+    // Write token usage to initial progress.txt entry (F005)
+    if (success && tokenUsage) {
+      const progressPath = join(projectDir, 'progress.txt');
+      const currentDate = new Date().toISOString().split('T')[0];
+
+      // Get current session number
+      let sessionNumber = 1;
+      try {
+        const existingProgress = await readFile(progressPath, 'utf-8');
+        const sessionMatches = existingProgress.match(/### Session \d+/g);
+        if (sessionMatches) {
+          sessionNumber = sessionMatches.length + 1;
+        }
+      } catch {
+        // File doesn't exist, start with session 1
+      }
+
+      const initProgressEntry = `
+
+---
+
+### Session ${sessionNumber} - INIT
+
+**Date:** ${currentDate}
+**Agent Type:** Initializer
+
+**Feature Worked On:**
+
+- INIT: Initialize pace project with feature list and development environment
+
+**Actions Taken:**
+
+- Project initialization completed successfully
+- Created feature_list.json with ${featureCount} features
+- Token usage tracked during initialization session
+- Development environment configured
+
+**Test Results:**
+
+- Initialization completed successfully
+- Project files created and validated
+- Token usage captured from OpenCode SDK events
+
+${getTokenUsageTemplate()}
+
+- Input tokens: ${tokenUsage.input?.toLocaleString() || '0'}
+- Output tokens: ${tokenUsage.output?.toLocaleString() || '0'}
+- Total tokens: ${tokenUsage.total?.toLocaleString() || '0'}
+
+**Current Status:**
+
+- Features passing: 0/${featureCount}
+- Known issues: None
+- Project ready for development
+
+**Next Steps:**
+
+- Recommended next feature: [Determined by orchestrator]
+- Ready to proceed with feature implementation
+- Run 'pace status' to review feature list
+
+---
+
+`;
+
+      // Append to progress file
+      try {
+        await writeFile(progressPath, initProgressEntry, { flag: 'a' });
+      } catch (error) {
+        if (!options.json) {
+          console.error('Failed to write init progress entry:', error);
+        }
+      }
+    }
+
+    // Output JSON if requested
+    if (options.json) {
+      console.log(
+        JSON.stringify({
+          success,
+          featuresGenerated: featureCount,
+          dryRun: options.dryRun,
+          archived,
+          archivePath: archivePath || undefined,
+          tokenUsage,
+          tokenTrackingSupported: supportsTokenTracking(),
+        }),
+      );
     }
 
     process.exit(success && featureCount > 0 ? 0 : 1);
@@ -1619,13 +2620,19 @@ async function handleInit(options: ParsedArgs['options']): Promise<void> {
 
 async function handleStatus(options: ParsedArgs['options']): Promise<void> {
   const reporter = new StatusReporter(options.projectDir);
-  await reporter.printStatus({
-    verbose: options.verbose,
-    showGitLog: true,
-    showNextFeatures: 5,
-    showProgress: true,
-    json: options.json,
-  });
+
+  if (options.compact) {
+    await reporter.printCompactStatus();
+  } else {
+    await reporter.printStatus({
+      verbose: options.verbose,
+      showGitLog: true,
+      showNextFeatures: 5,
+      showProgress: true,
+      json: options.json,
+      minTokens: options.minTokens,
+    });
+  }
 }
 
 async function handleValidate(options: ParsedArgs['options']): Promise<void> {
@@ -1653,7 +2660,17 @@ async function handleValidate(options: ParsedArgs['options']): Promise<void> {
       process.exit(1);
     }
 
-    const result = validateFeatureList(data);
+    let progressData;
+    try {
+      progressData = await ProgressParser.parse(options.projectDir);
+    } catch (error) {
+      progressData = undefined;
+    }
+
+    const result = validateFeatureList(data, {
+      includeTokenUsage: true,
+      progressData,
+    });
 
     if (options.json) {
       console.log(
@@ -1756,6 +2773,61 @@ async function handleUpdate(options: ParsedArgs['options']): Promise<void> {
 
     if (success) {
       const [passing, total] = await manager.getProgress();
+
+      if (options.manualTokens) {
+        const tokenParts = options.manualTokens.split(/[,:]/);
+        if (tokenParts.length === 2) {
+          const inputTokens = parseInt(tokenParts[0]);
+          const outputTokens = parseInt(tokenParts[1]);
+
+          if (!isNaN(inputTokens) && !isNaN(outputTokens)) {
+            const progressPath = join(options.projectDir, 'progress.txt');
+            let sessionNumber = 1;
+            try {
+              const existingProgress = await readFile(progressPath, 'utf-8');
+              const sessionMatches = existingProgress.match(/### Session \d+/g);
+              if (sessionMatches) {
+                sessionNumber = sessionMatches.length + 1;
+              }
+            } catch {
+              sessionNumber = 1;
+            }
+
+            const currentDate = new Date().toISOString().split('T')[0];
+            const totalTokens = inputTokens + outputTokens;
+
+            const progressEntry = `
+
+---
+
+### Session ${sessionNumber} - ${options.featureId}
+
+**Date:** ${currentDate}
+**Agent Type:** Manual
+
+**Feature Worked On:**
+
+- ${options.featureId}: ${feature.description}
+
+${getTokenUsageTemplate()}
+
+- Input tokens: ${inputTokens.toLocaleString()}
+- Output tokens: ${outputTokens.toLocaleString()}
+- Total tokens: ${totalTokens.toLocaleString()}
+
+---
+
+`;
+
+            try {
+              await writeFile(progressPath, progressEntry, { flag: 'a' });
+              ProgressParser.invalidate(options.projectDir);
+            } catch (error) {
+              console.error('Failed to write progress entry:', error);
+            }
+          }
+        }
+      }
 
       if (options.json) {
         console.log(
@@ -2157,6 +3229,191 @@ async function handleCleanArchives(options: ParsedArgs['options']): Promise<void
   }
 }
 
+async function handleTokensCommand(options: ParsedArgs['options']): Promise<void> {
+  const projectDir = resolve(options.projectDir);
+  const progressPath = join(projectDir, 'progress.txt');
+
+  try {
+    await stat(progressPath);
+  } catch {
+    console.error('Error: No progress file found');
+    process.exit(1);
+  }
+
+  const progressContent = await readFile(progressPath, 'utf-8');
+  let sessions = parseProgressFile(progressContent);
+
+  if (sessions.length === 0) {
+    console.log('No token usage data found in progress.txt');
+    return;
+  }
+
+  if (options.fromDate || options.toDate) {
+    sessions = filterByDateRange(sessions, options.fromDate, options.toDate);
+  }
+
+  if (options.feature) {
+    sessions = filterByFeature(sessions, options.feature);
+  }
+
+  if (sessions.length === 0) {
+    console.log('No sessions found matching the specified filters');
+    return;
+  }
+
+  const stats = calculateStatistics(sessions);
+
+  if (options.json) {
+    const topSessions = getTopSessions(sessions, 5);
+    const dailyTokens = groupByDay(sessions);
+
+    const output = {
+      statistics: {
+        totalInput: stats.totalInput,
+        totalOutput: stats.totalOutput,
+        totalTokens: stats.totalTokens,
+        averageTokens: stats.averageTokens,
+        sessionCount: stats.sessionCount,
+        firstSession: stats.firstSession,
+        lastSession: stats.lastSession,
+        totalCost: stats.totalCost,
+      },
+      filters: {
+        fromDate: options.fromDate,
+        toDate: options.toDate,
+        feature: options.feature,
+      },
+      topSessions: topSessions.map((s) => ({
+        sessionNumber: s.sessionNumber,
+        featureId: s.featureId,
+        date: s.date,
+        totalTokens: s.tokenUsage.total,
+        inputTokens: s.tokenUsage.input,
+        outputTokens: s.tokenUsage.output,
+      })),
+      dailyBreakdown: dailyTokens.map((d) => ({
+        date: d.date,
+        sessions: d.sessions,
+        totalTokens: d.totalTokens,
+        inputTokens: d.inputTokens,
+        outputTokens: d.outputTokens,
+      })),
+      totalEntries: sessions.length,
+    };
+
+    console.log(JSON.stringify(output, null, 2));
+    return;
+  }
+
+  console.log('\n' + '='.repeat(60));
+  console.log('  TOKEN USAGE STATISTICS');
+  console.log('='.repeat(60) + '\n');
+
+  if (options.fromDate || options.toDate || options.feature) {
+    console.log('Filters:');
+    if (options.fromDate) console.log(`  From Date: ${options.fromDate}`);
+    if (options.toDate) console.log(`  To Date: ${options.toDate}`);
+    if (options.feature) console.log(`  Feature: ${options.feature}`);
+    console.log('');
+  }
+
+  console.log('Overall Statistics:');
+  console.log(`  Total Input Tokens: ${stats.totalInput.toLocaleString()}`);
+  console.log(`  Total Output Tokens: ${stats.totalOutput.toLocaleString()}`);
+  console.log(`  Total Tokens: ${stats.totalTokens.toLocaleString()}`);
+  console.log(`  Average per Session: ${stats.averageTokens.toLocaleString()}`);
+  console.log(`  Sessions with Token Data: ${stats.sessionCount}`);
+
+  if (stats.totalCost !== undefined) {
+    console.log(`  Total Cost: $${stats.totalCost.toFixed(4)}`);
+  }
+
+  if (stats.firstSession && stats.lastSession) {
+    console.log(`\n  First Session: ${stats.firstSession}`);
+    console.log(`  Last Session: ${stats.lastSession}`);
+  }
+
+  if (options.verbose) {
+    const dailyTokens = groupByDay(sessions);
+
+    if (dailyTokens.length > 0) {
+      console.log('\n' + '-'.repeat(60));
+      console.log('  Daily Breakdown');
+      console.log('-'.repeat(60) + '\n');
+
+      for (const day of dailyTokens) {
+        console.log(`Date: ${day.date}`);
+        console.log(`  Sessions: ${day.sessions}`);
+        console.log(`  Input: ${day.inputTokens.toLocaleString()}`);
+        console.log(`  Output: ${day.outputTokens.toLocaleString()}`);
+        console.log(`  Total: ${day.totalTokens.toLocaleString()}`);
+        console.log('');
+      }
+    }
+
+    const topSessions = getTopSessions(sessions, 5);
+    if (topSessions.length > 0) {
+      console.log('-'.repeat(60));
+      console.log('  Top 5 Sessions by Token Usage');
+      console.log('-'.repeat(60) + '\n');
+
+      for (let i = 0; i < topSessions.length; i++) {
+        const session = topSessions[i];
+        console.log(`${i + 1}. Session ${session.sessionNumber} - ${session.featureId}`);
+        console.log(`   Date: ${session.date}`);
+        console.log(`   Total: ${session.tokenUsage.total.toLocaleString()} tokens`);
+        console.log(`   Input: ${session.tokenUsage.input.toLocaleString()}`);
+        console.log(`   Output: ${session.tokenUsage.output.toLocaleString()}`);
+        if (session.model) {
+          console.log(`   Model: ${session.model}`);
+        }
+        console.log('');
+      }
+    }
+  }
+
+  console.log('='.repeat(60) + '\n');
+}
+
+/**
+ * Handle export command for token usage data
+ */
+async function handleExport(options: ParsedArgs['options']): Promise<void> {
+  try {
+    if (!options.exportTokens) {
+      console.error('Error: --export-tokens flag is required with export command');
+      console.error('Usage: pace export --export-tokens <filename>');
+      process.exit(1);
+    }
+
+    // Determine format from file extension
+    const format = options.exportTokens.endsWith('.csv') ? 'csv' : 'json';
+
+    // Create exporter
+    const exporter = new TokenExporter(options.projectDir);
+
+    // Export tokens
+    const result = await exporter.exportTokens({
+      format,
+      outputFile: options.exportTokens,
+      includeCost: true, // Always include cost if available
+      sortby: 'date',
+      sortOrder: 'desc',
+    });
+
+    if (result.success) {
+      console.log(`✅ Token usage exported successfully to ${result.filename}`);
+      console.log(`📊 Exported ${result.entries} sessions`);
+    } else {
+      console.error('❌ Failed to export token usage');
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(`Error exporting tokens: ${error}`);
+    process.exit(1);
+  }
+}
+
 function printHelp(): void {
   console.log(`
 pace - Pragmatic Agent for Compounding Engineering
@@ -2172,9 +3429,10 @@ COMMANDS:
     status       Show project status
     validate     Validate feature_list.json
     update       Update feature status
-    archives     List archived runs
-    restore      Restore archived run
+    archives     List archived projects
+    restore      Restore archived project
     clean-archives  Delete old archives
+    export       Export token usage data to CSV or JSON
     help         Show this help message
 
 INIT OPTIONS:
@@ -2187,7 +3445,7 @@ INIT OPTIONS:
     --verbose, -v                Show detailed output during initialization
     --json                       Output results in JSON format
 
-    Note: Existing feature_list.json will be archived to .runs/ before initialization.
+    Note: Existing feature_list.json will be archived to .fwdslsh/pace/history/ before initialization.
           Use --force to skip archiving and overwrite existing files.
           Use --archive-only to archive files without running initialization.
 
@@ -2208,6 +3466,7 @@ RUN OPTIONS:
 STATUS OPTIONS:
     --verbose, -v                Show detailed breakdown by category
     --json                       Output results in JSON format
+    --compact, -c                Show one-line compact status with token summary
 
 VALIDATE OPTIONS:
     --json                       Output results in JSON format
@@ -2227,6 +3486,10 @@ CLEAN-ARCHIVES OPTIONS:
     --older-than <days>          Delete archives older than specified days
     --keep-last <n>              Keep the last N archives (newest)
     --json                       Output results in JSON format
+
+EXPORT OPTIONS:
+    --export-tokens <filename>    Export token usage data to CSV or JSON file
+                                 Format determined by file extension (.csv or .json)
 
 GLOBAL OPTIONS:
     --project-dir, -d DIR        Project directory (default: current directory)
@@ -2290,17 +3553,22 @@ EXAMPLES:
     # Get JSON output for scripting
     pace run --json --max-sessions 5
 
-    # List archived runs
+    # List archived projects
     pace archives
     pace archives --json
 
-    # Restore archived run
+    # Restore archived project
     pace restore 2025-12-17_00-00-00
     pace restore 2025-12-17_00-00-00 --force
 
     # Clean old archives
     pace clean-archives --older-than 30
     pace clean-archives --keep-last 5
+
+    # Export token usage data
+    pace export --export-tokens tokens.csv
+    pace export --export-tokens tokens.json
+    pace export --export-tokens project-tokens-2025-12.json
 
 OPENCODE PLUGIN:
     For interactive use within OpenCode TUI, install the pace plugin:
@@ -2348,6 +3616,12 @@ async function main(): Promise<void> {
       break;
     case 'clean-archives':
       await handleCleanArchives(options);
+      break;
+    case 'export':
+      await handleExport(options);
+      break;
+    case 'tokens':
+      await handleTokensCommand(options);
       break;
   }
 }

@@ -28,6 +28,12 @@ import paceReviewMd from './commands/pace-review.md' with { type: 'text' };
 import paceStatusMd from './commands/pace-status.md' with { type: 'text' };
 
 import type { ServerOptions } from '@opencode-ai/sdk';
+import type {
+  CostConfig,
+  TokenBudget,
+  TokenDisplayThresholds,
+  TokenTrackingConfig,
+} from '../types';
 
 // ============================================================================
 // Types
@@ -48,13 +54,15 @@ export interface PaceOrchestratorConfig {
   maxFailures?: number;
   /** Delay between sessions in milliseconds */
   sessionDelay?: number;
+  /** Session timeout in milliseconds (default: 1800000 = 30 minutes) */
+  sessionTimeout?: number;
 }
 
 /**
  * Pace-specific settings (stored under `pace` key in config)
  */
 export interface PaceSettings {
-  /** Orchestrator settings for the CLI */
+  /** Orchestrator settings for CLI */
   orchestrator?: PaceOrchestratorConfig;
   /**
    * Custom archive directory path for storing archived project files
@@ -63,7 +71,7 @@ export interface PaceSettings {
    * pace archives the old files to preserve previous work. This setting
    * controls where those archives are stored.
    *
-   * @default '.runs'
+   * @default '.fwdslsh/pace/history'
    * @example
    * ```json
    * {
@@ -78,7 +86,7 @@ export interface PaceSettings {
    * Whether to create archive metadata files (.archive-info.json)
    *
    * When enabled, pace creates a metadata file in each archive directory
-   * containing information about the archived files, original metadata,
+   * containing information about archived files, original metadata,
    * archive timestamp, and reason for archiving.
    *
    * @default true
@@ -92,6 +100,112 @@ export interface PaceSettings {
    * ```
    */
   createArchiveMetadata?: boolean;
+  /**
+   * Consolidated token tracking configuration (F037)
+   *
+   * Centralized configuration for all token-related features including
+   * display settings, budget limits, and cost calculation. This provides
+   * a single place to configure token tracking behavior.
+   *
+   * @default { enabled: true, display: {...}, budget: {...}, costs: {...} }
+   * @example
+   * ```json
+   * {
+   *   "pace": {
+   *     "tokenTracking": {
+   *       "enabled": true,
+   *       "display": {
+   *         "enabled": true,
+   *         "useAverageBasedThresholds": true
+   *       },
+   *       "budget": {
+   *         "enabled": true,
+   *         "maxTokens": 100000
+   *       },
+   *       "costs": {
+   *         "enabled": true,
+   *         "currency": "USD"
+   *       }
+   *     }
+   *   }
+   * }
+   * ```
+   */
+  tokenTracking?: TokenTrackingConfig;
+  /**
+   * Cost calculation settings for token usage
+   *
+   * When enabled, pace will calculate and display cost estimates
+   * based on token usage and model pricing. Custom pricing
+   * can be configured to override default rates.
+   *
+   * @default { enabled: true, currency: 'USD', precision: 4 }
+   * @deprecated Use tokenTracking.costs instead (backward compatibility maintained)
+   * @example
+   * ```json
+   * {
+   *   "pace": {
+   *     "costs": {
+   *       "enabled": true,
+   *       "customPricing": {
+   *         "custom/model": { "inputPrice": 2.5, "outputPrice": 12.0, "provider": "custom" }
+   *       },
+   *       "currency": "USD",
+   *       "precision": 4
+   *     }
+   *   }
+   * }
+   * ```
+   */
+  costs?: CostConfig;
+  /**
+   * Token budget settings for managing token consumption
+   *
+   * When enabled, pace will track token usage against configured budgets
+   * and display warnings when approaching or exceeding limits. This helps
+   * manage costs and prevent unexpected token consumption.
+   *
+   * @default { enabled: false, warningThreshold: 0.8, criticalThreshold: 0.95 }
+   * @deprecated Use tokenTracking.budget instead (backward compatibility maintained)
+   * @example
+   * ```json
+   * {
+   *   "pace": {
+   *     "budget": {
+   *       "enabled": true,
+   *       "maxTokens": 100000,
+   *       "warningThreshold": 0.8,
+   *       "criticalThreshold": 0.95
+   *     }
+   *   }
+   * }
+   * ```
+   */
+  budget?: TokenBudget;
+  /**
+   * Token display threshold settings for visual indicators
+   *
+   * When enabled, pace will show color coding and warning symbols for
+   * token usage that exceeds configured thresholds. Helps identify
+   * expensive sessions at a glance.
+   *
+   * @default { enabled: true, useAverageBasedThresholds: true, averageMultiplierWarning: 1.5, averageMultiplierCritical: 2.0 }
+   * @deprecated Use tokenTracking.display instead (backward compatibility maintained)
+   * @example
+   * ```json
+   * {
+   *   "pace": {
+   *     "tokenDisplay": {
+   *       "enabled": true,
+   *       "useAverageBasedThresholds": true,
+   *       "averageMultiplierWarning": 1.5,
+   *       "averageMultiplierCritical": 2.0
+   *     }
+   *   }
+   * }
+   * ```
+   */
+  tokenDisplay?: TokenDisplayThresholds;
 }
 
 /**
@@ -218,6 +332,41 @@ const DEFAULT_PACE_SETTINGS: PaceSettings = {
     sessionDelay: 3000,
   },
   createArchiveMetadata: true,
+  tokenTracking: {
+    enabled: true,
+    display: {
+      enabled: true,
+      useAverageBasedThresholds: true,
+      averageMultiplierWarning: 1.5,
+      averageMultiplierCritical: 2.0,
+    },
+    budget: {
+      enabled: false,
+      warningThreshold: 0.8,
+      criticalThreshold: 0.95,
+    },
+    costs: {
+      enabled: true,
+      currency: 'USD',
+      precision: 4,
+    },
+  },
+  costs: {
+    enabled: true,
+    currency: 'USD',
+    precision: 4,
+  },
+  budget: {
+    enabled: false,
+    warningThreshold: 0.8,
+    criticalThreshold: 0.95,
+  },
+  tokenDisplay: {
+    enabled: true,
+    useAverageBasedThresholds: true,
+    averageMultiplierWarning: 1.5,
+    averageMultiplierCritical: 2.0,
+  },
 };
 
 // Parse agent markdown files
@@ -411,16 +560,48 @@ export function getOpencodeConfig(config: PaceConfig): OpencodeConfig {
 }
 
 /**
- * Get Pace-specific settings
+ * Get Pace-specific settings with backward compatibility
+ *
+ * Merges tokenTracking configuration with legacy costs/budget/tokenDisplay fields.
+ * Priority: tokenTracking.* > pace.costs/budget/tokenDisplay > defaults
  */
 export function getPaceSettings(config: PaceConfig): PaceSettings {
-  return {
-    ...DEFAULT_PACE_SETTINGS,
-    ...config.pace,
-    orchestrator: {
-      ...DEFAULT_PACE_SETTINGS.orchestrator,
-      ...config.pace?.orchestrator,
+  const defaults = DEFAULT_PACE_SETTINGS;
+  const userPace = config.pace || {};
+
+  const tokenTracking: TokenTrackingConfig = {
+    enabled: userPace.tokenTracking?.enabled ?? defaults.tokenTracking?.enabled ?? true,
+    display: {
+      ...defaults.tokenTracking?.display,
+      ...userPace.tokenDisplay,
+      ...userPace.tokenTracking?.display,
     },
+    budget: {
+      ...defaults.tokenTracking?.budget,
+      ...userPace.budget,
+      ...userPace.tokenTracking?.budget,
+    },
+    costs: {
+      enabled: true,
+      currency: 'USD',
+      precision: 4,
+      ...defaults.tokenTracking?.costs,
+      ...userPace.costs,
+      ...userPace.tokenTracking?.costs,
+    },
+  };
+
+  return {
+    ...defaults,
+    ...userPace,
+    orchestrator: {
+      ...defaults.orchestrator,
+      ...userPace.orchestrator,
+    },
+    tokenTracking,
+    costs: tokenTracking.costs,
+    budget: tokenTracking.budget,
+    tokenDisplay: tokenTracking.display,
   };
 }
 
@@ -436,10 +617,59 @@ export function getAgentModel(config: PaceConfig, agentName: string): string | u
 }
 
 /**
- * Get the agent configured for a command
+ * Get agent configured for a command
  */
 export function getCommandAgent(config: PaceConfig, commandName: string): string | undefined {
   return config.command?.[commandName]?.agent;
+}
+
+/**
+ * Get cost configuration settings
+ */
+export function getCostSettings(config: PaceConfig): CostConfig {
+  const defaultCostConfig = {
+    enabled: true,
+    currency: 'USD',
+    precision: 4,
+  };
+
+  return {
+    ...defaultCostConfig,
+    ...config.pace?.costs,
+  };
+}
+
+/**
+ * Get token budget configuration settings
+ */
+export function getBudgetSettings(config: PaceConfig): TokenBudget {
+  const defaultBudgetConfig = {
+    enabled: false,
+    warningThreshold: 0.8,
+    criticalThreshold: 0.95,
+  };
+
+  return {
+    ...defaultBudgetConfig,
+    ...config.pace?.budget,
+  };
+}
+
+/**
+ * Get token display threshold settings
+ */
+export function getTokenDisplaySettings(config: PaceConfig): TokenDisplayThresholds {
+  const defaultTokenDisplayConfig = {
+    enabled: true,
+    useAverageBasedThresholds: true,
+    averageMultiplierWarning: 1.5,
+    averageMultiplierCritical: 2.0,
+  };
+
+  return {
+    ...defaultTokenDisplayConfig,
+    ...config.pace?.tokenDisplay,
+  };
 }
 
 /**

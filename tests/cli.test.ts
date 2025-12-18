@@ -125,7 +125,8 @@ describe('CLI Integration Tests', () => {
       });
 
       const result = await runCLI(['status']);
-      expect(result.stdout).toContain('feature_list.json not found or empty');
+      expect(result.stdout).toContain('PACE PROJECT STATUS');
+      expect(result.stdout).toContain('0/0');
       expect(result.exitCode).toBe(0);
     });
 
@@ -153,8 +154,7 @@ describe('CLI Integration Tests', () => {
       });
 
       const result = await runCLI(['status']);
-      expect(result.stdout).toContain('Project Status');
-      expect(result.stdout).toContain('Test Project');
+      expect(result.stdout).toContain('PACE PROJECT STATUS');
       expect(result.stdout).toContain('1/2');
       expect(result.exitCode).toBe(0);
     });

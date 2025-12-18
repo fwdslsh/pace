@@ -200,14 +200,22 @@ describe('StatusReporter', () => {
 
       const progressContent = `# Progress Log
 
-### Session 1
-Started at: 2025-01-01
-Working on: F001
+### Session 1 - F001
+**Date:** 2025-01-01
+**Agent Type:** pace-coding
+model: anthropic/claude-3-5-sonnet
+Input tokens: 100
+Output tokens: 200
+Total tokens: 300
 Result: pass
 
-### Session 2
-Started at: 2025-01-02
-Working on: F002
+### Session 2 - F002
+**Date:** 2025-01-02
+**Agent Type:** pace-coding
+model: anthropic/claude-3-5-sonnet
+Input tokens: 150
+Output tokens: 250
+Total tokens: 400
 Result: fail
 More details here`;
 

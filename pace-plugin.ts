@@ -17,6 +17,8 @@
  */
 
 import { tool } from '@opencode-ai/plugin';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 
 import { FeatureManager } from './src/feature-manager';
 import codeReviewerMd from './src/opencode/agents/code-reviewer.md' with { type: 'text' };
@@ -801,6 +803,142 @@ Follow the coding agent workflow. Begin now.`;
             null,
             2,
           );
+        },
+      }),
+
+      pace_get_context: tool({
+        description:
+          'Get optimized project context for coding session. Returns summary, current feature, and recent progress without loading large files.',
+        args: {
+          featureId: tool.schema
+            .string()
+            .optional()
+            .describe(
+              'Optional: specific feature ID to work on. If not provided, returns next priority feature.',
+            ),
+        },
+        async execute(args) {
+          const fm = new FeatureManager(directory);
+          const [passing, total] = await fm.getProgress();
+
+          // Get target feature
+          const feature = args.featureId
+            ? await fm.findFeature(args.featureId)
+            : await fm.getNextFeature();
+
+          if (!feature) {
+            return JSON.stringify({ error: 'No failing features found. All features passing!' });
+          }
+
+          // Get compact recent progress (last 2 sessions only, truncated)
+          const progressPath = join(directory, 'progress.txt');
+          let recentProgress = '';
+          try {
+            const progress = await readFile(progressPath, 'utf-8');
+            const sessions = progress.split('### Session');
+            recentProgress = sessions
+              .slice(-2)
+              .map((s) => {
+                // Extract key info only, truncate details
+                const lines = s.split('\n');
+                const keyLines = lines.filter(
+                  (line) =>
+                    line.includes('Date:') ||
+                    line.includes('Feature Worked On:') ||
+                    line.includes('Status:') ||
+                    line.includes('Token Usage:') ||
+                    line.includes('Known issues:') ||
+                    line.match(/^- F\d+:/),
+                );
+                return keyLines.slice(0, 20).join('\n');
+              })
+              .join('\n\n---\n\n');
+          } catch (e) {
+            recentProgress = 'No progress history available';
+          }
+
+          // Failing features summary (counts only, not details)
+          const failing = await fm.getFailingFeatures();
+          const failingSummary = {
+            critical: failing.filter((f) => f.priority === 'critical').length,
+            high: failing.filter((f) => f.priority === 'high').length,
+            medium: failing.filter((f) => f.priority === 'medium').length,
+            low: failing.filter((f) => f.priority === 'low').length,
+          };
+
+          // Next 3 features in priority order (IDs only)
+          const nextFeatures = failing.slice(0, 3).map((f) => ({
+            id: f.id,
+            priority: f.priority,
+            category: f.category,
+          }));
+
+          return JSON.stringify(
+            {
+              summary: {
+                passing,
+                total,
+                percentage: ((passing / total) * 100).toFixed(1) + '%',
+                remaining: total - passing,
+              },
+              currentFeature: {
+                id: feature.id,
+                description: feature.description,
+                priority: feature.priority,
+                category: feature.category,
+                steps: feature.steps,
+              },
+              failingByPriority: failingSummary,
+              recentProgress,
+              nextFeatures,
+            },
+            null,
+            2,
+          );
+        },
+      }),
+
+      pace_get_blockers: tool({
+        description: 'Get known blockers, issues, and failures from recent sessions',
+        args: {},
+        async execute() {
+          try {
+            const progressPath = join(directory, 'progress.txt');
+            const progress = await readFile(progressPath, 'utf-8');
+
+            // Extract lines mentioning issues, failures, blockers
+            const issuePatterns = [
+              /.*(?:blocker|blocked|stuck|cannot|failed|error|issue|bug|problem).*$/gim,
+              /.*Known issues:.*$/gim,
+              /.*TODO.*$/gim,
+            ];
+
+            const blockers: string[] = [];
+            for (const pattern of issuePatterns) {
+              const matches = progress.match(pattern);
+              if (matches) {
+                blockers.push(...matches);
+              }
+            }
+
+            // Get unique blockers from last 50 lines only
+            const uniqueBlockers = [...new Set(blockers)]
+              .slice(-50)
+              .filter((line) => !line.includes('Known issues: None'))
+              .slice(-10); // Last 10 unique issues
+
+            return JSON.stringify(
+              {
+                hasBlockers: uniqueBlockers.length > 0,
+                count: uniqueBlockers.length,
+                blockers: uniqueBlockers,
+              },
+              null,
+              2,
+            );
+          } catch (e) {
+            return JSON.stringify({ error: 'Could not read progress file' });
+          }
         },
       }),
     },

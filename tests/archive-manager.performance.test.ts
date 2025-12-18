@@ -74,7 +74,7 @@ describe('ArchiveManager Performance', () => {
 
         // Clean up for next iteration
         await import('fs/promises').then((fs) =>
-          fs.rm(join(testDir, '.runs'), { recursive: true, force: true }),
+          fs.rm(join(testDir, '.fwdslsh/pace/history'), { recursive: true, force: true }),
         );
       }
 

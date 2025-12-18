@@ -5,6 +5,16 @@
  * for all long-running operations in the pace CLI.
  */
 
+export interface TokenUsage {
+  input: number;
+  output: number;
+  total: number;
+  reasoning?: number;
+}
+
+// Import accessibility utilities
+import { getTokenPrefix, isAccessibleMode } from './accessibility';
+
 export interface ProgressIndicatorOptions {
   /** Width of the track (default: 20) */
   trackWidth?: number;
@@ -16,6 +26,8 @@ export interface ProgressIndicatorOptions {
   showCount?: boolean;
   /** Label for the count (default: "actions") */
   countLabel?: string;
+  /** Whether to show token usage (default: false) */
+  showTokens?: boolean;
   /** Animation interval in ms (default: 150) */
   animationInterval?: number;
 }
@@ -25,6 +37,8 @@ export interface ProgressUpdate {
   action?: string;
   /** Current count of actions/tools */
   count?: number;
+  /** Current token usage */
+  tokens?: TokenUsage;
 }
 
 /**
@@ -78,6 +92,7 @@ export class ProgressIndicator {
   private turtleDirection: number = 1; // 1 = right, -1 = left
   private emojis: string[] = [];
   private actionCount: number = 0;
+  private currentTokens: TokenUsage | null = null;
   private animationTimer: ReturnType<typeof setInterval> | null = null;
   private isRunning: boolean = false;
 
@@ -88,6 +103,7 @@ export class ProgressIndicator {
       showElapsed: options.showElapsed ?? true,
       showCount: options.showCount ?? true,
       countLabel: options.countLabel ?? 'actions',
+      showTokens: options.showTokens ?? false,
       animationInterval: options.animationInterval ?? 150,
     };
     this.startTime = Date.now();
@@ -140,6 +156,9 @@ export class ProgressIndicator {
     }
     if (update.count !== undefined) {
       this.actionCount = update.count;
+    }
+    if (update.tokens !== undefined) {
+      this.currentTokens = update.tokens;
     }
   }
 
@@ -194,10 +213,18 @@ export class ProgressIndicator {
       statusParts.push(`${this.actionCount} ${this.options.countLabel}`);
     }
 
+    if (this.options.showTokens && this.currentTokens) {
+      const tokenStr = this.currentTokens.total.toLocaleString();
+      const tokenPrefix = getTokenPrefix();
+      statusParts.push(`${tokenPrefix} ${tokenStr} tokens`);
+    }
+
     const statusLine = statusParts.join(', ');
 
-    // Render
-    if (this.options.showEmojis && this.emojis.length > 0) {
+    // Render - respect accessibility settings
+    const shouldShowEmojis =
+      this.options.showEmojis && !isAccessibleMode() && this.emojis.length > 0;
+    if (shouldShowEmojis) {
       const line1 = emojiRow.padEnd(this.options.trackWidth + 2);
       const line2 = statusLine;
 

@@ -11,6 +11,8 @@ import { copyFile, readFile, readdir, stat, writeFile } from 'fs/promises';
 import { join } from 'path';
 
 import { moveToArchive, normalizeTimestamp, resolveUniqueArchivePath } from './archive-utils';
+import { ProgressParser } from './progress-parser';
+import type { TokenUsage } from './types';
 
 // Cache for repeated operations to improve performance
 const fileExistsCache = new Map<string, boolean>();
@@ -24,7 +26,7 @@ let cacheTimestamp = 0;
 export interface ArchiveOptions {
   /** The project directory path */
   projectDir: string;
-  /** Custom archive directory path (defaults to '.runs') */
+  /** Custom archive directory path (defaults to '.fwdslsh/pace/history') */
   archiveDir?: string;
   /** Whether this is a dry-run (no actual file operations) */
   dryRun?: boolean;
@@ -65,6 +67,14 @@ export interface ArchiveInfo {
     reason?: string;
     files?: string[];
     originalMetadata?: any;
+    tokenUsage?: {
+      total?: TokenUsage;
+      sessions?: Array<{
+        feature?: string;
+        agentType?: string;
+        tokenUsage?: TokenUsage;
+      }>;
+    };
   };
 }
 
@@ -76,7 +86,7 @@ export interface RestoreOptions {
   projectDir: string;
   /** The timestamp of the archive to restore */
   timestamp: string;
-  /** Custom archive directory path (defaults to '.runs') */
+  /** Custom archive directory path (defaults to '.fwdslsh/pace/history') */
   archiveDir?: string;
   /** Whether to skip confirmation prompts */
   force?: boolean;
@@ -106,7 +116,7 @@ export interface RestoreResult {
 export interface CleanArchivesOptions {
   /** The project directory path */
   projectDir: string;
-  /** Custom archive directory path (defaults to '.runs') */
+  /** Custom archive directory path (defaults to '.fwdslsh/pace/history') */
   archiveDir?: string;
   /** Delete archives older than specified days */
   olderThan?: number;
@@ -171,7 +181,7 @@ export interface ArchiveValidationResult {
 export interface ValidateArchiveOptions {
   /** The project directory path */
   projectDir: string;
-  /** Custom archive directory path (defaults to '.runs') */
+  /** Custom archive directory path (defaults to '.fwdslsh/pace/history') */
   archiveDir?: string;
   /** Whether to show verbose output */
   verbose?: boolean;
@@ -181,7 +191,7 @@ export interface ValidateArchiveOptions {
  * ArchiveManager handles the archiving of pace project files
  *
  * When reinitializing a pace project, this class manages the archiving of existing
- * project files (feature_list.json, progress.txt) to a timestamped directory in .runs/
+ * project files (feature_list.json, progress.txt) to a timestamped directory in .fwdslsh/pace/history/
  *
  * Performance Optimizations:
  * - Parallel file operations for feature_list.json and progress.txt
@@ -202,7 +212,7 @@ export interface ValidateArchiveOptions {
  *   silent: false
  * });
  * console.log(result.archived); // true if files were archived
- * console.log(result.archivePath); // e.g., "/path/to/project/.runs/2025-12-15_17-00-00"
+ * console.log(result.archivePath); // e.g., "/path/to/project/.fwdslsh/pace/history/2025-12-15_17-00-00"
  * ```
  */
 export class ArchiveManager {
@@ -212,7 +222,7 @@ export class ArchiveManager {
    * This method:
    * 1. Checks if feature_list.json exists
    * 2. Reads metadata.last_updated timestamp (or uses current time as fallback)
-   * 3. Creates a timestamped archive directory (defaults to .runs/)
+   * 3. Creates a timestamped archive directory (defaults to .fwdslsh/pace/history/)
    * 4. Moves feature_list.json and progress.txt (if exists) to the archive
    * 5. Falls back to .bak files if archiving fails
    *
@@ -222,7 +232,7 @@ export class ArchiveManager {
   async archive(options: ArchiveOptions): Promise<ArchiveResult> {
     const {
       projectDir,
-      archiveDir = '.runs',
+      archiveDir = '.fwdslsh/pace/history',
       dryRun = false,
       silent = false,
       verbose = false,
@@ -344,6 +354,7 @@ export class ArchiveManager {
       // Create archive metadata file if enabled and files were archived
       if (createArchiveMetadata && archived && archivePath) {
         await this.createArchiveMetadata(
+          projectDir,
           archivePath,
           originalMetadata,
           archivedFiles,
@@ -479,7 +490,9 @@ export class ArchiveManager {
    * - Archive timestamp
    * - Reason for archiving
    * - List of archived files
+   * - Token usage data (extracted from progress.txt using ProgressParser)
    *
+   * @param projectDir - The project directory path
    * @param archivePath - Path to the archive directory
    * @param featureListMetadata - Original metadata from feature_list.json
    * @param archivedFiles - List of archived files
@@ -487,6 +500,7 @@ export class ArchiveManager {
    * @param silent - Whether to suppress console output
    */
   private async createArchiveMetadata(
+    projectDir: string,
     archivePath: string,
     featureListMetadata: any,
     archivedFiles: string[],
@@ -494,11 +508,41 @@ export class ArchiveManager {
     silent: boolean,
   ): Promise<void> {
     try {
+      // Extract token usage from progress file using ProgressParser
+      let tokenUsage:
+        | {
+            total?: TokenUsage;
+            bySession?: Array<{
+              sessionId: string;
+              featureId: string;
+              tokens: number;
+            }>;
+          }
+        | undefined;
+
+      const progressPath = join(projectDir, 'progress.txt');
+      try {
+        await stat(progressPath);
+        const progressData = await ProgressParser.parse(projectDir);
+
+        tokenUsage = {
+          total: progressData.totals.tokens,
+          bySession: progressData.sessions.map((s) => ({
+            sessionId: s.sessionId,
+            featureId: s.featureId,
+            tokens: s.tokens.total,
+          })),
+        };
+      } catch {
+        // progress.txt doesn't exist or can't be parsed, continue without token data
+      }
+
       const archiveMetadata = {
         archive: {
           timestamp: new Date().toISOString(),
           reason,
           files: archivedFiles,
+          tokenUsage,
         },
         originalMetadata: featureListMetadata || null,
       };
@@ -508,6 +552,9 @@ export class ArchiveManager {
 
       if (!silent) {
         console.log('  ✓ Created archive metadata');
+        if (tokenUsage?.total) {
+          console.log(`  💎 Token usage: ${tokenUsage.total.total.toLocaleString()} total tokens`);
+        }
       }
     } catch (error) {
       if (!silent) {
@@ -521,10 +568,13 @@ export class ArchiveManager {
    * Lists all archive directories in the specified archive directory
    *
    * @param projectDir - The project directory path
-   * @param archiveDir - Archive directory path (defaults to '.runs')
+   * @param archiveDir - Archive directory path (defaults to '.fwdslsh/pace/history')
    * @returns Promise resolving to array of archive information
    */
-  async listArchives(projectDir: string, archiveDir = '.runs'): Promise<ArchiveInfo[]> {
+  async listArchives(
+    projectDir: string,
+    archiveDir = '.fwdslsh/pace/history',
+  ): Promise<ArchiveInfo[]> {
     const archiveBasePath = join(projectDir, archiveDir);
     const archives: ArchiveInfo[] = [];
 
@@ -554,6 +604,7 @@ export class ArchiveManager {
                 reason: metadataData.archive?.reason,
                 files: metadataData.archive?.files,
                 originalMetadata: metadataData.originalMetadata,
+                tokenUsage: metadataData.archive?.tokenUsage,
               };
 
               // Use archive timestamp if available
@@ -628,9 +679,9 @@ export class ArchiveManager {
       }
       return true;
     } catch (error) {
-      // If archiving to .runs fails, try .bak fallback
-      if (!silent) {
-        console.error(`  ✗ Failed to archive to .runs: ${error}`);
+      // If archiving to .fwdslsh/pace/history fails, try .bak fallback
+      if (error instanceof Error) {
+        console.error(`  ✗ Failed to archive to .fwdslsh/pace/history: ${error}`);
         console.log('  ⚠️  Attempting fallback: creating .bak backup');
       }
 
@@ -669,7 +720,7 @@ export class ArchiveManager {
     const {
       projectDir,
       timestamp,
-      archiveDir = '.runs',
+      archiveDir = '.fwdslsh/pace/history',
       force = false,
       silent = false,
       verbose = false,
@@ -893,7 +944,7 @@ export class ArchiveManager {
   async cleanArchives(options: CleanArchivesOptions): Promise<CleanArchivesResult> {
     const {
       projectDir,
-      archiveDir = '.runs',
+      archiveDir = '.fwdslsh/pace/history',
       olderThan,
       keepLast,
       silent = false,
@@ -1128,7 +1179,7 @@ export class ArchiveManager {
     archiveDir?: string;
     verbose?: boolean;
   }): Promise<ArchiveValidationResult> {
-    const { projectDir, archiveName, archiveDir = '.runs', verbose = false } = options;
+    const { projectDir, archiveName, archiveDir = '.fwdslsh/pace/history', verbose = false } = options;
 
     // Initialize validation result
     const result: ArchiveValidationResult = {
@@ -1297,7 +1348,7 @@ export class ArchiveManager {
    * @returns Promise resolving to array of validation results for all archives
    */
   async validateAllArchives(options: ValidateArchiveOptions): Promise<ArchiveValidationResult[]> {
-    const { projectDir, archiveDir = '.runs', verbose = false } = options;
+    const { projectDir, archiveDir = '.fwdslsh/pace/history', verbose = false } = options;
 
     try {
       // Get list of all archives

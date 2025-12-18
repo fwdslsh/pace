@@ -1,5 +1,5 @@
 ---
-description: "Orchestrates multiple consecutive coding sessions to complete a project. Use when you need continuous progress across multiple features without manual intervention. Works within a single context window."
+description: 'Orchestrates multiple consecutive coding sessions to complete a project. Use when you need continuous progress across multiple features without manual intervention. Works within a single context window.'
 mode: subagent
 ---
 
@@ -129,12 +129,17 @@ Sessions completed: N
 Features completed: M
 Current progress: X/Y (Z%)
 
+### Token Usage:
+
+- Total tokens used: X,XXX (Y,YYY in, Z,ZZZ out)
+- Average per session: A,AAA tokens
+
 ### Session Log:
 
-- Session 1: F001 (5 min)
-- Session 2: F002 (8 min)
+- Session 1: F001 (5 min, X,XXX tokens)
+- Session 2: F002 (8 min, Y,YYY tokens)
 - Session 3: F003 blocked on API
-- Session 4: F004 (3 min)
+- Session 4: F004 (3 min, Z,ZZZ tokens)
   ...
 ```
 

@@ -525,11 +525,11 @@ describe('FeatureManager', () => {
 
       await manager.save(initialData);
 
-      // Step 2: Simulate archiving by moving files to .runs directory
+      // Step 2: Simulate archiving by moving files to .fwdslsh/pace/history directory
       const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
       const timestamp = initialData.metadata?.last_updated || '2025-12-15T10:00:00.000Z';
       const normalizedTimestamp = normalizeTimestamp(timestamp);
-      const archivePath = join(testDir, '.runs', normalizedTimestamp);
+      const archivePath = join(testDir, '.fwdslsh/pace/history', normalizedTimestamp);
 
       const featureListPath = join(testDir, 'feature_list.json');
       await moveToArchive(featureListPath, archivePath, 'feature_list.json', testDir);
@@ -590,7 +590,7 @@ describe('FeatureManager', () => {
       const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
       const timestamp = initialData.metadata?.last_updated || '2025-12-15T16:00:00.000Z';
       const normalizedTimestamp = normalizeTimestamp(timestamp);
-      const archivePath = join(testDir, '.runs', normalizedTimestamp);
+      const archivePath = join(testDir, '.fwdslsh/pace/history', normalizedTimestamp);
 
       const featureListPath = join(testDir, 'feature_list.json');
       await moveToArchive(featureListPath, archivePath, 'feature_list.json', testDir);
@@ -629,7 +629,7 @@ describe('FeatureManager', () => {
       expect(next).toBeNull();
     });
 
-    test('multiple archive operations preserve all previous runs', async () => {
+    test('multiple archive operations preserve all previous history', async () => {
       // First feature list
       const firstData: FeatureList = {
         features: [
@@ -655,7 +655,7 @@ describe('FeatureManager', () => {
       const firstTimestamp = normalizeTimestamp(
         firstData.metadata?.last_updated || '2025-12-15T10:00:00.000Z',
       );
-      const firstArchivePath = join(testDir, '.runs', firstTimestamp);
+      const firstArchivePath = join(testDir, '.fwdslsh/pace/history', firstTimestamp);
       await moveToArchive(
         join(testDir, 'feature_list.json'),
         firstArchivePath,
@@ -687,7 +687,7 @@ describe('FeatureManager', () => {
       const secondTimestamp = normalizeTimestamp(
         secondData.metadata?.last_updated || '2025-12-15T11:00:00.000Z',
       );
-      const secondArchivePath = join(testDir, '.runs', secondTimestamp);
+      const secondArchivePath = join(testDir, '.fwdslsh/pace/history', secondTimestamp);
       await moveToArchive(
         join(testDir, 'feature_list.json'),
         secondArchivePath,
@@ -717,8 +717,8 @@ describe('FeatureManager', () => {
       // Verify all archives exist and contain correct data
       const { readFile, readdir } = await import('fs/promises');
 
-      const runsDir = join(testDir, '.runs');
-      const archiveDirs = await readdir(runsDir);
+      const historyDir = join(testDir, '.fwdslsh/pace/history');
+      const archiveDirs = await readdir(historyDir);
       expect(archiveDirs.length).toBe(2);
       expect(archiveDirs).toContain(firstTimestamp);
       expect(archiveDirs).toContain(secondTimestamp);

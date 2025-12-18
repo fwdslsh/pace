@@ -1021,7 +1021,7 @@ Next steps: Continue with remaining features
   });
 
   describe('git integration', () => {
-    test('.runs directory is properly ignored by git when in .gitignore', async () => {
+    test('.fwdslsh/pace/history directory is properly ignored by git when in .gitignore', async () => {
       // Setup: Create a git repository
       await mkdir(testDir, { recursive: true });
       const { exec } = await import('child_process');
@@ -1031,14 +1031,14 @@ Next steps: Continue with remaining features
       // Initialize git repo
       await execAsync('git init', { cwd: testDir });
 
-      // Create .gitignore with .runs/
+      // Create .gitignore with .fwdslsh/pace/history/
       const gitignorePath = join(testDir, '.gitignore');
-      await writeFile(gitignorePath, '.runs/\n');
+      await writeFile(gitignorePath, '.fwdslsh/pace/history/\n');
       await execAsync('git add .gitignore', { cwd: testDir });
       await execAsync('git commit -m "add gitignore"', { cwd: testDir });
 
-      // Create .runs directory with archived files
-      const archiveDir = join(testDir, '.runs', '2025-12-17_10-00-00');
+      // Create .fwdslsh/pace/history directory with archived files
+      const archiveDir = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
       await mkdir(archiveDir, { recursive: true });
       await writeFile(join(archiveDir, 'feature_list.json'), '{"test": true}');
       await writeFile(join(archiveDir, 'progress.txt'), 'Session 1\n');
@@ -1046,20 +1046,20 @@ Next steps: Continue with remaining features
       // Check git status
       const { stdout } = await execAsync('git status --short', { cwd: testDir });
 
-      // Verify: .runs directory is not shown in git status (ignored)
-      expect(stdout).not.toContain('.runs');
+      // Verify: .fwdslsh/pace/history directory is not shown in git status (ignored)
+      expect(stdout).not.toContain('.fwdslsh/pace/history');
       expect(stdout).not.toContain('feature_list.json');
       expect(stdout).not.toContain('progress.txt');
     });
 
-    test('archived files can be committed if .runs is not in .gitignore', async () => {
+    test('archived files can be committed if .fwdslsh/pace/history is not in .gitignore', async () => {
       // Setup: Create a git repository
       await mkdir(testDir, { recursive: true });
       const { exec } = await import('child_process');
       const { promisify } = await import('util');
       const execAsync = promisify(exec);
 
-      // Initialize git repo (no .gitignore for .runs)
+      // Initialize git repo (no .gitignore for .fwdslsh/pace/history)
       await execAsync('git init', { cwd: testDir });
 
       // Create initial commit
@@ -1067,18 +1067,18 @@ Next steps: Continue with remaining features
       await execAsync('git add README.md', { cwd: testDir });
       await execAsync('git commit -m "initial"', { cwd: testDir });
 
-      // Create .runs directory with archived files
-      const archiveDir = join(testDir, '.runs', '2025-12-17_10-00-00');
+      // Create .fwdslsh/pace/history directory with archived files
+      const archiveDir = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
       await mkdir(archiveDir, { recursive: true });
       const featureContent = '{"features": [], "metadata": {"total": 0}}';
       await writeFile(join(archiveDir, 'feature_list.json'), featureContent);
 
       // Add and commit archived files
-      await execAsync('git add .runs/', { cwd: testDir });
+      await execAsync('git add .fwdslsh/pace/history/', { cwd: testDir });
       const { stdout } = await execAsync('git status --short', { cwd: testDir });
 
       // Verify: Archived files appear in git status (can be committed)
-      expect(stdout).toContain('A  .runs/2025-12-17_10-00-00/feature_list.json');
+      expect(stdout).toContain('A  .fwdslsh/pace/history/2025-12-17_10-00-00/feature_list.json');
 
       // Commit the files
       await execAsync('git commit -m "archive committed"', { cwd: testDir });
@@ -1089,10 +1089,10 @@ Next steps: Continue with remaining features
 
       // Verify: Archived file is in the git tree
       const { stdout: lsOutput } = await execAsync('git ls-files', { cwd: testDir });
-      expect(lsOutput).toContain('.runs/2025-12-17_10-00-00/feature_list.json');
+      expect(lsOutput).toContain('.fwdslsh/pace/history/2025-12-17_10-00-00/feature_list.json');
     });
 
-    test('git log functionality works with .runs directory present', async () => {
+    test('git log functionality works with .fwdslsh/pace/history directory present', async () => {
       // Setup: Create a git repository
       await mkdir(testDir, { recursive: true });
       const { exec } = await import('child_process');
@@ -1102,9 +1102,9 @@ Next steps: Continue with remaining features
       // Initialize git repo
       await execAsync('git init', { cwd: testDir });
 
-      // Create .gitignore with .runs/
+      // Create .gitignore with .fwdslsh/pace/history/
       const gitignorePath = join(testDir, '.gitignore');
-      await writeFile(gitignorePath, '.runs/\n');
+      await writeFile(gitignorePath, '.fwdslsh/pace/history/\n');
       await execAsync('git add .gitignore', { cwd: testDir });
       await execAsync('git commit -m "add gitignore"', { cwd: testDir });
 
@@ -1117,8 +1117,8 @@ Next steps: Continue with remaining features
       await execAsync('git add file2.txt', { cwd: testDir });
       await execAsync('git commit -m "commit 2"', { cwd: testDir });
 
-      // Create .runs directory with archived files
-      const archiveDir = join(testDir, '.runs', '2025-12-17_10-00-00');
+      // Create .fwdslsh/pace/history directory with archived files
+      const archiveDir = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
       await mkdir(archiveDir, { recursive: true });
       await writeFile(join(archiveDir, 'feature_list.json'), '{"test": true}');
 
@@ -1131,8 +1131,8 @@ Next steps: Continue with remaining features
       expect(stdout).toContain('commit 1');
       expect(stdout).toContain('add gitignore');
 
-      // Verify: git log doesn't include .runs files (they're ignored)
-      expect(stdout).not.toContain('.runs');
+      // Verify: git log doesn't include .fwdslsh/pace/history files (they're ignored)
+      expect(stdout).not.toContain('.fwdslsh/pace/history');
     });
 
     test('no unexpected git behavior after archiving operations', async () => {
@@ -1145,9 +1145,9 @@ Next steps: Continue with remaining features
       // Initialize git repo
       await execAsync('git init', { cwd: testDir });
 
-      // Create .gitignore with .runs/
+      // Create .gitignore with .fwdslsh/pace/history/
       const gitignorePath = join(testDir, '.gitignore');
-      await writeFile(gitignorePath, '.runs/\nnode_modules/\n');
+      await writeFile(gitignorePath, '.fwdslsh/pace/history/\nnode_modules/\n');
       await execAsync('git add .gitignore', { cwd: testDir });
       await execAsync('git commit -m "initial"', { cwd: testDir });
 
@@ -1157,8 +1157,8 @@ Next steps: Continue with remaining features
       await execAsync('git add feature_list.json progress.txt', { cwd: testDir });
       await execAsync('git commit -m "add files"', { cwd: testDir });
 
-      // Simulate archiving: move files to .runs directory
-      const archiveDir = join(testDir, '.runs', '2025-12-17_10-00-00');
+      // Simulate archiving: move files to .fwdslsh/pace/history directory
+      const archiveDir = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
       await mkdir(archiveDir, { recursive: true });
       const sourceDir = testDir;
       const sourceFile1 = join(sourceDir, 'feature_list.json');
@@ -1173,8 +1173,8 @@ Next steps: Continue with remaining features
       expect(statusOutput).toContain(' D feature_list.json');
       expect(statusOutput).toContain(' D progress.txt');
 
-      // Verify: .runs directory is not shown (ignored)
-      expect(statusOutput).not.toContain('.runs');
+      // Verify: .fwdslsh/pace/history directory is not shown (ignored)
+      expect(statusOutput).not.toContain('.fwdslsh/pace/history');
 
       // Create new feature_list.json and progress.txt
       await writeFile(join(testDir, 'feature_list.json'), '{"new": true}');
@@ -1220,7 +1220,7 @@ describe('resolveUniqueArchivePath', () => {
   test('returns original path when directory does not exist', async () => {
     // Setup: Create test directory structure
     await mkdir(testDir, { recursive: true });
-    const archivePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    const archivePath = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
 
     // Execute: Resolve unique path
     const uniquePath = await resolveUniqueArchivePath(archivePath);
@@ -1232,7 +1232,7 @@ describe('resolveUniqueArchivePath', () => {
   test('appends -1 suffix when directory already exists', async () => {
     // Setup: Create existing archive directory
     await mkdir(testDir, { recursive: true });
-    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    const basePath = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
     await mkdir(basePath, { recursive: true });
 
     // Execute: Resolve unique path
@@ -1245,7 +1245,7 @@ describe('resolveUniqueArchivePath', () => {
   test('appends -2 suffix when both base and -1 exist', async () => {
     // Setup: Create existing archive directories
     await mkdir(testDir, { recursive: true });
-    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    const basePath = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
     await mkdir(basePath, { recursive: true });
     await mkdir(`${basePath}-1`, { recursive: true });
 
@@ -1259,7 +1259,7 @@ describe('resolveUniqueArchivePath', () => {
   test('appends -3 suffix when base, -1, and -2 exist', async () => {
     // Setup: Create multiple existing archive directories
     await mkdir(testDir, { recursive: true });
-    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    const basePath = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
     await mkdir(basePath, { recursive: true });
     await mkdir(`${basePath}-1`, { recursive: true });
     await mkdir(`${basePath}-2`, { recursive: true });
@@ -1274,7 +1274,7 @@ describe('resolveUniqueArchivePath', () => {
   test('handles gaps in suffix sequence', async () => {
     // Setup: Create directories with gap (base and -2 exist, but not -1)
     await mkdir(testDir, { recursive: true });
-    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    const basePath = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
     await mkdir(basePath, { recursive: true });
     await mkdir(`${basePath}-2`, { recursive: true });
     // Note: -1 does not exist
@@ -1289,7 +1289,7 @@ describe('resolveUniqueArchivePath', () => {
   test('handles high suffix numbers (10+)', async () => {
     // Setup: Create 12 archive directories (base + suffixes 1-11)
     await mkdir(testDir, { recursive: true });
-    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    const basePath = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
     await mkdir(basePath, { recursive: true });
 
     for (let i = 1; i <= 11; i++) {
@@ -1314,7 +1314,7 @@ describe('resolveUniqueArchivePath', () => {
     ];
 
     for (const timestamp of timestamps) {
-      const basePath = join(testDir, '.runs', timestamp);
+      const basePath = join(testDir, '.fwdslsh/pace/history', timestamp);
       await mkdir(basePath, { recursive: true });
 
       // Execute: Resolve unique path
@@ -1344,8 +1344,8 @@ describe('resolveUniqueArchivePath', () => {
   test('handles path with existing files (not directories)', async () => {
     // Setup: Create a file with the same name as archive path
     await mkdir(testDir, { recursive: true });
-    await mkdir(join(testDir, '.runs'), { recursive: true });
-    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    await mkdir(join(testDir, '.fwdslsh/pace/history'), { recursive: true });
+    const basePath = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
 
     // Create a file instead of directory
     await writeFile(basePath, 'some content');
@@ -1360,8 +1360,8 @@ describe('resolveUniqueArchivePath', () => {
   test('resolves correctly when parent directory does not exist', async () => {
     // Setup: Don't create parent directory
     await mkdir(testDir, { recursive: true });
-    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
-    // Note: .runs directory doesn't exist yet
+    const basePath = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
+    // Note: .fwdslsh/pace/history directory doesn't exist yet
 
     // Execute: Resolve unique path
     const uniquePath = await resolveUniqueArchivePath(basePath);
@@ -1373,7 +1373,7 @@ describe('resolveUniqueArchivePath', () => {
   test('concurrent resolution returns different paths', async () => {
     // Setup: Create base archive directory
     await mkdir(testDir, { recursive: true });
-    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    const basePath = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
     await mkdir(basePath, { recursive: true });
 
     // Execute: Resolve paths concurrently
@@ -1394,7 +1394,7 @@ describe('resolveUniqueArchivePath', () => {
   test('maintains original path structure (no side effects)', async () => {
     // Setup: Create base archive directory
     await mkdir(testDir, { recursive: true });
-    const basePath = join(testDir, '.runs', '2025-12-17_10-00-00');
+    const basePath = join(testDir, '.fwdslsh/pace/history', '2025-12-17_10-00-00');
     await mkdir(basePath, { recursive: true });
 
     // Execute: Resolve unique path

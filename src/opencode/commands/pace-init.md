@@ -6,10 +6,10 @@ Execute these steps EXACTLY when starting a new long-running project. This is th
 
 ### Archive Directory Structure
 
-Archives are stored in `.runs/` with timestamped subdirectories:
+Archives are stored in `.fwdslsh/pace/history/` with timestamped subdirectories:
 
 ```
-.runs/
+.fwdslsh/pace/history/
 ├── 2025-12-15_17-00-00/
 │   ├── feature_list.json
 │   └── progress.txt
@@ -26,7 +26,7 @@ Archives are stored in `.runs/` with timestamped subdirectories:
 The archive directory name is derived from `metadata.last_updated` in `feature_list.json`:
 
 - **Format:** `YYYY-MM-DD_HH-MM-SS` (UTC timezone)
-- **Example:** `2025-12-15T17:00:00.000Z` → `.runs/2025-12-15_17-00-00/`
+- **Example:** `2025-12-15T17:00:00.000Z` → `.fwdslsh/pace/history/2025-12-15_17-00-00/`
 - **Fallback:** If `metadata.last_updated` is missing or corrupted, the current timestamp is used
 
 ### Files Archived
@@ -36,9 +36,9 @@ The archive directory name is derived from `metadata.last_updated` in `feature_l
 
 ### Error Handling
 
-- If archiving to `.runs/` fails, a `.bak` backup is created as fallback
+- If archiving to `.fwdslsh/pace/history/` fails, a `.bak` backup is created as fallback
 - If both archiving and backup fail, init continues with a warning
-- The `.runs/` directory is automatically created if it doesn't exist
+- The `.fwdslsh/pace/history/` directory is automatically created if it doesn't exist
 - Multiple archives are preserved (no overwrites)
 
 ### Security
@@ -107,7 +107,7 @@ Generate `feature_list.json` in the project root with comprehensive features.
 
 - `last_updated`: ISO 8601 timestamp used for archive directory naming when re-initializing
   - Example: `"2025-12-15T17:00:00.000Z"`
-  - Used to create archive directory: `.runs/2025-12-15_17-00-00/`
+  - Used to create archive directory: `.fwdslsh/pace/history/2025-12-15_17-00-00/`
   - If missing, current timestamp is used as fallback
 
 **Aim for 50-200+ features** depending on project complexity. Be thorough - missing features lead to incomplete implementations.

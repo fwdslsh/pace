@@ -54,6 +54,14 @@ None found.
 
 - Consider extracting `formatDate` to a utility module
 - Add JSDoc comments to exported functions
+
+### Review Session Metrics
+
+💎 **Token Usage:** This review session used approximately X tokens
+💰 **Estimated Cost:** ~$X.XX USD
+
+**Note:** Review sessions typically use fewer tokens than implementation sessions.
+For comparison, check the implementation session tokens in `progress.txt`.
 ```
 
 ## When to Use

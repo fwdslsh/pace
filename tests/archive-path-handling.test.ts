@@ -61,7 +61,7 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
 
       // Verify: Archive directory is inside the deeply nested project dir
       expect(result.archivePath).toContain(deepDir);
-      expect(result.archivePath).toContain('.runs');
+      expect(result.archivePath).toContain('.fwdslsh/pace/history');
 
       // Verify: Archived files exist
       const archivedFeatureList = await readFile(
@@ -112,10 +112,10 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
       // Verify: Archiving succeeded even with very deep path
       expect(result.archived).toBe(true);
       expect(result.archivePath).toContain(deepDir);
-      expect(result.archivePath).toContain('.runs');
+      expect(result.archivePath).toContain('.fwdslsh/pace/history');
 
-      // Verify: .runs directory is created at the correct level
-      expect(result.archivePath).toContain(join(deepDir, '.runs'));
+      // Verify: .fwdslsh/pace/history directory is created at the correct level
+      expect(result.archivePath).toContain(join(deepDir, '.fwdslsh/pace/history'));
     });
 
     test('handles extremely long path name (>250 characters)', async () => {
@@ -143,7 +143,7 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
 
       // Verify: Archiving succeeded even with very long path
       expect(result.archived).toBe(true);
-      expect(result.archivePath).toContain('.runs');
+      expect(result.archivePath).toContain('.fwdslsh/pace/history');
       expect(result.archivedFiles).toContain('feature_list.json');
     });
   });
@@ -349,7 +349,7 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
       expect(result.archived).toBe(true);
       expect(result.archivePath).toContain(projectDir);
 
-      // Verify: .runs directory is in the project directory
+      // Verify: .fwdslsh/pace/history directory is in the project directory
       const resolvedProjectDir = resolve(projectDir);
       const resolvedArchivePath = resolve(result.archivePath!);
       expect(resolvedArchivePath).toContain(resolvedProjectDir);
@@ -433,12 +433,12 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
 
       // Verify: Archive is in the absolute project directory
       expect(result.archivePath).toContain(absoluteProjectDir);
-      expect(result.archivePath).toContain('.runs');
+      expect(result.archivePath).toContain('.fwdslsh/pace/history');
     });
   });
 
-  describe('.runs directory creation in correct location', () => {
-    test('creates .runs in project root (not parent)', async () => {
+  describe('.fwdslsh/pace/history directory creation in correct location', () => {
+    test('creates .fwdslsh/pace/history in project root (not parent)', async () => {
       // Setup: Create project in nested structure
       const parentDir = join(baseTestDir, 'parent');
       const projectDir = join(parentDir, 'my-project');
@@ -460,16 +460,16 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
         silent: true,
       });
 
-      // Verify: .runs is in project directory, not parent
-      expect(result.archivePath).toContain(join(projectDir, '.runs'));
-      expect(result.archivePath).not.toContain(join(parentDir, '.runs'));
+      // Verify: .fwdslsh/pace/history is in project directory, not parent
+      expect(result.archivePath).toContain(join(projectDir, '.fwdslsh/pace/history'));
+      expect(result.archivePath).not.toContain(join(parentDir, '.fwdslsh/pace/history'));
 
       // Verify: Archive path structure is correct
-      const expectedPrefix = join(projectDir, '.runs');
+      const expectedPrefix = join(projectDir, '.fwdslsh/pace/history');
       expect(result.archivePath?.startsWith(expectedPrefix)).toBe(true);
     });
 
-    test('creates .runs in deeply nested project root', async () => {
+    test('creates .fwdslsh/pace/history in deeply nested project root', async () => {
       // Setup: Create deeply nested project
       const deepDir = join(
         baseTestDir,
@@ -498,11 +498,11 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
         silent: true,
       });
 
-      // Verify: .runs is at the project level, not any parent level
-      expect(result.archivePath).toContain(join(deepDir, '.runs'));
+      // Verify: .fwdslsh/pace/history is at the project level, not any parent level
+      expect(result.archivePath).toContain(join(deepDir, '.fwdslsh/pace/history'));
 
-      // Verify: Archive path is exactly <projectDir>/.runs/<timestamp>
-      const archivePathParts = result.archivePath!.split('.runs');
+      // Verify: Archive path is exactly <projectDir>/.fwdslsh/pace/history/<timestamp>
+      const archivePathParts = result.archivePath!.split('.fwdslsh/pace/history');
       expect(archivePathParts[0]).toBe(deepDir + '/');
       expect(archivePathParts[1]).toMatch(/^\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/);
     });
@@ -531,14 +531,14 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
 
       // Verify: Custom archive directory is used
       expect(result.archivePath).toContain(join(projectDir, '.archives'));
-      expect(result.archivePath).not.toContain('.runs');
+      expect(result.archivePath).not.toContain('.fwdslsh/pace/history');
 
       // Verify: Files are archived correctly
       expect(result.archived).toBe(true);
       expect(result.archivedFiles).toContain('feature_list.json');
     });
 
-    test('creates .runs in project root with spaces in path', async () => {
+    test('creates .fwdslsh/pace/history in project root with spaces in path', async () => {
       // Setup: Create project with spaces in path
       const projectDir = join(baseTestDir, 'my project folder', 'workspace');
       await mkdir(projectDir, { recursive: true });
@@ -559,8 +559,8 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
         silent: true,
       });
 
-      // Verify: .runs is in project directory (with correct spacing)
-      expect(result.archivePath).toContain(join(projectDir, '.runs'));
+      // Verify: .fwdslsh/pace/history is in project directory (with correct spacing)
+      expect(result.archivePath).toContain(join(projectDir, '.fwdslsh/pace/history'));
       expect(result.archived).toBe(true);
     });
   });
@@ -608,10 +608,10 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
         silent: true,
       });
 
-      // Verify: All archives are in the same .runs directory
-      expect(result1.archivePath).toContain(join(projectDir, '.runs'));
-      expect(result2.archivePath).toContain(join(projectDir, '.runs'));
-      expect(result3.archivePath).toContain(join(projectDir, '.runs'));
+      // Verify: All archives are in the same .fwdslsh/pace/history directory
+      expect(result1.archivePath).toContain(join(projectDir, '.fwdslsh/pace/history'));
+      expect(result2.archivePath).toContain(join(projectDir, '.fwdslsh/pace/history'));
+      expect(result3.archivePath).toContain(join(projectDir, '.fwdslsh/pace/history'));
 
       // Verify: Archive paths are different (different timestamps)
       expect(result1.archivePath).not.toBe(result2.archivePath);
@@ -621,9 +621,9 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
       // Verify: All use consistent structure
       const archivePaths = [result1.archivePath!, result2.archivePath!, result3.archivePath!];
       for (const archivePath of archivePaths) {
-        // Each should be: <projectDir>/.runs/<timestamp>
-        expect(archivePath.startsWith(join(projectDir, '.runs'))).toBe(true);
-        expect(archivePath).toMatch(/\.runs\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/);
+        // Each should be: <projectDir>/.fwdslsh/pace/history/<timestamp>
+        expect(archivePath.startsWith(join(projectDir, '.fwdslsh/pace/history'))).toBe(true);
+        expect(archivePath).toMatch(/\.fwdslsh\/pace\/history\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/);
       }
     });
 
@@ -705,7 +705,7 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
 
       // Verify: Archive path is clean (no redundant separators)
       expect(result.archivePath).not.toContain('//');
-      expect(result.archivePath).toContain('.runs');
+      expect(result.archivePath).toContain('.fwdslsh/pace/history');
       expect(result.archived).toBe(true);
     });
 
@@ -741,14 +741,14 @@ describe('Archive Path Handling (F029: very long or invalid project directory pa
         silent: true,
       });
 
-      // Verify: Both produce archives in the same .runs directory
-      expect(resolve(result1.archivePath!)).toContain(resolve(projectDir, '.runs'));
-      expect(resolve(result2.archivePath!)).toContain(resolve(projectDir, '.runs'));
+      // Verify: Both produce archives in the same .fwdslsh/pace/history directory
+      expect(resolve(result1.archivePath!)).toContain(resolve(projectDir, '.fwdslsh/pace/history'));
+      expect(resolve(result2.archivePath!)).toContain(resolve(projectDir, '.fwdslsh/pace/history'));
 
       // Verify: Paths are consistent (after normalization)
       const normalizedPath1 = resolve(result1.archivePath!);
       const normalizedPath2 = resolve(result2.archivePath!);
-      expect(normalizedPath1.split('.runs')[0]).toBe(normalizedPath2.split('.runs')[0]);
+      expect(normalizedPath1.split('.fwdslsh/pace/history')[0]).toBe(normalizedPath2.split('.fwdslsh/pace/history')[0]);
     });
   });
 });

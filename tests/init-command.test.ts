@@ -979,13 +979,13 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
 
     const timestamp = initialFeatureList.metadata?.last_updated || new Date().toISOString();
     const normalizedTimestamp = normalizeTimestamp(timestamp);
-    const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+    const archivePath = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp);
 
     // Archive the files manually (simulating what handleInit does)
     await moveToArchive(featureListPath, archivePath, 'feature_list.json');
     await moveToArchive(progressPath, archivePath, 'progress.txt');
 
-    // Step 7: Verify old files are archived to .runs/<timestamp>/
+    // Step 7: Verify old files are archived to .fwdslsh/pace/history/<timestamp>/
     const archivedFeaturePath = join(archivePath, 'feature_list.json');
     const archivedProgressPath = join(archivePath, 'progress.txt');
 
@@ -1168,7 +1168,7 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
     const timestamp = featureList.metadata?.last_updated || new Date().toISOString();
     const normalizedTimestamp = normalizeTimestamp(timestamp);
     expect(normalizedTimestamp).toBe('2025-12-17_14-30-00'); // Verify normalization
-    const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+    const archivePath = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp);
 
     // Archive feature_list.json
     await moveToArchive(featureListPath, archivePath, 'feature_list.json');
@@ -1317,22 +1317,22 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
     expect(result.stdout).toContain('Existing project files found');
     // Step 3: Should print dry-run message with archive path
     expect(result.stdout).toContain('[DRY RUN] Would archive to');
-    expect(result.stdout).toContain('.runs/2025-12-17_10-00-00');
+    expect(result.stdout).toContain('.fwdslsh/pace/history/2025-12-17_10-00-00');
     expect(result.stdout).toContain('feature_list.json');
     expect(result.stdout).toContain('progress.txt');
     expect(result.exitCode).toBe(0);
 
     // Step 4: Don't create directories or move files in dry-run mode
-    // Verify .runs directory was NOT created
-    const runsPath = join(tempDir, '.runs');
-    let runsExists = false;
+    // Verify .fwdslsh/pace/history directory was NOT created
+    const historyPath = join(tempDir, '.fwdslsh/pace/history');
+    let historyExists = false;
     try {
-      await stat(runsPath);
-      runsExists = true;
+      await stat(historyPath);
+      historyExists = true;
     } catch {
-      runsExists = false;
+      historyExists = false;
     }
-    expect(runsExists).toBe(false);
+    expect(historyExists).toBe(false);
 
     // Verify original files still exist at root (not moved)
     const featureStillExists = await stat(featureListPath);
@@ -1388,16 +1388,16 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
     expect(result.stdout).toContain('progress.txt not found');
     expect(result.exitCode).toBe(0);
 
-    // Verify .runs was NOT created
-    const runsPath = join(tempDir, '.runs');
-    let runsExists = false;
+    // Verify .fwdslsh/pace/history was NOT created
+    const historyPath = join(tempDir, '.fwdslsh/pace/history');
+    let historyExists = false;
     try {
-      await stat(runsPath);
-      runsExists = true;
+      await stat(historyPath);
+      historyExists = true;
     } catch {
-      runsExists = false;
+      historyExists = false;
     }
-    expect(runsExists).toBe(false);
+    expect(historyExists).toBe(false);
 
     // Verify original file still exists
     const featureStillExists = await stat(featureListPath);
@@ -1510,7 +1510,7 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
     // Should be within 5 seconds
     expect(timeDiff).toBeLessThan(5000);
 
-    const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+    const archivePath = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp);
 
     // Archive the files
     await moveToArchive(featureListPath, archivePath, 'feature_list.json');
@@ -1573,7 +1573,7 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
     expect(archiveFiles).toContain('progress.txt');
   });
 
-  it('should preserve .runs directory structure across multiple inits', async () => {
+  it('should preserve .fwdslsh/pace/history directory structure across multiple inits', async () => {
     const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
 
     // First archive
@@ -1590,7 +1590,7 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
 
     const timestamp1 = featureList1.metadata?.last_updated || new Date().toISOString();
     const normalizedTimestamp1 = normalizeTimestamp(timestamp1);
-    const archivePath1 = join(tempDir, '.runs', normalizedTimestamp1);
+    const archivePath1 = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp1);
 
     await moveToArchive(featureListPath, archivePath1, 'feature_list.json');
 
@@ -1607,7 +1607,7 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
 
     const timestamp2 = featureList2.metadata?.last_updated || new Date().toISOString();
     const normalizedTimestamp2 = normalizeTimestamp(timestamp2);
-    const archivePath2 = join(tempDir, '.runs', normalizedTimestamp2);
+    const archivePath2 = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp2);
 
     await moveToArchive(featureListPath, archivePath2, 'feature_list.json');
 
@@ -1624,7 +1624,7 @@ describe.skipIf(!sdkAvailable)('Init Command End-to-End Archiving Workflow', () 
 
     const timestamp3 = featureList3.metadata?.last_updated || new Date().toISOString();
     const normalizedTimestamp3 = normalizeTimestamp(timestamp3);
-    const archivePath3 = join(tempDir, '.runs', normalizedTimestamp3);
+    const archivePath3 = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp3);
 
     await moveToArchive(featureListPath, archivePath3, 'feature_list.json');
 
@@ -1716,7 +1716,7 @@ Start implementing F001: User authentication feature.
     // Verify archiving messages appear in output
     expect(result.stdout).toContain('Existing project files found');
     expect(result.stdout).toContain('[DRY RUN] Would archive to');
-    expect(result.stdout).toContain('.runs/2025-12-15_10-00-00');
+    expect(result.stdout).toContain('.fwdslsh/pace/history/2025-12-15_10-00-00');
     expect(result.stdout).toContain('feature_list.json');
     expect(result.stdout).toContain('progress.txt');
     expect(result.exitCode).toBe(0);
@@ -1729,13 +1729,13 @@ Start implementing F001: User authentication feature.
     const normalizedTimestamp = normalizeTimestamp(timestamp);
     expect(normalizedTimestamp).toBe('2025-12-15_10-00-00'); // Verify normalization
 
-    const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+    const archivePath = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp);
 
     // Archive both files
     await moveToArchive(featureListPath, archivePath, 'feature_list.json');
     await moveToArchive(progressPath, archivePath, 'progress.txt');
 
-    // STEP 5: Check .runs/<timestamp>/ directory was created
+    // STEP 5: Check .fwdslsh/pace/history/<timestamp>/ directory was created
     const archiveDirStats = await stat(archivePath);
     expect(archiveDirStats.isDirectory()).toBe(true);
 
@@ -1893,7 +1893,7 @@ Created project after archiving previous run.
     // Simulate archiving behavior that happens during second init
     const timestamp1 = featureList1.metadata?.last_updated || new Date().toISOString();
     const normalizedTimestamp1 = normalizeTimestamp(timestamp1);
-    const archivePath1 = join(tempDir, '.runs', normalizedTimestamp1);
+    const archivePath1 = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp1);
 
     // Archive first set of files
     await moveToArchive(featureListPath, archivePath1, 'feature_list.json');
@@ -1933,7 +1933,7 @@ Created project after archiving previous run.
     // STEP 3: Run init command third time (should archive second files)
     const timestamp2 = featureList2.metadata?.last_updated || new Date().toISOString();
     const normalizedTimestamp2 = normalizeTimestamp(timestamp2);
-    const archivePath2 = join(tempDir, '.runs', normalizedTimestamp2);
+    const archivePath2 = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp2);
 
     // Archive second set of files
     await moveToArchive(featureListPath, archivePath2, 'feature_list.json');
@@ -1967,11 +1967,11 @@ Created project after archiving previous run.
     await writeFile(progressPath, progress3);
 
     // STEP 2: Verify 2 archive directories are created (2nd and 3rd init)
-    const runsDir = join(tempDir, '.runs');
-    const runsDirStats = await stat(runsDir);
-    expect(runsDirStats.isDirectory()).toBe(true);
+    const historyDir = join(tempDir, '.fwdslsh/pace/history');
+    const historyDirStats = await stat(historyDir);
+    expect(historyDirStats.isDirectory()).toBe(true);
 
-    const archiveDirectories = await readdir(runsDir);
+    const archiveDirectories = await readdir(historyDir);
     expect(archiveDirectories).toHaveLength(2);
 
     // Verify archive directories exist
@@ -2147,8 +2147,8 @@ Created project after archiving previous run.
       expect(result.stdout).toContain('[DRY RUN] Would archive to');
     });
 
-    it('should create .runs directory on first upgrade from old installation', async () => {
-      // Simulate upgrading from old installation that never had .runs directory
+    it('should create .fwdslsh/pace/history directory on first upgrade from old installation', async () => {
+      // Simulate upgrading from old installation that never had .fwdslsh/pace/history directory
       const oldFeatureList = {
         features: [
           {
@@ -2169,29 +2169,29 @@ Created project after archiving previous run.
       const featureListPath = join(tempDir, 'feature_list.json');
       await writeFile(featureListPath, JSON.stringify(oldFeatureList, null, 2));
 
-      // Verify .runs doesn't exist yet
-      const runsPath = join(tempDir, '.runs');
-      let runsExists = false;
+      // Verify .fwdslsh/pace/history doesn't exist yet
+      const historyPath = join(tempDir, '.fwdslsh/pace/history');
+      let historyExists = false;
       try {
-        await stat(runsPath);
-        runsExists = true;
+        await stat(historyPath);
+        historyExists = true;
       } catch {
-        runsExists = false;
+        historyExists = false;
       }
-      expect(runsExists).toBe(false);
+      expect(historyExists).toBe(false);
 
       // Simulate archiving (what happens during actual init)
       const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
       const timestamp = new Date().toISOString(); // Fallback timestamp since last_updated is missing
       const normalizedTimestamp = normalizeTimestamp(timestamp);
-      const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+      const archivePath = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp);
 
-      // Move the file - this should create .runs directory automatically
+      // Move the file - this should create .fwdslsh/pace/history directory automatically
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
 
-      // Verify .runs was created
-      const runsStats = await stat(runsPath);
-      expect(runsStats.isDirectory()).toBe(true);
+      // Verify .fwdslsh/pace/history was created
+      const historyStats = await stat(historyPath);
+      expect(historyStats.isDirectory()).toBe(true);
 
       // Verify archive was created
       const archivedFile = join(archivePath, 'feature_list.json');
@@ -2256,7 +2256,7 @@ Created project after archiving previous run.
       const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
       const timestamp = new Date().toISOString(); // Fallback since no last_updated
       const normalizedTimestamp = normalizeTimestamp(timestamp);
-      const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+      const archivePath = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp);
 
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
       await moveToArchive(progressPath, archivePath, 'progress.txt');
@@ -2637,7 +2637,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it('should create .bak fallback when archiving to .runs fails', async () => {
+  it('should create .bak fallback when archiving to .fwdslsh/pace/history fails', async () => {
     // Create a feature_list.json
     const featureList = {
       features: [
@@ -2659,16 +2659,16 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     const featureListPath = join(tempDir, 'feature_list.json');
     await writeFile(featureListPath, JSON.stringify(featureList));
 
-    // Create .runs directory with no write permissions (simulating permission error)
-    const runsDir = join(tempDir, '.runs');
-    await mkdir(runsDir);
-    await chmod(runsDir, 0o444); // Read-only
+    // Create .fwdslsh/pace/history directory with no write permissions (simulating permission error)
+    const historyDir = join(tempDir, '.fwdslsh/pace/history');
+    await mkdir(historyDir, { recursive: true });
+    await chmod(historyDir, 0o444); // Read-only
 
     // Simulate archiving failure and fallback to .bak
     const { normalizeTimestamp } = await import('../src/archive-utils.js');
     const timestamp = featureList.metadata.last_updated;
     const normalizedTimestamp = normalizeTimestamp(timestamp);
-    const archivePath = join(runsDir, normalizedTimestamp);
+    const archivePath = join(historyDir, normalizedTimestamp);
 
     // Try to archive - should fail due to permissions
     try {
@@ -2677,7 +2677,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       // If successful, this test is invalid (permissions worked)
       expect(true).toBe(false);
     } catch {
-      // Expected: archiving to .runs failed
+      // Expected: archiving to .fwdslsh/pace/history failed
       // Now simulate fallback to .bak
       const { copyFile } = await import('fs/promises');
       const bakPath = `${featureListPath}.bak`;
@@ -2693,7 +2693,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       expect(bakContent).toBe(originalContent);
     } finally {
       // Restore permissions for cleanup
-      await chmod(runsDir, 0o755);
+      await chmod(historyDir, 0o755);
     }
   });
 
@@ -2710,10 +2710,10 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     const featureListPath = join(tempDir, 'feature_list.json');
     await writeFile(featureListPath, JSON.stringify(featureList));
 
-    // Create .runs directory with no write permissions
-    const runsDir = join(tempDir, '.runs');
-    await mkdir(runsDir);
-    await chmod(runsDir, 0o444); // Read-only
+    // Create .fwdslsh/pace/history directory with no write permissions
+    const historyDir = join(tempDir, '.fwdslsh/pace/history');
+    await mkdir(historyDir, { recursive: true });
+    await chmod(historyDir, 0o444); // Read-only
 
     // Verify that even if archiving fails, the process can continue
     let archivingFailed = false;
@@ -2721,7 +2721,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
       const timestamp = featureList.metadata.last_updated;
       const normalizedTimestamp = normalizeTimestamp(timestamp);
-      const archivePath = join(runsDir, normalizedTimestamp);
+      const archivePath = join(historyDir, normalizedTimestamp);
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
     } catch {
       archivingFailed = true;
@@ -2744,7 +2744,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     expect(newContent).toContain('New Project');
 
     // Cleanup
-    await chmod(runsDir, 0o755);
+    await chmod(historyDir, 0o755);
   });
 
   it('should handle both archiving and fallback failures gracefully', async () => {
@@ -2767,7 +2767,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
       const timestamp = featureList.metadata.last_updated;
       const normalizedTimestamp = normalizeTimestamp(timestamp);
-      const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+      const archivePath = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp);
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
     } catch {
       archivingFailed = true;
@@ -2795,10 +2795,12 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     await chmod(restrictedDir, 0o755);
   });
 
-  it('should handle missing .runs directory creation failure', async () => {
-    // Create a FILE named .runs (not a directory) to cause mkdir to fail
-    const runsPath = join(tempDir, '.runs');
-    await writeFile(runsPath, 'This is a file, not a directory');
+  it('should handle missing .fwdslsh/pace/history directory creation failure', async () => {
+    // Create a FILE named .fwdslsh/pace/history (not a directory) to cause mkdir to fail
+    const historyPath = join(tempDir, '.fwdslsh/pace/history');
+    await mkdir(join(tempDir, '.fwdslsh/pace'), { recursive: true });
+    await mkdir(join(tempDir, '.fwdslsh/pace'), { recursive: true });
+    await writeFile(historyPath, 'This is a file, not a directory');
 
     const featureList = {
       features: [],
@@ -2807,13 +2809,13 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     const featureListPath = join(tempDir, 'feature_list.json');
     await writeFile(featureListPath, JSON.stringify(featureList));
 
-    // Try to archive - should fail because .runs is a file, not a directory
+    // Try to archive - should fail because .fwdslsh/pace/history is a file, not a directory
     let archivingFailed = false;
     try {
       const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
       const timestamp = featureList.metadata.last_updated;
       const normalizedTimestamp = normalizeTimestamp(timestamp);
-      const archivePath = join(runsPath, normalizedTimestamp);
+      const archivePath = join(historyPath, normalizedTimestamp);
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
     } catch {
       archivingFailed = true;
@@ -2848,9 +2850,10 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     const featureListPath = join(tempDir, 'feature_list.json');
     await writeFile(featureListPath, JSON.stringify(featureList));
 
-    // Make .runs a read-only file (archiving will fail)
-    const runsPath = join(tempDir, '.runs');
-    await writeFile(runsPath, 'file');
+    // Make .fwdslsh/pace/history a read-only file (archiving will fail)
+    await mkdir(join(tempDir, '.fwdslsh/pace'), { recursive: true });
+    const historyPath = join(tempDir, '.fwdslsh/pace/history');
+    await writeFile(historyPath, 'file');
 
     // Simulate archiving failure
     let archivingFailed = false;
@@ -2858,7 +2861,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
       const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
       const timestamp = featureList.metadata.last_updated;
       const normalizedTimestamp = normalizeTimestamp(timestamp);
-      const archivePath = join(runsPath, normalizedTimestamp);
+      const archivePath = join(historyPath, normalizedTimestamp);
       await moveToArchive(featureListPath, archivePath, 'feature_list.json');
     } catch {
       archivingFailed = true;
@@ -2875,9 +2878,9 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     // This demonstrates that failed archiving doesn't corrupt or delete the original
   });
 
-  it('should preserve .runs directory structure across multiple consecutive inits (F008)', async () => {
+  it('should preserve .fwdslsh/pace/history directory structure across multiple consecutive inits (F008)', async () => {
     // This test verifies F008 requirements:
-    // 1. .runs directory is created if it doesn't exist
+    // 1. .fwdslsh/pace/history directory is created if it doesn't exist
     // 2. Each init creates a new timestamped subdirectory
     // 3. Multiple init operations create separate archives
     // 4. Old archives are not overwritten
@@ -2920,7 +2923,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     const firstNormalized = normalizeTimestamp(firstTimestamp);
     expect(firstNormalized).toBe('2025-12-17_10-00-00');
 
-    const firstArchivePath = join(tempDir, '.runs', firstNormalized);
+    const firstArchivePath = join(tempDir, '.fwdslsh/pace/history', firstNormalized);
 
     // Archive first init files
     await moveToArchive(featureListPath, firstArchivePath, 'feature_list.json', tempDir);
@@ -2965,7 +2968,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     const secondNormalized = normalizeTimestamp(secondTimestamp);
     expect(secondNormalized).toBe('2025-12-17_11-30-00');
 
-    const secondArchivePath = join(tempDir, '.runs', secondNormalized);
+    const secondArchivePath = join(tempDir, '.fwdslsh/pace/history', secondNormalized);
 
     // Archive second init files
     await moveToArchive(featureListPath, secondArchivePath, 'feature_list.json', tempDir);
@@ -3002,7 +3005,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     const thirdNormalized = normalizeTimestamp(thirdTimestamp);
     expect(thirdNormalized).toBe('2025-12-17_14-45-00');
 
-    const thirdArchivePath = join(tempDir, '.runs', thirdNormalized);
+    const thirdArchivePath = join(tempDir, '.fwdslsh/pace/history', thirdNormalized);
 
     // Archive third init files
     await moveToArchive(featureListPath, thirdArchivePath, 'feature_list.json', tempDir);
@@ -3042,12 +3045,12 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     await writeFile(featureListPath, JSON.stringify(fourthFeatureList, null, 2));
     await writeFile(progressPath, fourthProgress);
 
-    // ===== VERIFICATION: Check .runs directory structure =====
+    // ===== VERIFICATION: Check .fwdslsh/pace/history directory structure =====
 
-    // 1. Verify .runs directory was created
-    const runsPath = join(tempDir, '.runs');
-    const runsStats = await stat(runsPath);
-    expect(runsStats.isDirectory()).toBe(true);
+    // 1. Verify .fwdslsh/pace/history directory was created
+    const historyPath = join(tempDir, '.fwdslsh/pace/history');
+    const historyStats = await stat(historyPath);
+    expect(historyStats.isDirectory()).toBe(true);
 
     // 2. Verify all three archive subdirectories exist (from inits 1, 2, and 3)
     const firstArchiveStats = await stat(firstArchivePath);
@@ -3118,7 +3121,7 @@ describe('Init Command Archiving Error Handling (F009)', () => {
     expect(uniqueTimestamps.size).toBe(3); // All three timestamps should be unique
 
     // Summary verification for F008:
-    // ✅ 1. .runs directory was created
+    // ✅ 1. .fwdslsh/pace/history directory was created
     // ✅ 2. Each init created a new timestamped subdirectory (3 subdirectories for 3 archives)
     // ✅ 3. Multiple init operations created separate archives (verified 3 separate archives exist)
     // ✅ 4. Old archives were not overwritten (each archive contains its original content)
@@ -3189,8 +3192,8 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
     expect(result.stdout).toContain('Could not read metadata');
 
     // Verify dry-run shows archiving plan
-    expect(result.stdout).toContain('[DRY RUN] Would archive to: .runs/');
-    expect(result.stdout).toMatch(/\.runs\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/);
+    expect(result.stdout).toContain('[DRY RUN] Would archive to: .fwdslsh/pace/history/');
+    expect(result.stdout).toMatch(/\.fwdslsh\/pace\/history\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/);
 
     // ✅ F010 Step 1: Corrupted JSON parsing handled gracefully
     // ✅ F010 Step 2: Fallback timestamp would be used
@@ -3280,7 +3283,7 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
     expect(result.exitCode).toBe(0);
 
     // Verify output shows timestamp-based archive directory
-    const timestampRegex = /\.runs\/(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})/;
+    const timestampRegex = /\.fwdslsh\/pace\/history\/(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})/;
     const match = result.stdout.match(timestampRegex);
     expect(match).toBeTruthy();
 
@@ -3360,10 +3363,10 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
     // F011 Verification Step 1: Print message: 'Existing project files found'
     expect(result.stdout).toContain('Existing project files found');
 
-    // F011 Verification Step 2: Print message: 'Archiving to .runs/<timestamp>/'
+    // F011 Verification Step 2: Print message: 'Archiving to .fwdslsh/pace/history/<timestamp>/'
     // In dry-run mode, it shows "[DRY RUN] Would archive to:"
     expect(result.stdout).toMatch(
-      /\[DRY RUN\] Would archive to:.*\.runs\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/,
+      /\[DRY RUN\] Would archive to:.*\.fwdslsh\/pace\/history\/\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}/,
     );
 
     // F011 Verification Step 3: Print confirmation: 'Archived feature_list.json'
@@ -3415,7 +3418,7 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
     const { normalizeTimestamp, moveToArchive } = await import('../src/archive-utils.js');
     const timestamp = existingFeatureList.metadata?.last_updated || new Date().toISOString();
     const normalizedTimestamp = normalizeTimestamp(timestamp);
-    const archivePath = join(tempDir, '.runs', normalizedTimestamp);
+    const archivePath = join(tempDir, '.fwdslsh/pace/history', normalizedTimestamp);
 
     // STEP 3: Perform archiving and capture console output
     // We can't easily capture console.log from moveToArchive, but we can verify the files
@@ -3484,7 +3487,7 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
    * 1. Create pace.json with custom archiveDir setting
    * 2. Create feature_list.json
    * 3. Run init command (with archiving)
-   * 4. Verify files are archived to custom directory instead of .runs
+   * 4. Verify files are archived to custom directory instead of .fwdslsh/pace/history
    * 5. Verify custom directory structure matches expected format
    */
   it('should use custom archive directory from pace.json config (F025)', async () => {
@@ -3565,14 +3568,14 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
   });
 
   /**
-   * F028: Handle case where .runs already contains conflicting directory
+   * F028: Handle case where .fwdslsh/pace/history already contains conflicting directory
    * Tests conflict resolution when archive directory already exists
    */
   it('should handle archive directory conflicts by appending suffix (F028)', async () => {
-    // STEP 1: Create .runs/<timestamp> directory manually
-    const runsDir = join(tempDir, '.runs');
+    // STEP 1: Create .fwdslsh/pace/history/<timestamp> directory manually
+    const historyDir = join(tempDir, '.fwdslsh/pace/history');
     const baseTimestamp = '2025-12-17_10-00-00';
-    const baseArchivePath = join(runsDir, baseTimestamp);
+    const baseArchivePath = join(historyDir, baseTimestamp);
 
     await mkdir(baseArchivePath, { recursive: true });
     // Add a file to make it a "real" conflict
@@ -3647,9 +3650,9 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
 
   it('should handle multiple conflicts by incrementing suffix (F028)', async () => {
     // Create base directory and first two conflict directories
-    const runsDir = join(tempDir, '.runs');
+    const historyDir = join(tempDir, '.fwdslsh/pace/history');
     const baseTimestamp = '2025-12-17_14-30-00';
-    const baseArchivePath = join(runsDir, baseTimestamp);
+    const baseArchivePath = join(historyDir, baseTimestamp);
 
     await mkdir(baseArchivePath, { recursive: true });
     await mkdir(`${baseArchivePath}-1`, { recursive: true });
@@ -3706,7 +3709,7 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
 
     // Create existing archive directory
     const baseTimestamp = '2025-12-17_16-00-00';
-    const existingArchive = join(tempDir, '.runs', baseTimestamp);
+    const existingArchive = join(tempDir, '.fwdslsh/pace/history', baseTimestamp);
     await mkdir(existingArchive, { recursive: true });
     await writeFile(join(existingArchive, 'old.txt'), 'Existing archive');
 
@@ -3744,14 +3747,14 @@ describe('Init Command Corrupted JSON Handling (F010)', () => {
 
     const result = await manager.archive({
       projectDir: tempDir,
-      archiveDir: '.runs',
+      archiveDir: '.fwdslsh/pace/history',
       dryRun: false,
       silent: true,
     });
 
     // Verify archiving succeeded
     expect(result.archived).toBe(true);
-    expect(result.archivePath).toBe(join(tempDir, '.runs', `${baseTimestamp}-1`));
+    expect(result.archivePath).toBe(join(tempDir, '.fwdslsh/pace/history', `${baseTimestamp}-1`));
     expect(result.archivedFiles).toContain('feature_list.json');
     expect(result.archivedFiles).toContain('progress.txt');
 

@@ -2,7 +2,7 @@
  * validators.ts - Validation logic for feature lists
  */
 
-import type { FeatureList, Priority, ValidationError, ValidationResult } from './types';
+import type { FeatureList, Priority, ValidationError, ValidationResult, TokenUsage } from './types';
 
 const VALID_PRIORITIES: Priority[] = ['critical', 'high', 'medium', 'low'];
 const REQUIRED_FEATURE_FIELDS = ['id', 'category', 'description', 'priority', 'steps', 'passes'];
@@ -180,9 +180,20 @@ export function validateMetadata(
 /**
  * Validate entire feature list
  */
-export function validateFeatureList(data: FeatureList): ValidationResult {
+export function validateFeatureList(
+  data: FeatureList,
+  options?: {
+    includeTokenUsage?: boolean;
+    progressData?: {
+      totals: {
+        tokens: TokenUsage;
+        byFeature: Map<string, { tokens: number; sessions: number }>;
+      };
+    };
+  },
+): ValidationResult {
   const errors: ValidationError[] = [];
-  const stats = {
+  const stats: ValidationResult['stats'] = {
     total: 0,
     passing: 0,
     failing: 0,
@@ -270,6 +281,41 @@ export function validateFeatureList(data: FeatureList): ValidationResult {
     errors.push(...metadataErrors);
   }
 
+  // Add token usage statistics if requested and data is available (F048)
+  if (options?.includeTokenUsage && options.progressData) {
+    const progressData = options.progressData;
+    const tokensByCategory: Record<string, TokenUsage> = {};
+
+    // Aggregate tokens by feature category
+    for (const feature of data.features) {
+      const featureId = feature.id;
+      const category = feature.category || 'uncategorized';
+      const featureTokens = progressData.totals.byFeature.get(featureId);
+
+      if (featureTokens) {
+        if (!tokensByCategory[category]) {
+          tokensByCategory[category] = { input: 0, output: 0, total: 0 };
+        }
+        // Token data is already totaled, just accumulate
+        tokensByCategory[category].total += featureTokens.tokens;
+        // We don't have input/output breakdown by feature, so set to 0
+        tokensByCategory[category].input = 0;
+        tokensByCategory[category].output = 0;
+      }
+    }
+
+    // Calculate average tokens per feature
+    const totalFeatures = stats.total;
+    const averagePerFeature =
+      totalFeatures > 0 ? Math.round(progressData.totals.tokens.total / totalFeatures) : 0;
+
+    stats.tokenUsage = {
+      total: progressData.totals.tokens,
+      byCategory: tokensByCategory,
+      averagePerFeature,
+    };
+  }
+
   return {
     valid: errors.length === 0,
     errors,
@@ -292,6 +338,129 @@ export function formatValidationErrors(errors: ValidationError[]): string {
   }
 
   return lines.join('\n');
+}
+
+/**
+ * Token usage validation result
+ */
+export interface TokenValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  correctedTokens?: TokenUsage;
+}
+
+/**
+ * Validate token usage data integrity (F034)
+ *
+ * @param tokens - Token usage object to validate
+ * @param context - Context for error logging (e.g., session ID, file name)
+ * @returns Validation result with status and details
+ */
+export function validateTokenUsage(
+  tokens: any,
+  context: string = 'unknown',
+): TokenValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  let correctedTokens = { ...tokens };
+
+  // Handle undefined values by setting them to 0
+  const normalizedInput = tokens.input === undefined ? 0 : tokens.input;
+  const normalizedOutput = tokens.output === undefined ? 0 : tokens.output;
+  const normalizedTotal = tokens.total === undefined ? 0 : tokens.total;
+
+  correctedTokens.input = normalizedInput;
+  correctedTokens.output = normalizedOutput;
+  correctedTokens.total = normalizedTotal;
+
+  // Step 1: Check that total = input + output
+  const calculatedTotal = normalizedInput + normalizedOutput;
+  if (normalizedTotal !== calculatedTotal) {
+    errors.push(
+      `${context}: Token total mismatch - expected ${calculatedTotal}, got ${normalizedTotal}`,
+    );
+    correctedTokens.total = calculatedTotal;
+  }
+
+  // Step 2: Warn if token values seem unrealistic
+  if (tokens.input && tokens.input > 1000000) {
+    warnings.push(`${context}: Very high input token count: ${tokens.input.toLocaleString()}`);
+  }
+  if (tokens.output && tokens.output > 500000) {
+    warnings.push(`${context}: Very high output token count: ${tokens.output.toLocaleString()}`);
+  }
+  if (tokens.input && tokens.input < 10) {
+    warnings.push(`${context}: Very low input token count: ${tokens.input}`);
+  }
+  if (tokens.output && tokens.output < 5) {
+    warnings.push(`${context}: Very low output token count: ${tokens.output}`);
+  }
+
+  // Step 3: Handle negative token counts gracefully
+  if (tokens.input !== undefined && tokens.input < 0) {
+    errors.push(`${context}: Negative input token count: ${tokens.input}`);
+    correctedTokens.input = 0;
+  }
+  if (tokens.output !== undefined && tokens.output < 0) {
+    errors.push(`${context}: Negative output token count: ${tokens.output}`);
+    correctedTokens.output = 0;
+  }
+  if (tokens.total !== undefined && tokens.total < 0) {
+    errors.push(`${context}: Negative total token count: ${tokens.total}`);
+    correctedTokens.total = 0;
+  }
+
+  // Recalculate total after fixing negative values
+  if (errors.some((e) => e.includes('Negative'))) {
+    correctedTokens.total = correctedTokens.input + correctedTokens.output;
+  }
+
+  // Step 4: Validate data types and special values
+  if (tokens.input !== undefined) {
+    if (typeof tokens.input !== 'number' || isNaN(tokens.input) || !isFinite(tokens.input)) {
+      errors.push(
+        `${context}: Input tokens must be a finite number, got ${tokens.input} (${typeof tokens.input})`,
+      );
+      correctedTokens.input = 0;
+    }
+  }
+  if (tokens.output !== undefined) {
+    if (typeof tokens.output !== 'number' || isNaN(tokens.output) || !isFinite(tokens.output)) {
+      errors.push(
+        `${context}: Output tokens must be a finite number, got ${tokens.output} (${typeof tokens.output})`,
+      );
+      correctedTokens.output = 0;
+    }
+  }
+  if (tokens.total !== undefined) {
+    if (typeof tokens.total !== 'number' || isNaN(tokens.total) || !isFinite(tokens.total)) {
+      errors.push(
+        `${context}: Total tokens must be a finite number, got ${tokens.total} (${typeof tokens.total})`,
+      );
+      correctedTokens.total = 0;
+    }
+  }
+
+  // Log validation errors for debugging
+  if (errors.length > 0 || warnings.length > 0) {
+    console.log(`🔍 Token validation for ${context}:`);
+    if (errors.length > 0) {
+      console.log(`❌ Errors: ${errors.join('; ')}`);
+    }
+    if (warnings.length > 0) {
+      console.log(`⚠️  Warnings: ${warnings.join('; ')}`);
+    }
+  }
+
+  const hasCorrections = JSON.stringify(tokens) !== JSON.stringify(correctedTokens);
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings,
+    correctedTokens: hasCorrections ? correctedTokens : undefined,
+  };
 }
 
 /**
@@ -325,6 +494,27 @@ export function formatValidationStats(stats: ValidationResult['stats']): string 
     for (const pri of priorityOrder) {
       if (stats.byPriority[pri] > 0) {
         lines.push(`    ${pri}: ${stats.byPriority[pri]}`);
+      }
+    }
+  }
+
+  if (stats.tokenUsage) {
+    const { total, byCategory, averagePerFeature } = stats.tokenUsage;
+    lines.push('');
+    lines.push('💎 Token Usage (Project Lifetime):');
+    lines.push(
+      `  Total: ${total.input.toLocaleString()} input, ${total.output.toLocaleString()} output (${total.total.toLocaleString()} total)`,
+    );
+    lines.push(`  Average per feature: ${averagePerFeature.toLocaleString()} tokens`);
+
+    const hasCategories = Object.keys(byCategory).length > 0;
+    if (hasCategories) {
+      lines.push('');
+      lines.push('  By Category:');
+      for (const [cat, tokens] of Object.entries(byCategory).sort()) {
+        if (tokens.total > 0) {
+          lines.push(`    ${cat}: ${tokens.total.toLocaleString()} tokens`);
+        }
       }
     }
   }

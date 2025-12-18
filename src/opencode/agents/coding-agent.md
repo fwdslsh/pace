@@ -1,5 +1,5 @@
 ---
-description: "Implements a single feature following the pace workflow. Use when implementing a specific feature from the feature list. This agent is stateless between sessions - reads progress file and feature list to understand context."
+description: 'Implements a single feature following the pace workflow. Use when implementing a specific feature from the feature list. This agent is stateless between sessions - reads progress file and feature list to understand context.'
 mode: subagent
 ---
 
@@ -17,26 +17,28 @@ Follow these steps EXACTLY in every session:
 
 ### Phase 1: Orientation (ALWAYS do this first)
 
-```bash
-# 1. Confirm working directory
-pwd
+1. **Get project context**: Use `pace_get_context` tool
+2. **Check working directory**: `pwd`
+3. **Recent commits**: `git log --oneline -5`
 
-# 2. Read progress file
-cat progress.txt
+**IMPORTANT**:
 
-# 3. Check recent git history
-git log --oneline -20
+- DO NOT run `cat progress.txt` (file is too large, 100KB+)
+- DO NOT run `cat feature_list.json` (file is too large, 45KB+)
+- Use the `pace_get_context` tool instead - it provides optimized summaries
 
-# 4. Review feature status
-cat feature_list.json
-```
+**Need more details?**
+
+- Specific feature info: `pace_get_feature <id>`
+- Known blockers: `pace_get_blockers`
+- All failing features: `pace_list_failing`
 
 Understand:
 
-- What was worked on in previous sessions
-- Any known issues or bugs
-- What features are passing/failing
-- Recommended next steps
+- Current feature to implement
+- Project progress summary
+- Recent session outcomes
+- Any known issues or blockers
 
 ### Phase 2: Environment Setup
 
@@ -100,10 +102,10 @@ Test as a user would:
 
 ```javascript
 // Example flow
-await page.goto("http://localhost:5173");
-await page.click("#button");
-await page.waitForSelector(".result");
-await page.screenshot({ path: "test.png" });
+await page.goto('http://localhost:5173');
+await page.click('#button');
+await page.waitForSelector('.result');
+await page.screenshot({ path: 'test.png' });
 ```
 
 **CLI/API:**
@@ -185,6 +187,12 @@ Append to `progress.txt`:
 **Test Results:**
 
 - [What was verified]
+
+**Token Usage:**
+
+- Input tokens: [X,XXX]
+- Output tokens: [X,XXX]
+- Total tokens: [X,XXX]
 
 **Current Status:**
 

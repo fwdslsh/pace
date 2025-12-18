@@ -7,14 +7,15 @@ A Bun/TypeScript workflow orchestrator built on the **OpenCode SDK** for maximum
 ## Features
 
 - **Built on OpenCode SDK**: Full access to OpenCode's capabilities including custom agents, plugins, and model selection
+- **Token Usage Tracking**: Monitor input, output, and total tokens consumed by each session with cost awareness
 - **Configurable via pace.json**: Customize models, agents, orchestration behavior, and permissions
 - **Full Visibility**: Stream all messages, tool uses, and results from agent sessions
 - **Automatic Feature Progression**: Works through features in priority order
 - **Session Management**: Configurable session limits, failure thresholds, and delays
 - **Progress Tracking**: Monitors feature completion and provides detailed statistics
 - **Project Archiving**: Automatically archives existing project files when re-initializing, preserving previous work in timestamped directories
-- **Rich Output**: Shows system messages, assistant responses, tool executions, and results
-- **JSON Output**: Machine-readable output for scripting and CI/CD integration
+- **Rich Output**: Shows system messages, assistant responses, tool executions, and results with token metrics
+- **JSON Output**: Machine-readable output for scripting and CI/CD integration including token data
 - **Comprehensive Testing**: Full test suite with 100+ tests covering all functionality
 
 ## Installation
@@ -116,6 +117,23 @@ pace status --verbose
 pace status --json   # JSON output for scripting
 ```
 
+The status command displays token usage information:
+
+- Last session token consumption
+- Cumulative token usage across all sessions
+- Token data extracted from progress.txt with proper formatting
+
+Example status output:
+
+```
+Progress: 12/15 features passing (80.0%)
+💎 Token Usage:
+  Last Session: 2,345 input, 8,901 output (11,246 total)
+  All Sessions: 45,678 input, 123,456 output (169,134 total)
+```
+
+> **For comprehensive examples of token usage output across all commands**, see [Token Usage Examples](docs/token-usage-examples.md) for detailed documentation.
+
 **Validate feature list:**
 
 ```bash
@@ -215,13 +233,13 @@ When you run `pace init` in a directory that already contains project files (`fe
 **When Archiving Occurs:**
 
 - Running `pace init` when `feature_list.json` already exists
-- Files are moved to `.runs/<timestamp>/` before new initialization
+- Files are moved to `.fwdslsh/pace/history/<timestamp>/` before new initialization
 - Previous project state is preserved for reference or recovery
 
 **Archive Directory Structure:**
 
 ```
-.runs/
+.fwdslsh/pace/history/
 ├── 2025-12-15_17-00-00/
 │   ├── feature_list.json
 │   └── progress.txt
@@ -247,7 +265,7 @@ $ pace init -p "Build a todo app"
 # Later, start a new project in the same directory
 $ pace init -p "Build an inventory system"
 📂 Existing project files found
-📦 Archiving to .runs/2025-12-15_17-00-00/
+📦 Archiving to .fwdslsh/pace/history/2025-12-15_17-00-00/
 ✓ Archived feature_list.json
 ✓ Archived progress.txt
 ✓ Created feature_list.json (75 features)
@@ -255,7 +273,7 @@ $ pace init -p "Build an inventory system"
 ✓ Created init.sh
 ```
 
-The `.runs/` directory is automatically added to `.gitignore` to prevent archived runs from being committed to version control, though you can customize this behavior if you want to track your project history.
+The `.fwdslsh/pace/history/` directory is automatically added to `.gitignore` to prevent archived runs from being committed to version control, though you can customize this behavior if you want to track your project history.
 
 **Customizing Archive Directory:**
 
@@ -269,7 +287,7 @@ You can configure a custom archive directory by adding an `archiveDir` setting t
 }
 ```
 
-With this configuration, archives will be stored in `.archives/<timestamp>/` instead of the default `.runs/<timestamp>/`. This is useful if you want to:
+With this configuration, archives will be stored in `.archives/<timestamp>/` instead of the default `.fwdslsh/pace/history/<timestamp>/`. This is useful if you want to:
 
 - Use a more descriptive directory name
 - Keep archives in a different location
@@ -314,6 +332,10 @@ Session Summary:
   Duration: 45.3s
   Tool calls: 23
   Feature completed: Yes
+  💎 Token Usage:
+    Input: 1,234
+    Output: 5,678
+    Total: 6,912
 ------------------------------------------------------------
 ```
 
@@ -327,6 +349,11 @@ Sessions run: 5
 Features completed: 4
 Final progress: 12/15 (80.0%)
 Total time: 5m 23s
+💎 Token Usage:
+  Total Input: 12,345
+  Total Output: 45,678
+  Total Combined: 58,023
+  Average per Session: 11,605
 Complete: No
 ============================================================
 ```
@@ -367,6 +394,26 @@ Pace uses the same configuration format as OpenCode, extended with a `pace` sect
       "maxSessions": 50,
       "maxFailures": 5,
       "sessionDelay": 5000
+    },
+    "tokenTracking": {
+      "enabled": true,
+      "display": {
+        "enabled": true,
+        "useAverageBasedThresholds": true,
+        "averageMultiplierWarning": 1.5,
+        "averageMultiplierCritical": 2.0
+      },
+      "budget": {
+        "enabled": true,
+        "maxTokens": 100000,
+        "warningThreshold": 0.8,
+        "criticalThreshold": 0.95
+      },
+      "costs": {
+        "enabled": true,
+        "currency": "USD",
+        "precision": 4
+      }
     }
   }
 }
@@ -382,8 +429,111 @@ The configuration uses OpenCode's schema with these additions:
   - **orchestrator.maxSessions**: Maximum sessions to run
   - **orchestrator.maxFailures**: Stop after N consecutive failures
   - **orchestrator.sessionDelay**: Delay between sessions (ms)
+  - **tokenTracking**: Token usage tracking configuration
+    - **enabled**: Master toggle for all token tracking features (default: `true`)
+    - **display**: Visual indicator settings
+      - **enabled**: Show token usage in output (default: `true`)
+      - **useAverageBasedThresholds**: Calculate warning thresholds based on session average (default: `true`)
+      - **averageMultiplierWarning**: Average multiplier for warning indicator (default: `1.5`)
+      - **averageMultiplierCritical**: Average multiplier for critical indicator (default: `2.0`)
+    - **budget**: Token budget limits and warnings
+      - **enabled**: Enable budget tracking (default: `false`)
+      - **maxTokens**: Maximum tokens allowed per session
+      - **warningThreshold**: Percentage threshold for warnings (default: `0.8`)
+      - **criticalThreshold**: Percentage threshold for critical warnings (default: `0.95`)
+    - **costs**: Cost calculation settings
+      - **enabled**: Enable cost estimation (default: `true`)
+      - **currency**: Display currency (default: `"USD"`)
+      - **precision**: Decimal places for cost display (default: `4`)
 
 CLI arguments override config file settings.
+
+### Token Tracking Configuration
+
+The `tokenTracking` section provides centralized control over all token usage monitoring features. This unified configuration replaces the legacy `costs`, `budget`, and `tokenDisplay` fields (which are still supported for backward compatibility).
+
+**Key Features:**
+
+- **Unified Configuration**: All token-related settings in one place
+- **Granular Control**: Enable/disable specific features independently
+- **Smart Defaults**: Works out-of-box with sensible defaults
+- **Backward Compatible**: Legacy config fields automatically merged
+
+**Common Use Cases:**
+
+1. **Enable Budget Tracking** - Set token limits to control costs:
+
+```json
+{
+  "pace": {
+    "tokenTracking": {
+      "budget": {
+        "enabled": true,
+        "maxTokens": 50000,
+        "warningThreshold": 0.75,
+        "criticalThreshold": 0.9
+      }
+    }
+  }
+}
+```
+
+2. **Disable Token Display** - Hide token metrics from output:
+
+```json
+{
+  "pace": {
+    "tokenTracking": {
+      "display": {
+        "enabled": false
+      }
+    }
+  }
+}
+```
+
+3. **Custom Cost Precision** - Adjust cost calculation display:
+
+```json
+{
+  "pace": {
+    "tokenTracking": {
+      "costs": {
+        "enabled": true,
+        "currency": "USD",
+        "precision": 2
+      }
+    }
+  }
+}
+```
+
+4. **Disable All Token Tracking** - Turn off all token features:
+
+```json
+{
+  "pace": {
+    "tokenTracking": {
+      "enabled": false
+    }
+  }
+}
+```
+
+**Configuration Merging:**
+
+If you have existing `costs`, `budget`, or `tokenDisplay` fields in your config, they will be automatically merged with `tokenTracking` settings. The `tokenTracking` values take precedence:
+
+```json
+{
+  "pace": {
+    "budget": { "maxTokens": 10000 }, // Legacy field
+    "tokenTracking": {
+      "budget": { "maxTokens": 20000 } // Takes precedence
+    }
+  }
+}
+```
 
 ## OpenCode Plugin
 
@@ -467,9 +617,34 @@ Pace is built on the OpenCode SDK, which provides:
 
 - **Embedded Server**: Spawns its own OpenCode server instance
 - **Event Streaming**: Real-time monitoring via Server-Sent Events
-- **Session Metrics**: Tracks tool calls, duration, and success rates
+- **Session Metrics**: Tracks tool calls, duration, success rates, and token usage
 - **Self-Contained**: No external dependencies required
 - **Flexible Backend**: Support for multiple AI providers
+
+### Token Usage Tracking
+
+Pace automatically tracks token consumption from OpenCode SDK sessions using:
+
+- **SDK Events**: Extracts token counts from `message.part.updated` and `step-finish` events
+- **Session Aggregation**: Calculates per-session and cumulative token totals
+- **Progress Persistence**: Writes token metrics to `progress.txt` for historical tracking
+- **Multiple Display Formats**: Shows tokens in console output, JSON, and status commands
+
+**SDK Version Requirements:**
+
+- OpenCode SDK v1.0.152+ recommended for full token tracking support
+- Automatic fallback for SDK versions without token data with helpful messaging
+- Token data gracefully handled when unavailable (no errors or crashes)
+
+**Token Data Structure:**
+
+```typescript
+interface TokenUsage {
+  input: number; // Input prompt tokens
+  output: number; // Generated response tokens
+  total: number; // Combined total (input + output)
+}
+```
 
 ### Agent Workflow
 

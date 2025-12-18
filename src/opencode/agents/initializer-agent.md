@@ -90,6 +90,7 @@ A progress log documenting what has been done and what comes next.
 - Technology stack
 - File structure created
 - First commit information
+- Token usage (input, output, total)
 - Recommended next steps
 
 ### 4. Git Repository

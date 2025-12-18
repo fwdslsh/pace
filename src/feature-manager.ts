@@ -5,7 +5,8 @@
 import { readFile, writeFile, copyFile } from 'fs/promises';
 import { join } from 'path';
 
-import type { Feature, FeatureList, Priority } from './types';
+import type { Feature, FeatureList, Priority, TokenUsage } from './types';
+import { ProgressParser } from './progress-parser';
 
 /**
  * Priority ordering constant used for sorting features
@@ -71,9 +72,10 @@ export class FeatureManager {
    * Automatically updates metadata counts before saving.
    * @param data - The FeatureList to save
    * @param backup - Whether to create a .bak backup file (default: true)
+   * @param tokenUsage - Optional total project token usage to save in metadata
    * @returns A promise that resolves when the file is saved
    */
-  async save(data: FeatureList, backup: boolean = true): Promise<void> {
+  async save(data: FeatureList, backup: boolean = true, tokenUsage?: TokenUsage): Promise<void> {
     const filePath = this.getFeatureFilePath();
 
     if (backup) {
@@ -84,16 +86,16 @@ export class FeatureManager {
       }
     }
 
-    // Update metadata
-    const updatedData = this.updateMetadata(data);
+    const updatedData = this.updateMetadata(data, tokenUsage);
 
-    await writeFile(filePath, JSON.stringify(updatedData, null, 2) + '\n');
+    await writeFile(filePath, JSON.stringify(updatedData) + '\n');
   }
 
   /**
    * Update metadata counts based on features
+   * Optionally includes token_usage if provided
    */
-  private updateMetadata(data: FeatureList): FeatureList {
+  private updateMetadata(data: FeatureList, tokenUsage?: TokenUsage): FeatureList {
     const passing = data.features.filter((f) => f.passes).length;
     const failing = data.features.filter((f) => !f.passes).length;
     const total = data.features.length;
@@ -106,6 +108,7 @@ export class FeatureManager {
         passing,
         failing,
         last_updated: new Date().toISOString(),
+        ...(tokenUsage && { token_usage: tokenUsage }),
       },
     };
   }

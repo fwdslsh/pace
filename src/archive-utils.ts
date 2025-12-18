@@ -168,7 +168,7 @@ function getFallbackTimestamp(): string {
  *
  * @example
  * ```typescript
- * isPathWithinDirectory("/project/.runs/archive", "/project")  // Returns: true
+ * isPathWithinDirectory("/project/.fwdslsh/pace/history/archive", "/project")  // Returns: true
  * isPathWithinDirectory("/etc/passwd", "/project")             // Returns: false
  * isPathWithinDirectory("/project/../etc", "/project")         // Returns: false
  * ```
@@ -203,17 +203,17 @@ async function isPathWithinDirectory(destPath: string, parentPath: string): Prom
  * If the archive directory already exists, this function appends a suffix (-1, -2, etc.)
  * to create a unique directory name.
  *
- * @param baseArchivePath - The base archive directory path (e.g., ".runs/2025-12-15_17-00-00")
+ * @param baseArchivePath - The base archive directory path (e.g., '.fwdslsh/pace/history/2025-12-15_17-00-00")
  * @returns A promise that resolves to a unique archive directory path
  *
  * @example
  * ```typescript
- * // If .runs/2025-12-15_17-00-00 exists:
- * await resolveUniqueArchivePath('.runs/2025-12-15_17-00-00')
- * // Returns: '.runs/2025-12-15_17-00-00-1'
+ * // If .fwdslsh/pace/history/2025-12-15_17-00-00 exists:
+ * await resolveUniqueArchivePath('.fwdslsh/pace/history/2025-12-15_17-00-00')
+ * // Returns: '.fwdslsh/pace/history/2025-12-15_17-00-00-1'
  *
  * // If both -1 and -2 exist:
- * // Returns: '.runs/2025-12-15_17-00-00-3'
+ * // Returns: '.fwdslsh/pace/history/2025-12-15_17-00-00-3'
  * ```
  */
 export async function resolveUniqueArchivePath(baseArchivePath: string): Promise<string> {
@@ -257,8 +257,8 @@ export async function resolveUniqueArchivePath(baseArchivePath: string): Promise
  *
  * @example
  * ```typescript
- * await moveToArchive('./feature_list.json', './.runs/2025-12-15_17-00-00', 'feature_list.json');
- * // Moves file to ./.runs/2025-12-15_17-00-00/feature_list.json
+ * await moveToArchive('./feature_list.json', './.fwdslsh/pace/history/2025-12-15_17-00-00', 'feature_list.json');
+ * // Moves file to ./.fwdslsh/pace/history/2025-12-15_17-00-00/feature_list.json
  * ```
  */
 export async function moveToArchive(
