@@ -1,0 +1,36 @@
+{
+  "description": "PACE Orchestrator hooks for autonomous loop continuation",
+  "hooks": {
+    "SubagentStop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"\nimport json\nimport sys\n\ntry:\n    with open('feature_list.json', 'r') as f:\n        data = json.load(f)\n    \n    features = data.get('features', [])\n    passing = sum(1 for f in features if f.get('passes'))\n    total = len(features)\n    failing = [f for f in features if not f.get('passes')]\n    \n    if not failing:\n        # All complete - allow stop\n        print(f'All {total} features complete!')\n        sys.exit(0)\n    else:\n        # More work needed - block stop and continue\n        priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}\n        failing.sort(key=lambda x: priority_order.get(x.get('priority', 'low'), 4))\n        next_feature = failing[0]\n        print(f'Continue to next feature: {next_feature[\\\"id\\\"]} - {next_feature[\\\"description\\\"][:50]}', file=sys.stderr)\n        sys.exit(2)  # Exit 2 = block and send stderr to Claude\nexcept Exception as e:\n    print(f'Hook error: {e}')\n    sys.exit(0)  # Allow stop on error\n\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"\nimport json\nimport os\n\n# Only check if we just wrote to feature_list.json\nif os.path.exists('feature_list.json'):\n    try:\n        with open('feature_list.json', 'r') as f:\n            data = json.load(f)\n        passing = sum(1 for f in data.get('features', []) if f.get('passes'))\n        total = len(data.get('features', []))\n        print(f'Progress: {passing}/{total} features ({passing/total*100:.1f}%)' if total else '')\n    except:\n        pass\n\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "usage": {
+    "install": "Copy hooks configuration to .claude/settings.json or merge with existing settings",
+    "behavior": {
+      "SubagentStop": "Prevents the orchestrator from stopping until all features pass",
+      "PostToolUse": "Shows progress after each file write to feature_list.json"
+    }
+  }
+}
