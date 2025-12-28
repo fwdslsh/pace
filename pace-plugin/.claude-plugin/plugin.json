@@ -1,0 +1,15 @@
+{
+  "name": "pace",
+  "version": "1.0.0",
+  "description": "PACE (Pragmatic Agent for Compounding Engineering) - Autonomous feature orchestration plugin that implements features from feature_list.json in a continuous loop until completion",
+  "author": "PACE Team",
+  "license": "MIT",
+  "keywords": [
+    "orchestration",
+    "features",
+    "automation",
+    "continuous-development",
+    "agent-coordination"
+  ],
+  "minimumVersion": "1.0.0"
+}
